@@ -28,5 +28,6 @@ class Experiment:
                          file_name=self.experiment_name+DATAFILENAME,
                          file_path=file_path)
     
-    def solve_inverse(self,datafile_path='')
+    def solve_inverse(self,datafile_path=''):
+        pass
         

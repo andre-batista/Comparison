@@ -102,9 +102,9 @@ class Model:
         if PRINT_INFO:
             print('==========================================================')
             print('Method of Moments (MoM)\nConjugate Gradient-Fast Fourier Trasnsform (CG-FFT)')
-        if simulation_name is not None:
+        if PRINT_INFO and simulation_name is not None:
             print('Model name: ' + simulation_name)
-        elif self.model_name is not None:
+        elif PRINT_INFO and self.model_name is not None:
             print('Model name: ' + self.model_name)
 
         if frequencies is None and self.f is None:
@@ -236,18 +236,27 @@ class Model:
                        
             Et = Et + self.Ei
             
-        if save:
-            if simulation_name is not None:
-                self.__save_simulation_data(Esc_z,Et,epsilon_r,sigma,
-                                            simulation_name,file_path)
+            if MONO_FREQUENCY:
+                self.Et = np.copy(Et.reshape((Nx,Ny,L)))
             else:
-                self.__save_simulation_data(Esc_z,Et,epsilon_r,sigma,
-                                            self.model_name,file_path)
-        
-        if MONO_FREQUENCY:
-            self.Et = np.copy(Et.reshape((Nx,Ny,L)))
-        else:
-            self.Et = np.copy(Et.reshape((Nx,Ny,L,F)))
+                self.Et = np.copy(Et.reshape((Nx,Ny,L,F)))
+            
+        if save:
+            if COMPUTE_INTERN_FIELD:
+                if simulation_name is not None:
+                    self.__save_simulation_data(Esc_z,epsilon_r,sigma,
+                                                simulation_name,file_path,Et=Et)
+                else:
+                    self.__save_simulation_data(Esc_z,epsilon_r,sigma,
+                                                self.model_name,file_path,Et=Et)
+            else:
+                if simulation_name is not None:
+                    self.__save_simulation_data(Esc_z,epsilon_r,sigma,
+                                                simulation_name,file_path)
+                else:
+                    self.__save_simulation_data(Esc_z,epsilon_r,sigma,
+                                                self.model_name,file_path)
+
         
         return Esc_z
         
@@ -453,13 +462,16 @@ class Model:
             'relative_permittivity_background':self.epsilon_rb,
             'conductivity_background':self.sigma_b,
             'measurement_coordinates_x':self.xm,
-            'measurement_coordinates_y':self.ym
+            'measurement_coordinates_y':self.ym,
+            'frequency':self.f,
+            'Nx':self.Nx, 'Ny':self.Ny,
+            'incident_field_magnitude':self.E0
         }
         
         with open(file_path + file_name,'wb') as datafile:
             pickle.dump(data,datafile)
         
-    def __save_simulation_data(self,Es,Et,epsilon_r,sigma,filename,filepath):
+    def __save_simulation_data(self,Es,epsilon_r,sigma,filename,filepath,Et=None):
         """ Save simulation data in a pickle file."""
         
         data = {
