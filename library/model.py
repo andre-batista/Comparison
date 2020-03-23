@@ -237,9 +237,9 @@ class Model:
             Et = Et + self.Ei
             
             if MONO_FREQUENCY:
-                self.Et = np.copy(Et.reshape((Nx,Ny,L)))
+                self.Et = np.copy(Et)
             else:
-                self.Et = np.copy(Et.reshape((Nx,Ny,L,F)))
+                self.Et = np.copy(Et)
             
         if save:
             if COMPUTE_INTERN_FIELD:
@@ -490,6 +490,11 @@ class Model:
                          frequency_index=None,source_index=None):
         """ Plot the fields from last simulation."""
         
+        if isinstance(self.f,float):
+            et = np.reshape(self.Et,(self.Nx,self.Ny,self.domain.L))
+        else:
+            et = np.reshape(self.Et,(self.Nx,self.Ny,self.domain.L,self.f.size))
+        
         xmin, xmax = get_bounds(self.domain.Lx)
         ymin, ymax = get_bounds(self.domain.Ly)
         lambda_b = get_wavelength(self.f,epsilon_r=self.epsilon_rb)
@@ -499,7 +504,7 @@ class Model:
       
         if frequency_index is not None and source_index is not None:
             
-            plt.imshow(np.abs(self.Et[:,:,source_index,frequency_index]),
+            plt.imshow(np.abs(et[:,:,source_index,frequency_index]),
                        extent=[xmin[frequency_index],xmax[frequency_index],
                                ymin[frequency_index],ymax[frequency_index]])
             plt.title('Intern field, Source = %d' %(source_index+1) 
@@ -513,7 +518,7 @@ class Model:
              
         elif source_index is not None and isinstance(self.f,float):
             
-            plt.imshow(np.abs(self.Et[:,:,source_index]),
+            plt.imshow(np.abs(et[:,:,source_index]),
                        extent=[xmin,xmax,ymin,ymax])
             plt.title('Intern field, Source = %d' %(source_index+1) 
                        + ', Frequency = %.3f' %(self.f/1e9) + ' [GHz]')
@@ -532,8 +537,8 @@ class Model:
                 ax = fig.add_subplot(nrow, ncol, ifig+1)
                 fig.subplots_adjust(left=.125, bottom=.1, right=.9, top=.9, 
                                     wspace=.9, hspace=.2)
-                temp = ax.imshow(np.abs(self.Et[:,:,ifig]),extent=[xmin,xmax,
-                                                                   ymin,ymax])
+                temp = ax.imshow(np.abs(et[:,:,ifig]),extent=[xmin,xmax,
+                                                              ymin,ymax])
                 ax.set_xlabel(r'x [$\lambda_b$]')
                 ax.set_ylabel(r'y [$\lambda_b$]')
                 cbar = plt.colorbar(ax=ax,mappable=temp,fraction=0.046,pad=0.04)
@@ -552,7 +557,7 @@ class Model:
                     ax = fig[-1].add_subplot(nrow, ncol, ifig+1)
                     fig[-1].subplots_adjust(left=.125, bottom=.1, right=.9, 
                                             top=.9, wspace=.9, hspace=.2)
-                    temp = ax.imshow(np.abs(self.Et[:,:,ifig,f]),extent=
+                    temp = ax.imshow(np.abs(et[:,:,ifig,f]),extent=
                                      [xmin[f],xmax[f],ymin[f],ymax[f]])
                     ax.set_xlabel(r'x [$\lambda_b$]')
                     ax.set_ylabel(r'y [$\lambda_b$]')
@@ -570,7 +575,7 @@ class Model:
             fig = plt.figure(figsize=(int(ncol*3),nrow*3))
             for ifig in range(self.domain.L):
                 ax = fig.add_subplot(nrow, ncol, ifig+1)
-                temp = ax.imshow(np.abs(self.Et[:,:,ifig,frequency_index]),
+                temp = ax.imshow(np.abs(et[:,:,ifig,frequency_index]),
                                  extent=[xmin[frequency_index],
                                          xmax[frequency_index],
                                          ymin[frequency_index],
@@ -592,7 +597,8 @@ class Model:
             if file_name is None:
                 plt.show()
             else:
-                plt.savefig(file_path+file_name,format=file_format)
+                plt.savefig(file_path + file_name + '.' + file_format,
+                            format=file_format)
                 plt.close()
         
         elif isinstance(fig,list):
@@ -601,8 +607,8 @@ class Model:
                     plt.show(fig[i])
             else:
                 for i in range(len(fig)):
-                    fig[i].savefig(file_path+file_name+'_%d' %i,
-                                   format=file_format)
+                    fig[i].savefig(file_path + file_name +'_%d' %i + '.' 
+                                   + file_format, format=file_format)
                 plt.close()
         
         else:
@@ -610,7 +616,8 @@ class Model:
             if file_name is None:
                 plt.show()
             else:
-                plt.savefig(file_path+file_name,format=file_format)
+                plt.savefig(file_path + file_name + '.' + file_format,
+                            format=file_format)
                 plt.close()
 
     def draw_setup(self,epsr=None,sig=None,file_name=None,file_path='',
@@ -748,7 +755,8 @@ class Model:
         if file_name is None:
             plt.show()
         else:
-            plt.savefig(file_path+file_name,format=file_format)
+            plt.savefig(file_path + file_name + '.' + file_format,
+                        format=file_format)
             plt.close()
 
 def get_angles(n_samples):
@@ -824,3 +832,13 @@ def get_greenfunction(xm,ym,x,y,kb):
             G[:,:,f] = aux
     
     return G
+
+def load_scattered_field(file_name,file_path=''):
+    with open(file_path + file_name,'rb') as datafile:
+        data = pickle.load(datafile)
+    return data['scattered_field']
+
+def load_total_field(file_name,file_path=''):
+    with open(file_path + file_name,'rb') as datafile:
+        data = pickle.load(datafile)
+    return data['total_field']

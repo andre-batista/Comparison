@@ -113,12 +113,16 @@ class BIM_Tikhonov(Solver):
         Ja = np.zeros(self.N_ITER)
         residual = np.zeros(self.N_ITER)
         
+        epsilon_r, sigma = initialsolution1(es,self.model.Et,self.model.GS,self.model.domain.M,self.model.domain.L,self.model.Nx*self.model.Ny,self.model.epsilon_rb,self.model.sigma_b,2*np.pi*self.model.f)
+        epsilon_r = epsilon_r.reshape((self.model.Nx,self.model.Ny))
+        sigma = sigma.reshape((self.model.Nx,self.model.Ny))
+        
         for it in range(self.N_ITER):
-            
-            epsilon_r, sigma = self.__tikhonov_regularization(es)
-            self.model.solve(epsilon_r=epsilon_r,sigma=sigma)
-            self.model.Et = self.model.Et.reshape((self.model.Nx*self.model.Ny,
-                                                   self.model.Et.shape[2]))
+
+            # self.alpha = self.alpha*1e-2
+            self.model.solve(epsilon_r=epsilon_r,sigma=sigma,maximum_iterations=1000)
+            epsilon_r, sigma = self.tikhonov_regularization(es)
+                        
             Ja[it] = self.__compute_tikhonov_functional(et=self.model.Et,es=es,
                                                         epsilon_r=epsilon_r,
                                                         sigma=sigma)
@@ -168,10 +172,10 @@ class BIM_Tikhonov(Solver):
             epsilon_r, sigma, Ja, residual, _ = self.load_results(file_name,
                                                                   file_path)
         
-        xmin = self.model.domain.x[0]/self.model.lambda_b
-        xmax = self.model.domain.x[-1]/self.model.lambda_b
-        ymin = self.model.domain.y[0]/self.model.lambda_b
-        ymax = self.model.domain.y[-1]/self.model.lambda_b
+        xmin = self.model.domain.x[0,0]/self.model.lambda_b
+        xmax = self.model.domain.x[0,-1]/self.model.lambda_b
+        ymin = self.model.domain.y[0,0]/self.model.lambda_b
+        ymax = self.model.domain.y[-1,0]/self.model.lambda_b
         
         if epsilon_r is not None:
             plt.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax])
@@ -184,7 +188,8 @@ class BIM_Tikhonov(Solver):
             if file_name is None:
                 plt.show()
             else:
-                plt.savefig(file_path+file_name+'_res_epsr',format=file_format)
+                plt.savefig(file_path+file_name+'_res_epsr' + '.' + file_format,
+                            format=file_format)
                 plt.close()
                 
         if sigma is not None:
@@ -198,7 +203,8 @@ class BIM_Tikhonov(Solver):
             if file_name is None:
                 plt.show()
             else:
-                plt.savefig(file_path+file_name+'_res_sig',format=file_format)
+                plt.savefig(file_path+file_name+'_res_sig' + '.' + file_format,
+                            format=file_format)
                 plt.close()
                 
         if Ja is not None and residual is not None:
@@ -209,7 +215,7 @@ class BIM_Tikhonov(Solver):
             ax1.plot(np.arange(Ja.size)+1,Ja,'--*')
             ax1.set_xlabel('Iterations')
             ax1.set_ylabel(r'$J_{\alpha}(\chi)$')
-            ax1.set_grid()
+            ax1.grid()
             if title is True:
                 ax1.set_title('Tikhonov Functional Convergence')
                 
@@ -217,14 +223,15 @@ class BIM_Tikhonov(Solver):
             ax2.plot(np.arange(residual.size)+1,residual,'--*')
             ax2.set_xlabel('Iterations')
             ax2.set_ylabel(r'$||y-Kx||^2$')
-            ax2.set_grid()
+            ax2.grid()
             if title is True:
                 ax2.set_title('Residual Convergence')
                 
             if file_name is None:
                 plt.show()
             else:
-                plt.savefig(file_path+file_name+'_res_conv',format=file_format)
+                plt.savefig(file_path+file_name+'_res_conv' + '.' + file_format,
+                            format=file_format)
                 plt.close()
                 
         if Ja is not None:
@@ -237,7 +244,8 @@ class BIM_Tikhonov(Solver):
             if file_name is None:
                 plt.show()
             else:
-                plt.savefig(file_path+file_name+'_res_ja',format=file_format)
+                plt.savefig(file_path+file_name+'_res_ja' + '.' + file_format,
+                            format=file_format)
                 plt.close()
                 
         if residual is not None:
@@ -251,7 +259,8 @@ class BIM_Tikhonov(Solver):
             if file_name is None:
                 plt.show()
             else:
-                plt.savefig(file_path+file_name+'_res_residual',format=file_format)
+                plt.savefig(file_path+file_name+'_res_residual' + '.' 
+                            + file_format,format=file_format)
                 plt.close()
         
     def __save_results(self,epsilon_r,sigma,Ja,residual,file_name,file_path=''):
@@ -268,17 +277,20 @@ class BIM_Tikhonov(Solver):
         with open(file_path + file_name,'wb') as datafile:
             pickle.dump(data,datafile)
 
-    def __tikhonov_regularization(self,es):
-        
-        K = get_operator_matrix(self.model.Et,es,self.model.domain.M,
+    def tikhonov_regularization(self,es):
+        K = get_operator_matrix(self.model.Et,self.model.domain.M,
                                 self.model.domain.L,self.model.GS,
                                 self.model.Et.shape[0])
         y = self.__get_y(es)
         x = solve_tikhonov_regularization(K,y,self.alpha)
-        epsilon_r = np.reshape(np.real(x)+self.model.epsilon_rb,(self.model.Nx,
+        epsilon_r = np.reshape(self.model.epsilon_rb*(np.real(x)+1),(self.model.Nx,
                                                                  self.model.Ny))
-        sigma = np.reshape(self.model.sigma_b - np.imag(x)*self.model.omega
-                           *ct.epsilon_0,(self.model.Nx,self.model.Ny))
+        # sigma = np.reshape(self.model.sigma_b - np.imag(x)*self.model.omega
+        #                    *ct.epsilon_0,(self.model.Nx,self.model.Ny))
+        sigma = self.model.sigma_b*np.ones(epsilon_r.shape)
+        epsilon_r[epsilon_r<1] = 1
+        sigma[sigma<0] = 0
+        
         return epsilon_r, sigma
         
     def compute_contrast_function(self,epsilon_r,sigma):
@@ -294,7 +306,7 @@ class BIM_Tikhonov(Solver):
             sys.exit()
         
         if K is None:
-            K = get_operator_matrix(et,es,self.model.domain.M,
+            K = get_operator_matrix(et,self.model.domain.M,
                                     self.model.domain.L,self.model.GS,
                                     et.shape[0])
             
@@ -326,7 +338,7 @@ class BIM_Tikhonov(Solver):
                 print('COMPUTE_TIKHONOV_FUNCTIONAL ERROR: sigma is missing!')
                 sys.exit()
             
-            K = get_operator_matrix(et,es,self.model.domain.M,
+            K = get_operator_matrix(et,self.model.domain.M,
                                     self.model.domain.L,self.model.GS,
                                     et.shape[0])
             x = self.compute_contrast_function(epsilon_r,sigma).reshape(-1)
@@ -364,18 +376,32 @@ class BIM_Tikhonov(Solver):
                       /epsilon_original.size)
             return zeta_s
         
-# @jit(nopython=True)
-def get_operator_matrix(et,es,M,L,GS,N):
+@jit(nopython=True)
+def get_operator_matrix(et,M,L,GS,N):
         
     K = 1j*np.ones((M*L,N))
     row = 0
     for m in range(M):
         for l in range(L):
-            K[row,:] = GS[m,:].reshape(-1)*et[:,l].reshape(-1)
+            K[row,:] = GS[m,:]*et[:,l]
             row += 1
     return K
     
-# @jit(nopython=True)
+@jit(nopython=True)
 def solve_tikhonov_regularization(K,y,alpha):
     x = lag.solve(K.conj().T@K+alpha*np.eye(K.shape[1]),K.conj().T@y)
     return x
+
+def initialsolution1(es,et,GS,M,L,N,epsilon_rb,sigma_b,omega):
+    
+    K = get_operator_matrix(et,M,L,GS,N)
+    y = np.reshape(es,(-1))
+    x = K.conj().T@y
+    
+    epsilon_r = np.real(x)+epsilon_rb
+    sigma = sigma_b - np.imag(x)*omega*ct.epsilon_0
+    epsilon_r[epsilon_r<1] = 1
+    sigma[sigma<0] = 0
+    sigma[:] = 0.0
+        
+    return epsilon_r, sigma

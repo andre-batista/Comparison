@@ -321,3 +321,16 @@ def build_filledring(I,J,dx,dy,epsilon_rb,sigma_b,epsilon_robj,sigma_obj,ra,rb):
                 epsilon_r[i,j] = epsilon_robj[1]
                 sigma[i,j] = sigma_obj[1]
     return epsilon_r, sigma
+
+def build_sine(I,J,wavelength,epsilon_rmin,sigma_min,epsilon_rpeak,sigma_peak):
+    
+    y,x = np.meshgrid(np.linspace(-wavelength/4,wavelength/4,J,endpoint=False),
+                      np.linspace(-wavelength/4,wavelength/4,I,endpoint=False))
+    
+    epsilon_r = epsilon_rmin + (epsilon_rpeak*np.cos(2*np.pi/wavelength*x)
+                                * np.cos(2*np.pi/wavelength*y))
+    
+    sigma = sigma_min + (sigma_peak*np.cos(2*np.pi/wavelength*x)
+                         * np.cos(2*np.pi/wavelength*y))
+    
+    return epsilon_r, sigma
