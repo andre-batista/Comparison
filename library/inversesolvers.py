@@ -91,12 +91,20 @@ class BIM_Tikhonov(Solver):
     def set_regularization_parameter(self,alpha):
         self.alpha = alpha
     
-    def solve(self,es,model=None,model_path='',number_iterations=None,
-              alpha=None,experiment_name=None,save_results=False,
-              plot_results=False,file_path='',file_format='eps'):
+    def solve(self,es,Nx=None,Ny=None,model=None,model_path='',
+              number_iterations=None,alpha=None,experiment_name=None,
+              save_results=False,plot_results=False,file_path='',
+              file_format='eps'):
             
         if model is not None:
             self.set_model(model,model_path)
+            
+        if Nx is not None or Ny is not None:
+            if Nx is None:
+                Nx = self.model.Nx
+            if Ny is None:
+                Ny = self.model.Ny
+            self.model.change_discretization(Nx,Ny)  
             
         if number_iterations is not None:
             self.N_ITER = number_iterations
@@ -113,15 +121,16 @@ class BIM_Tikhonov(Solver):
         Ja = np.zeros(self.N_ITER)
         residual = np.zeros(self.N_ITER)
         
-        epsilon_r, sigma = initialsolution1(es,self.model.Et,self.model.GS,self.model.domain.M,self.model.domain.L,self.model.Nx*self.model.Ny,self.model.epsilon_rb,self.model.sigma_b,2*np.pi*self.model.f)
-        epsilon_r = epsilon_r.reshape((self.model.Nx,self.model.Ny))
-        sigma = sigma.reshape((self.model.Nx,self.model.Ny))
+        # epsilon_r, sigma = initialsolution1(es,self.model.Et,self.model.GS,self.model.domain.M,self.model.domain.L,self.model.Nx*self.model.Ny,self.model.epsilon_rb,self.model.sigma_b,2*np.pi*self.model.f)
+        # epsilon_r = epsilon_r.reshape((self.model.Nx,self.model.Ny))
+        # sigma = sigma.reshape((self.model.Nx,self.model.Ny))
         
         for it in range(self.N_ITER):
 
             # self.alpha = self.alpha*1e-2
-            self.model.solve(epsilon_r=epsilon_r,sigma=sigma,maximum_iterations=1000)
             epsilon_r, sigma = self.tikhonov_regularization(es)
+            self.model.solve(epsilon_r=epsilon_r,sigma=sigma,maximum_iterations=1000)
+
                         
             Ja[it] = self.__compute_tikhonov_functional(et=self.model.Et,es=es,
                                                         epsilon_r=epsilon_r,
@@ -316,6 +325,25 @@ class BIM_Tikhonov(Solver):
         y = self.__get_y(es)
         x = x.reshape(-1)
         return np.sum(np.abs((y-K@x)/y))/x.size
+    
+    def compute_norm_residual(self,et,es,x=None,epsilon_r=None,sigma=None,K=None):
+        
+        if epsilon_r is None and x is None:
+            print('COMPUTE_ERROR ERROR: Either x or epsilon_r-sigma must be'
+                  + ' given!')
+            sys.exit()
+        
+        if K is None:
+            K = get_operator_matrix(et,self.model.domain.M,
+                                    self.model.domain.L,self.model.GS,
+                                    et.shape[0])
+            
+        if x is None:
+            x = self.compute_contrast_function(epsilon_r,sigma)
+            
+        y = self.__get_y(es)
+        x = x.reshape(-1)
+        return lag.norm(y-K@x)
     
     def __get_y(self,es):
         return np.reshape(es,(-1))

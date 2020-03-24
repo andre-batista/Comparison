@@ -759,6 +759,9 @@ class Model:
                         format=file_format)
             plt.close()
 
+    def change_discretization(self,Nx,Ny):
+        self.__compute_model_parameters(Nx,Ny)
+
 def get_angles(n_samples):
     """ Compute angles [rad] in a circular array of points equaly spaced."""
     return np.arange(0,2*np.pi,2*np.pi/n_samples)
