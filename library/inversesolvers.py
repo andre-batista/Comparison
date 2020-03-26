@@ -294,9 +294,9 @@ class BIM_Tikhonov(Solver):
         x = solve_tikhonov_regularization(K,y,self.alpha)
         epsilon_r = np.reshape(self.model.epsilon_rb*(np.real(x)+1),(self.model.Nx,
                                                                  self.model.Ny))
-        # sigma = np.reshape(self.model.sigma_b - np.imag(x)*self.model.omega
-        #                    *ct.epsilon_0,(self.model.Nx,self.model.Ny))
-        sigma = self.model.sigma_b*np.ones(epsilon_r.shape)
+        sigma = np.reshape(self.model.sigma_b - np.imag(x)*self.model.omega
+                           *ct.epsilon_0,(self.model.Nx,self.model.Ny))
+        # sigma = self.model.sigma_b*np.ones(epsilon_r.shape)
         epsilon_r[epsilon_r<1] = 1
         sigma[sigma<0] = 0
         
@@ -403,6 +403,17 @@ class BIM_Tikhonov(Solver):
             zeta_s = (np.sqrt(np.sum(np.abs(sigma_original-sigma_recovered)**2))
                       /epsilon_original.size)
             return zeta_s
+
+    def solve_linear(self,es,et=None,alpha=None):
+        
+        if alpha is not None:
+            self.alpha = alpha
+        if et is None:
+            self.model.Et = self.model.Ei
+        else:
+            self.model.Et = et
+        
+        return self.tikhonov_regularization(es)
         
 @jit(nopython=True)
 def get_operator_matrix(et,M,L,GS,N):

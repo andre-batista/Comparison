@@ -845,3 +845,8 @@ def load_total_field(file_name,file_path=''):
     with open(file_path + file_name,'rb') as datafile:
         data = pickle.load(datafile)
     return data['total_field']
+
+def load_maps(file_name,file_path=''):
+    with open(file_path + file_name,'rb') as datafile:
+        data = pickle.load(datafile)
+    return data['relative_permittivity_map'], data['conductivity_map']
