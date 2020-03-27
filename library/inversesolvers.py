@@ -194,6 +194,8 @@ class BIM_Tikhonov(Solver):
             cbar.set_label(r'$\epsilon_r$')
             if title is True:
                 plt.title('Relative Permittivity Map')
+            elif isinstance(title,str):
+                plt.title(title)
             if file_name is None:
                 plt.show()
             else:
@@ -209,6 +211,8 @@ class BIM_Tikhonov(Solver):
             cbar.set_label(r'$\sigma$ [S/m]')
             if title is True:
                 plt.title('Conductivity Map')
+            elif isinstance(title,str):
+                plt.title(title)
             if file_name is None:
                 plt.show()
             else:
@@ -227,6 +231,8 @@ class BIM_Tikhonov(Solver):
             ax1.grid()
             if title is True:
                 ax1.set_title('Tikhonov Functional Convergence')
+            elif isinstance(title,str):
+                ax1.set_title(title + ' - Functional')
                 
             ax2 = fig.add_subplot(1,2,2)
             ax2.plot(np.arange(residual.size)+1,residual,'--*')
@@ -235,6 +241,8 @@ class BIM_Tikhonov(Solver):
             ax2.grid()
             if title is True:
                 ax2.set_title('Residual Convergence')
+            elif isinstance(title,str):
+                ax2.set_title(title + ' - Residual')
                 
             if file_name is None:
                 plt.show()
@@ -249,7 +257,9 @@ class BIM_Tikhonov(Solver):
             plt.ylabel(r'$J_{\alpha}(\chi)$')
             plt.grid()
             if title is True:
-                plt.title('Tikhonov Functional Convergence') 
+                plt.title('Tikhonov Functional Convergence')
+            elif isinstance(title,str):
+                plt.title(title)
             if file_name is None:
                 plt.show()
             else:
@@ -264,6 +274,8 @@ class BIM_Tikhonov(Solver):
             plt.grid()
             if title is True:
                 plt.title('Residual Convergence')
+            elif isinstance(title,str):
+                plt.title(title)
                 
             if file_name is None:
                 plt.show()

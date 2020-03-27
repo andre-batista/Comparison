@@ -11,6 +11,7 @@ REFERENCES
 # Base libraries
 import numpy as np
 import numpy.random as rnd
+import numpy.linalg as lag
 import scipy.constants as ct
 import scipy.special as spc
 import matplotlib.pyplot as plt
@@ -21,7 +22,10 @@ import model as md
 
 # Some functions
 def cart2pol(x,y):
-    return np.sqrt(x**2+y**2), np.arctan2(y,x)
+    rho = np.sqrt(x**2+y**2)
+    phi = np.arctan2(y,x)
+    phi[phi<0] = 2*np.pi+phi[phi<0]
+    return rho, phi
 
 def get_incident_field(magnitude,wavenumber,x,y,theta=None):
     
@@ -39,22 +43,20 @@ def get_incident_field(magnitude,wavenumber,x,y,theta=None):
     
     return ei
         
-def get_coefficients(Nterms,wavenumber_b,wavenumber_d,radius,epsilon_d):
+def get_coefficients(Nterms,wavenumber_b,wavenumber_d,radius,epsilon_d,
+                     epsilon_b):
     
     n = np.arange(-Nterms,Nterms+1)
     kb, kd = wavenumber_b, wavenumber_d
     a = radius
     
-    an = -spc.jv(n,kb*a)/spc.hankel2(n,kb*a)*(
-        (epsilon_d*(-spc.jv(n+1,kd*a)+n/kd/a*spc.jv(n,kd*a))
-         /epsilon_d/kd/a/spc.jv(n,kd*a)
-         - (-spc.jv(n+1,kb*a)+n/kb/a*spc.jv(n,kb*a))/kb/a/spc.jv(n,kb*a))
-        /(epsilon_d*(-spc.jv(n+1,kd*a)+n/kd/a*spc.jv(n,kd*a))
-          /epsilon_d/kd/a/spc.jv(n,kd*a)
-          -(-spc.hankel2(n+1,kb*a)
-            + n/kb/a*spc.hankel2(n,kb*a))/kb/a/spc.hankel2(n,kb*a))
-        )
-
+    an = (-spc.jv(n,kb*a)/spc.hankel2(n,kb*a)*(
+        (epsilon_d*spc.jvp(n,kd*a)/(epsilon_b*kd*a*spc.jv(n,kd*a)) 
+         - spc.jvp(n,kb*a)/(kb*a*spc.jv(n,kb*a)))
+        /(epsilon_d*spc.jvp(n,kd*a)/(epsilon_b*kd*a*spc.jv(n,kd*a)) 
+          - spc.h2vp(n,kb*a)/(kb*a*spc.hankel2(n,kb*a)))
+    ))
+    
     cn = 1/spc.jv(n,kd*a)*(spc.jv(n,kb*a)+an*spc.hankel2(n,kb*a))
     
     return an, cn
@@ -129,16 +131,16 @@ def get_mesh(radius,lambda_b,Nx=None,Ny=None):
     Lx, Ly = 4*radius, 4*radius # Image size [m], [m]
         
     if Nx is None:
-        Nx = int(np.ceil(Lx/lambda_b/20)) # Domain size x-axis [number of cells]
+        Nx = int(np.ceil(Lx/(lambda_b/25))) # Domain size x-axis [number of cells]
     dx = Lx/Nx # Cell size in x-axis [m]
         
     if Ny is None:
-        Ny = int(np.ceil(Ly/lambda_b/20)) # Domain size y-axis [number of cells]
+        Ny = int(np.ceil(Ly/(lambda_b/25))) # Domain size y-axis [number of cells]
     dy = Ly/Ny # Cell size in y-axis [m]
         
     # Mesh arrays
-    y, x = np.meshgrid(np.arange(-Ly/2+dy/2,Ly/2,dy),
-                       np.arange(-Lx/2+dx/2,Lx/2,dx))
+    x, y = np.meshgrid(np.arange(-Lx/2+dx/2,Lx/2,dx),
+                       np.arange(-Ly/2+dy/2,Ly/2,dy))
     
     return Lx, Ly, dx, dy, x, y, Nx, Ny
 
@@ -148,11 +150,29 @@ def add_noise(x,delta):
           + 1j*rnd.normal(loc=np.imag(x.reshape(-1)),scale=delta/16,size=x.size))
     return np.reshape(xd,originalshape)
 
+def compute_integral(et,gs,X):
+    L = et.shape[1]
+    J = np.tile(X.reshape((-1,1)),L)*et
+    return gs@J
+
+def compute_scattered_field(xm,ym,an,kb,theta,magnitude):
+    M, L, N = xm.size, theta.size, round((an.size-1)/2)
+    E0 = magnitude
+    es = np.zeros((M,L),dtype=complex)
+    for l in range(L):
+        i = 0
+        for n in range(-N,N+1):
+            xp, yp = rotate_axis(theta[l],xm,ym)
+            rho, phi = cart2pol(xp,yp)
+            es[:,l] = es[:,l] + (E0*1j**(-n)*an[i]*spc.hankel2(n,kb*rho)
+                                 * np.exp(1j*n*phi))
+            i += 1
+        
+    return es
+
 def get_data(magnitude=1.,proportion=.5,frequency=1e9,Nsources=2,
              Nsamples=4,epsilon_rb=1.,mu_rb=1.,epsilon_rd=2.,mu_rd=1.,
-             Nx=None,Ny=None,COMPUTE_INTERN_FIELD=True,
-             COMPUTE_INCIDENT_FIELD=True,GET_MAP=True,
-             file_name=None,file_path='',delta=None):
+             Nx=None,Ny=None,file_name=None,file_path='',delta=None):
     """ GET_DATA
     Compute the fields for the scattering of a dielectric cylinder. 
     Inputs:
@@ -166,8 +186,6 @@ def get_data(magnitude=1.,proportion=.5,frequency=1e9,Nsources=2,
     - mu_rb: relative permeability of background
     - epsilon_rd: relative permittivity of cylinder
     - mu_rd: relative permeability of cylinder
-    - COMPUTE_INTERN_FIELD: Compute total intern field [V/m]
-    - COMPUTE_INCIDENT_FIELD: Compute incident intern field [V/m]
     """
 
     # Main parameters
@@ -194,48 +212,33 @@ def get_data(magnitude=1.,proportion=.5,frequency=1e9,Nsources=2,
     thetam  = np.linspace(0,2*np.pi,M,endpoint=False)
 
     # Summing coefficients
-    an, cn = get_coefficients(N,kb,kd,a,epsd)
+    an, cn = get_coefficients(N,kb,kd,a,epsd,epsb)
 
     # Mesh parameters
-    if COMPUTE_INCIDENT_FIELD or COMPUTE_INTERN_FIELD:    
-        Lx, Ly, dx, dy, x, y, Nx, Ny = get_mesh(a,lambdab,Nx,Ny)
+    Lx, Ly, dx, dy, x, y, Nx, Ny = get_mesh(a,lambdab,Nx,Ny)
 
     # Incident field
-    if COMPUTE_INCIDENT_FIELD:
-        ei = get_incident_field(E0,kb,x,y,thetal)
+    ei = get_incident_field(E0,kb,x,y,thetal)
 
     # Total field array
-    if COMPUTE_INTERN_FIELD:
-        et = compute_total_field(x,y,a,an,cn,N,kb,kd,E0,thetal)
+    et = compute_total_field(x,y,a,an,cn,N,kb,kd,E0,thetal)
             
-    if GET_MAP:
-        epsilon_r, sigma = get_map(x,y,a,epsilon_rb,epsilon_rd)
+    # Map of parameters
+    epsilon_r, sigma = get_map(x,y,a,epsilon_rb,epsilon_rd)
     
-    # Far scatered field
+    # Scatered field
     rho = 1/2*np.sqrt(Lx**2+Ly**2)*1.05
     xm, ym = rho*np.cos(thetam), rho*np.sin(thetam)
-    es = (compute_total_field(xm,ym,a,an,cn,N,kb,kd,E0,thetal)
-          - get_incident_field(E0,kb,xm,ym,thetal))
+    es = compute_scattered_field(xm,ym,an,kb,thetal,E0)
+
+    # Green function
+    gs = md.get_greenfunction(xm,ym,x,y,kb)
 
     if delta is not None:
         es = add_noise(es,delta)
 
     if file_name is not None:
         
-        if not COMPUTE_INCIDENT_FIELD and not COMPUTE_INTERN_FIELD:
-            Lx, Ly, dx, dy, x, y, Nx, Ny = get_mesh(a,lambdab,Nx,Ny)
-        
-        if not COMPUTE_INCIDENT_FIELD:
-            ei = get_incident_field(E0,kb,x,y,thetal)
-        
-        if not COMPUTE_INTERN_FIELD:
-            et = compute_total_field(x,y,a,an,cn,N,kb,kd,E0,thetal)
-
-        if not GET_MAP:
-            epsilon_r, sigma = get_map(x,y,a,epsilon_rb,epsilon_rd)
-
-        gs = md.get_greenfunction(xm,ym,x,y,kb)
-
         config = {
             'model_name':file_name,
             'Lx':Lx, 'Ly':Ly,
