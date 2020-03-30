@@ -16,6 +16,7 @@ import pickle
 import numpy as np
 from numpy import linalg as LA
 from numpy import fft
+import numpy.random as rnd
 import scipy.constants as ct
 import scipy.special as spc
 import domain as dm
@@ -92,7 +93,7 @@ class Model:
     def solve(self,epsilon_r=None,sigma=None,frequencies=None,
               maximum_iterations=None, tolerance=None,simulation_name=None,
               save=False,file_path='',COMPUTE_INTERN_FIELD=True,
-              PRINT_INFO=False):
+              PRINT_INFO=False, delta=None):
         """ Solve the scattered field for a given dielectric map. Either 
         epsilon_r or sigma or both matrices must be given. You may or not give
         a new single or a set of frequencies. If you haven't given yet, you
@@ -257,6 +258,8 @@ class Model:
                     self.__save_simulation_data(Esc_z,epsilon_r,sigma,
                                                 self.model_name,file_path)
 
+        if delta is not None:
+            Esc_z = add_noise(Esc_z,delta)
         
         return Esc_z
         
@@ -846,7 +849,20 @@ def load_total_field(file_name,file_path=''):
         data = pickle.load(datafile)
     return data['total_field']
 
+def load_incident_field(file_name,file_path=''):
+    with open(file_path + file_name + '_config','rb') as datafile:
+        data = pickle.load(datafile)
+    return data['incident_field']
+
 def load_maps(file_name,file_path=''):
     with open(file_path + file_name,'rb') as datafile:
         data = pickle.load(datafile)
     return data['relative_permittivity_map'], data['conductivity_map']
+
+def add_noise(x,delta):
+    originalshape = x.shape
+    xd = (rnd.normal(loc=np.real(x.reshape(-1)),scale=delta/16,
+                     size=x.size)
+          + 1j*rnd.normal(loc=np.imag(x.reshape(-1)),scale=delta/16,
+                          size=x.size))
+    return np.reshape(xd,originalshape)

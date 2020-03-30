@@ -20,7 +20,115 @@ import pickle
 from numba import jit
 import model as md
 
-# Some functions
+# Main function
+def get_data(magnitude=1.,proportion=.5,frequency=1e9,Nsources=2,
+             Nsamples=4,epsilon_rb=1.,mu_rb=1.,epsilon_rd=2.,mu_rd=1.,
+             Nx=None,Ny=None,file_name=None,file_path='',delta=None):
+    """ GET_DATA
+    Compute the fields for the scattering of a dielectric cylinder. 
+    Inputs:
+
+    - magnitude: magnitude of incident wave [V/m]
+    - proportion: ratio radius/wavelength
+    - frequency: linear frequency for calculation [Hz]
+    - Nsources: number of incidences
+    - Nsamples: number of scattered field samples
+    - epsilon_rb: relative permittivity of background
+    - mu_rb: relative permeability of background
+    - epsilon_rd: relative permittivity of cylinder
+    - mu_rd: relative permeability of cylinder
+    """
+
+    # Main parameters
+    E0      = magnitude     # Amplitude of the plane wave [V/m]
+    A       = proportion    # Proportion radius/wavelength
+    f       = frequency     # Linear frequency [Hz]
+    omega   = 2*np.pi*f     # Angular frequency [rad/s]
+    M       = Nsamples      # Number of scatered field samples
+    L       = Nsources      # Number of sources of incident waves
+    N       = 50            # Number of terms in the summing serie
+
+    # Main constants
+    epsd    = epsilon_rd*ct.epsilon_0           # Cylinder's permittivity [F/m]         
+    epsb    = epsilon_rb*ct.epsilon_0           # Background permittivity [F/m]
+    mub     = mu_rb*ct.mu_0                     # Background permeability [H/m]
+    mud     = mu_rd*ct.mu_0                     # Cylinder's permeability [H/m]
+    c       = 1/np.sqrt(ct.epsilon_0*ct.mu_0)   # Speed of light [m/s]
+    kb      = omega*np.sqrt(mub*epsb)           # Wavenumber of background [rad/m] 
+    kd      = omega*np.sqrt(mud*epsd)           # Wavenumber of cylinder [rad/m]
+    lambdab = 2*np.pi/kb                        # Wavelength of background [m]
+    lambdad = 2*np.pi/kd                        # Wavelength of cylinder [m]
+    a       = A*lambdab                         # Sphere's radius [m]
+    thetal  = np.linspace(0,2*np.pi,L,endpoint=False)
+    thetam  = np.linspace(0,2*np.pi,M,endpoint=False)
+
+    # Summing coefficients
+    an, cn = get_coefficients(N,kb,kd,a,epsd,epsb)
+
+    # Mesh parameters
+    Lx, Ly, dx, dy, x, y, Nx, Ny = get_mesh(a,lambdab,Nx,Ny)
+
+    # Incident field
+    ei = get_incident_field(E0,kb,x,y,thetal)
+
+    # Total field array
+    et = compute_total_field(x,y,a,an,cn,N,kb,kd,E0,thetal)
+            
+    # Map of parameters
+    epsilon_r, sigma = get_map(x,y,a,epsilon_rb,epsilon_rd)
+    
+    # Scatered field
+    rho = 1/2*np.sqrt(Lx**2+Ly**2)*1.05
+    xm, ym = rho*np.cos(thetam), rho*np.sin(thetam)
+    es = compute_scattered_field(xm,ym,an,kb,thetal,E0)
+
+    # Green function
+    gs = md.get_greenfunction(xm,ym,x,y,kb)
+
+    if delta is not None:
+        es = md.add_noise(es,delta)
+
+    if file_name is not None:
+        
+        config = {
+            'model_name':file_name,
+            'Lx':Lx, 'Ly':Ly,
+            'radius_observation':rho,
+            'number_measurements':M,
+            'number_sources':L,
+            'dx':dx,
+            'dy':dy,
+            'x':x, 'y':y,
+            'incident_field':ei,
+            'green_function_s':gs,
+            'wavelength':lambdab,
+            'wavenumber':kb,
+            'angular_frequency':omega,
+            'relative_permittivity_background':epsilon_rb,
+            'conductivity_background':.0,
+            'measurement_coordinates_x':xm,
+            'measurement_coordinates_y':ym,
+            'frequency':f,
+            'Nx':Nx, 'Ny':Ny,
+            'incident_field_magnitude':E0
+        }
+        
+        data = {
+            'scattered_field':es,
+            'total_field':et,
+            'relative_permittivity_map':epsilon_r,
+            'conductivity_map':sigma,
+            'maximum_number_iterations':0,
+            'error_tolerance':0
+        }
+
+        with open(file_path + file_name + '_config','wb') as configfile:
+            pickle.dump(config,configfile)
+        
+        with open(file_path + file_name,'wb') as datafile:
+            pickle.dump(data,datafile)
+
+# Auxiliar functions
 def cart2pol(x,y):
     rho = np.sqrt(x**2+y**2)
     phi = np.arctan2(y,x)
@@ -144,12 +252,6 @@ def get_mesh(radius,lambda_b,Nx=None,Ny=None):
     
     return Lx, Ly, dx, dy, x, y, Nx, Ny
 
-def add_noise(x,delta):
-    originalshape = x.shape
-    xd = (rnd.normal(loc=np.real(x.reshape(-1)),scale=delta/16,size=x.size)
-          + 1j*rnd.normal(loc=np.imag(x.reshape(-1)),scale=delta/16,size=x.size))
-    return np.reshape(xd,originalshape)
-
 def compute_integral(et,gs,X):
     L = et.shape[1]
     J = np.tile(X.reshape((-1,1)),L)*et
@@ -169,110 +271,3 @@ def compute_scattered_field(xm,ym,an,kb,theta,magnitude):
             i += 1
         
     return es
-
-def get_data(magnitude=1.,proportion=.5,frequency=1e9,Nsources=2,
-             Nsamples=4,epsilon_rb=1.,mu_rb=1.,epsilon_rd=2.,mu_rd=1.,
-             Nx=None,Ny=None,file_name=None,file_path='',delta=None):
-    """ GET_DATA
-    Compute the fields for the scattering of a dielectric cylinder. 
-    Inputs:
-
-    - magnitude: magnitude of incident wave [V/m]
-    - proportion: ratio radius/wavelength
-    - frequency: linear frequency for calculation [Hz]
-    - Nsources: number of incidences
-    - Nsamples: number of scattered field samples
-    - epsilon_rb: relative permittivity of background
-    - mu_rb: relative permeability of background
-    - epsilon_rd: relative permittivity of cylinder
-    - mu_rd: relative permeability of cylinder
-    """
-
-    # Main parameters
-    E0      = magnitude     # Amplitude of the plane wave [V/m]
-    A       = proportion    # Proportion radius/wavelength
-    f       = frequency     # Linear frequency [Hz]
-    omega   = 2*np.pi*f     # Angular frequency [rad/s]
-    M       = Nsamples      # Number of scatered field samples
-    L       = Nsources      # Number of sources of incident waves
-    N       = 50            # Number of terms in the summing serie
-
-    # Main constants
-    epsd    = epsilon_rd*ct.epsilon_0           # Cylinder's permittivity [F/m]         
-    epsb    = epsilon_rb*ct.epsilon_0           # Background permittivity [F/m]
-    mub     = mu_rb*ct.mu_0                     # Background permeability [H/m]
-    mud     = mu_rd*ct.mu_0                     # Cylinder's permeability [H/m]
-    c       = 1/np.sqrt(ct.epsilon_0*ct.mu_0)   # Speed of light [m/s]
-    kb      = omega*np.sqrt(mub*epsb)           # Wavenumber of background [rad/m] 
-    kd      = omega*np.sqrt(mud*epsd)           # Wavenumber of cylinder [rad/m]
-    lambdab = 2*np.pi/kb                        # Wavelength of background [m]
-    lambdad = 2*np.pi/kd                        # Wavelength of cylinder [m]
-    a       = A*lambdab                         # Sphere's radius [m]
-    thetal  = np.linspace(0,2*np.pi,L,endpoint=False)
-    thetam  = np.linspace(0,2*np.pi,M,endpoint=False)
-
-    # Summing coefficients
-    an, cn = get_coefficients(N,kb,kd,a,epsd,epsb)
-
-    # Mesh parameters
-    Lx, Ly, dx, dy, x, y, Nx, Ny = get_mesh(a,lambdab,Nx,Ny)
-
-    # Incident field
-    ei = get_incident_field(E0,kb,x,y,thetal)
-
-    # Total field array
-    et = compute_total_field(x,y,a,an,cn,N,kb,kd,E0,thetal)
-            
-    # Map of parameters
-    epsilon_r, sigma = get_map(x,y,a,epsilon_rb,epsilon_rd)
-    
-    # Scatered field
-    rho = 1/2*np.sqrt(Lx**2+Ly**2)*1.05
-    xm, ym = rho*np.cos(thetam), rho*np.sin(thetam)
-    es = compute_scattered_field(xm,ym,an,kb,thetal,E0)
-
-    # Green function
-    gs = md.get_greenfunction(xm,ym,x,y,kb)
-
-    if delta is not None:
-        es = add_noise(es,delta)
-
-    if file_name is not None:
-        
-        config = {
-            'model_name':file_name,
-            'Lx':Lx, 'Ly':Ly,
-            'radius_observation':rho,
-            'number_measurements':M,
-            'number_sources':L,
-            'dx':dx,
-            'dy':dy,
-            'x':x, 'y':y,
-            'incident_field':ei,
-            'green_function_s':gs,
-            'wavelength':lambdab,
-            'wavenumber':kb,
-            'angular_frequency':omega,
-            'relative_permittivity_background':epsilon_rb,
-            'conductivity_background':.0,
-            'measurement_coordinates_x':xm,
-            'measurement_coordinates_y':ym,
-            'frequency':f,
-            'Nx':Nx, 'Ny':Ny,
-            'incident_field_magnitude':E0
-        }
-        
-        data = {
-            'scattered_field':es,
-            'total_field':et,
-            'relative_permittivity_map':epsilon_r,
-            'conductivity_map':sigma,
-            'maximum_number_iterations':0,
-            'error_tolerance':0
-        }
-
-        with open(file_path + file_name + '_config','wb') as configfile:
-            pickle.dump(config,configfile)
-        
-        with open(file_path + file_name,'wb') as datafile:
-            pickle.dump(data,datafile)
