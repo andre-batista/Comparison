@@ -23,7 +23,8 @@ import model as md
 # Main function
 def get_data(magnitude=1.,proportion=.5,frequency=1e9,Nsources=2,
              Nsamples=4,epsilon_rb=1.,mu_rb=1.,epsilon_rd=2.,mu_rd=1.,
-             Nx=None,Ny=None,file_name=None,file_path='',delta=None):
+             Nx=None,Ny=None,file_name=None,file_path='',delta=None,
+             image_size=None):
     """ GET_DATA
     Compute the fields for the scattering of a dielectric cylinder. 
     Inputs:
@@ -37,6 +38,7 @@ def get_data(magnitude=1.,proportion=.5,frequency=1e9,Nsources=2,
     - mu_rb: relative permeability of background
     - epsilon_rd: relative permittivity of cylinder
     - mu_rd: relative permeability of cylinder
+    - image_size: size of the image in wavelengths
     """
 
     # Main parameters
@@ -66,7 +68,7 @@ def get_data(magnitude=1.,proportion=.5,frequency=1e9,Nsources=2,
     an, cn = get_coefficients(N,kb,kd,a,epsd,epsb)
 
     # Mesh parameters
-    Lx, Ly, dx, dy, x, y, Nx, Ny = get_mesh(a,lambdab,Nx,Ny)
+    Lx, Ly, dx, dy, x, y, Nx, Ny = get_mesh(a,lambdab,Nx,Ny,image_size)
 
     # Incident field
     ei = get_incident_field(E0,kb,x,y,thetal)
@@ -234,9 +236,15 @@ def get_map(x,y,radius,epsilon_rb,epsilon_rd):
     epsilon_r[x**2+y**2<=radius**2] = epsilon_rd
     return epsilon_r, sigma
 
-def get_mesh(radius,lambda_b,Nx=None,Ny=None):
+def get_mesh(radius,lambda_b,Nx=None,Ny=None,image_size=None):
     
-    Lx, Ly = 4*radius, 4*radius # Image size [m], [m]
+    if image_size is None:
+        Lx, Ly = 4*radius, 4*radius # Image size [m], [m]
+    else:
+        if isinstance(image_size,float) or isinstance(image_size,int):
+            Lx, Ly = image_size*lambda_b, image_size*lambda_b
+        else:
+            Lx, Ly = image_size[0]*lambda_b, image_size[1]*lambda_b
         
     if Nx is None:
         Nx = int(np.ceil(Lx/(lambda_b/25))) # Domain size x-axis [number of cells]

@@ -5,6 +5,7 @@ import pickle
 import sys
 from numba import jit
 import scipy.constants as ct
+import scipy.interpolate as interp
 import matplotlib as mpl
 # mpl.use('Agg') # Avoiding error when using ssh protocol
 import matplotlib.pyplot as plt
@@ -83,7 +84,7 @@ class Solver:
 class BIM_Tikhonov(Solver):
     
     N_ITER = 10
-    alpha = 1e-13
+    alpha = float()
     
     def set_number_iterations(self,number_iterations):
         self.N_ITER = number_iterations
@@ -96,7 +97,8 @@ class BIM_Tikhonov(Solver):
               save_results=False,plot_results=False,file_path='',
               file_format='eps',noconductivity=False,nopermittivity=False,
               initial_field=None,epsilon_r_goal=None,
-              sigma_goal=None,print_info=True):
+              sigma_goal=None,print_info=True,lavarello_alpha=False,
+              kirsch_alpha=False,delta=None):
             
         if model is not None:
             self.set_model(model,model_path)
@@ -114,17 +116,39 @@ class BIM_Tikhonov(Solver):
         if alpha is not None:
             self.alpha = alpha
             
+        if lavarello_alpha is True:
+            self.alpha = self.__lavarello_alpha()
+            alpha0 = self.alpha
+            
+        if kirsch_alpha:
+            if delta is None:
+                print("SOLVE ERROR: If you choose Kirsch's alpha," + 
+                      ' then you must provide and delta error!')
+                sys.exit()
+            self.alpha = self.__kirsch_choice(es,delta)
+        
+        if self.alpha is None:
+            self.alpha = self.__lavarello_alpha()
+            alpha0 = self.alpha
+    
+            
         if print_info:
             print("==============================================================")
             print("BORN ITERATIVE METHOD - TIKHONOV REGULARIZATION")
             if experiment_name is not None:
-                print("Experiment name: " + experiment_name)        
+                print("Experiment name: " + experiment_name)
+            if lavarello_alpha:
+                print('Alpha (Lavarello): %.3e' %self.alpha)
+            elif kirsch_alpha:
+                print('Alpha (Kirsch): %.3e' %self.alpha)
+            else:
+                print('Alpha: %.3e' %self.alpha)
             
         if initial_field is None:
             self.model.Et = self.model.Ei
         else:
             self.model.Et = initial_field
-            
+        
         Ja = np.zeros(self.N_ITER)
         residual = np.zeros(self.N_ITER)
         
@@ -136,7 +160,10 @@ class BIM_Tikhonov(Solver):
                 
         for it in range(self.N_ITER):
 
-            epsilon_r, sigma = self.tikhonov_regularization(es)
+            epsilon_r, sigma = self.tikhonov_regularization(
+                es, noconductivity=noconductivity,
+                nopermittivity=nopermittivity
+            )
             
             self.model.solve(epsilon_r=epsilon_r,sigma=sigma,
                              maximum_iterations=1000)
@@ -176,16 +203,22 @@ class BIM_Tikhonov(Solver):
             iteration_message = (
                 "Iteration %d " %(it+1) 
                 + "- Ja(X) = %.3e " %Ja[it] 
-                + "- Residual: %.3e " %residual[it]
+                + "- Residual: %.3e" %residual[it]
             )
             
             if epsilon_r_goal is not None:
                 iteration_message = (iteration_message 
-                                     + 'zeta_e = %.2f %% -' %zeta_e[it])
+                                     + ' - zeta_e = %.2f %%' %zeta_e[it])
                                 
             if sigma_goal is not None:
                 iteration_message = (iteration_message 
-                                     + 'zeta_s = %.3e [S/m]' %zeta_s[it])
+                                     + ' - zeta_s = %.3e [S/m]' %zeta_s[it])
+
+            if lavarello_alpha:
+                iteration_message = (iteration_message 
+                                     + ' - Alpha: %.3e' %self.alpha)
+                self.alpha = self.__lavarello_update(es,residual[it],
+                                                     alpha0)
             
             if print_info:
                 print(iteration_message)
@@ -199,13 +232,24 @@ class BIM_Tikhonov(Solver):
                                     experiment_name+'_results',file_path)
         
         if plot_results:
+            
+            if nopermittivity:
+                aux_epsr = None
+                aux_sig = sigma
+            elif noconductivity:
+                aux_sig = None
+                aux_epsr = epsilon_r
+            else:
+                aux_epsr = epsilon_r
+                aux_sig = sigma
+            
             if save_results:
                 if epsilon_r_goal is not None and sigma_goal is not None:
                     self.plot_results(file_name=experiment_name,
                                       file_path=file_path,
                                       file_format=file_format,
-                                      epsilon_r=epsilon_r,
-                                      sigma=sigma,Ja=Ja,
+                                      epsilon_r=aux_epsr,
+                                      sigma=aux_sig,Ja=Ja,
                                       residual=residual,
                                       zeta_e=zeta_e,
                                       zeta_s=zeta_s)
@@ -213,8 +257,8 @@ class BIM_Tikhonov(Solver):
                     self.plot_results(file_name=experiment_name,
                                       file_path=file_path,
                                       file_format=file_format,
-                                      epsilon_r=epsilon_r,
-                                      sigma=sigma,Ja=Ja,
+                                      epsilon_r=aux_epsr,
+                                      sigma=aux_sig,Ja=Ja,
                                       residual=residual,
                                       zeta_e=zeta_e)
                     
@@ -222,8 +266,8 @@ class BIM_Tikhonov(Solver):
                     self.plot_results(file_name=experiment_name,
                                       file_path=file_path,
                                       file_format=file_format,
-                                      epsilon_r=epsilon_r,
-                                      sigma=sigma,Ja=Ja,
+                                      epsilon_r=aux_epsr,
+                                      sigma=aux_sig,Ja=Ja,
                                       residual=residual,
                                       zeta_s=zeta_s)
                 
@@ -231,39 +275,39 @@ class BIM_Tikhonov(Solver):
                     self.plot_results(file_name=experiment_name,
                                       file_path=file_path,
                                       file_format=file_format,
-                                      epsilon_r=epsilon_r,
-                                      sigma=sigma,Ja=Ja,
+                                      epsilon_r=aux_epsr,
+                                      sigma=aux_sig,Ja=Ja,
                                       residual=residual)
             else:
                 if epsilon_r_goal is not None and sigma_goal is not None:
                     self.plot_results(file_path=file_path,
                                       file_format=file_format,
-                                      epsilon_r=epsilon_r,
-                                      sigma=sigma,Ja=Ja,
+                                      epsilon_r=aux_epsr,
+                                      sigma=aux_sig,Ja=Ja,
                                       residual=residual,
                                       zeta_e=zeta_e,
                                       zeta_s=zeta_s)
                 elif epsilon_r_goal is not None:
                     self.plot_results(file_path=file_path,
                                       file_format=file_format,
-                                      epsilon_r=epsilon_r,
-                                      sigma=sigma,Ja=Ja,
+                                      epsilon_r=aux_epsr,
+                                      sigma=aux_sig,Ja=Ja,
                                       residual=residual,
                                       zeta_e=zeta_e)
                     
                 elif sigma_goal is not None:
                     self.plot_results(file_path=file_path,
                                       file_format=file_format,
-                                      epsilon_r=epsilon_r,
-                                      sigma=sigma,Ja=Ja,
+                                      epsilon_r=aux_epsr,
+                                      sigma=aux_sig,Ja=Ja,
                                       residual=residual,
                                       zeta_s=zeta_s)
                 
                 else:
                     self.plot_results(file_path=file_path,
                                       file_format=file_format,
-                                      epsilon_r=epsilon_r,
-                                      sigma=sigma,Ja=Ja,
+                                      epsilon_r=aux_epsr,
+                                      sigma=aux_sig,Ja=Ja,
                                       residual=residual)
                                  
         if epsilon_r_goal is not None and sigma_goal is not None:
@@ -272,7 +316,7 @@ class BIM_Tikhonov(Solver):
         elif epsilon_r_goal is not None:
             return epsilon_r, sigma, Ja, residual, zeta_e
         
-        elif sigma is not None:
+        elif sigma_goal is not None:
             return epsilon_r, sigma, Ja, residual, zeta_s
         
         else:
@@ -369,7 +413,7 @@ class BIM_Tikhonov(Solver):
                             format=file_format)
                 plt.close()
                 
-        if Ja is not None:
+        elif Ja is not None:
             plt.plot(np.arange(Ja.size)+1,Ja,'--*')
             plt.xlabel('Iterations')
             plt.ylabel(r'$J_{\alpha}(\chi)$')
@@ -385,7 +429,7 @@ class BIM_Tikhonov(Solver):
                             format=file_format)
                 plt.close()
                 
-        if residual is not None:
+        elif residual is not None:
             plt.plot(np.arange(residual.size)+1,residual,'--*')
             plt.xlabel('Iterations')
             plt.ylabel(r'$||y-Kx||^2$')
@@ -528,7 +572,7 @@ class BIM_Tikhonov(Solver):
             
         y = self.__get_y(es)
         x = x.reshape(-1)
-        return np.sum(np.abs((y-K@x)/y))/x.size
+        return np.sum(np.abs((y-K@x)/y))/y.size
     
     def compute_norm_residual(self,et,es,x=None,epsilon_r=None,sigma=None,K=None):
         
@@ -588,6 +632,44 @@ class BIM_Tikhonov(Solver):
         
     def compute_map_error(self,epsilon_original=None,epsilon_recovered=None,
                           sigma_original=None,sigma_recovered=None):
+        
+        if (epsilon_original is not None 
+            and (epsilon_original.shape[0] != epsilon_recovered.shape[0]
+                 or epsilon_original.shape[1] != epsilon_recovered.shape[1])):
+
+            Lx, Ly = self.model.domain.Lx, self.model.domain.Ly
+            xmin, xmax = dm.get_bounds(Lx)
+            ymin, ymax = dm.get_bounds(Ly)
+
+            Nxo, Nyo = epsilon_original.shape[0], epsilon_original.shape[1]
+            xo, yo = dm.get_domain_coordinates(Nxo/Lx,Nyo/Ly,xmin,xmax,
+                                               ymin,ymax)
+
+            Nxr, Nyr = epsilon_recovered.shape[0], epsilon_recovered.shape[1]
+            xr, yr = dm.get_domain_coordinates(Nxr/Lx,Nyr/Ly,xmin,xmax,
+                                               ymin,ymax)
+
+            fe = interp.interp2d(xr,yr,epsilon_recovered)
+            epsilon_recovered = fe(xo,yo)
+            
+        if (sigma_original is not None 
+            and (sigma_original.shape[0] != sigma_recovered.shape[0]
+                 or sigma_original.shape[1] != sigma_recovered.shape[1])):
+
+            Lx, Ly = self.model.domain.Lx, self.model.domain.Ly
+            xmin, xmax = dm.get_bounds(Lx)
+            ymin, ymax = dm.get_bounds(Ly)
+
+            Nxo, Nyo = sigma_original.shape[0], sigma_original.shape[1]
+            xo, yo = dm.get_domain_coordinates(Nxo/Lx,Nyo/Ly,xmin,xmax,
+                                               ymin,ymax)
+
+            Nxr, Nyr = sigma_recovered.shape[0], sigma_recovered.shape[1]
+            xr, yr = dm.get_domain_coordinates(Nxr/Lx,Nyr/Ly,xmin,xmax,
+                                               ymin,ymax)
+
+            fe = interp.interp2d(xr,yr,sigma_recovered)
+            sigma_recovered = fe(xo,yo)
 
         if epsilon_original is not None and sigma_original is not None:
             zeta_e = (np.sqrt(np.sum(np.abs((epsilon_original-epsilon_recovered)
@@ -608,7 +690,20 @@ class BIM_Tikhonov(Solver):
                       /epsilon_original.size)
             return zeta_s
 
-    def solve_linear(self,es,et=None,alpha=None):
+    def compute_norm_x(self,epsilon_r=None,sigma=None):
+        
+        if epsilon_r is not None and sigma is None:
+            sigma = self.model.sigma_b*np.ones(epsilon_r.shape)
+        elif epsilon_r is None and sigma is not None:
+            epsilon_r = self.model.epsilon_r*np.ones(sigma.shape)
+        elif epsilon_r is None and sigma is None:
+            print("COMPUTE NORM X ERROR: one input must be given!")
+        
+        x = self.compute_contrast_function(epsilon_r,sigma)
+        return lag.norm(x.reshape(-1))
+
+    def solve_linear(self,es,et=None,alpha=None,nopermittivity=False,
+                     noconductivity=False):
         
         if alpha is not None:
             self.alpha = alpha
@@ -617,11 +712,36 @@ class BIM_Tikhonov(Solver):
         else:
             self.model.Et = et
         
-        return self.tikhonov_regularization(es)
+        return self.tikhonov_regularization(es,
+                                            nopermittivity=nopermittivity,
+                                            noconductivity=noconductivity)
 
     def get_intern_field(self):
         return np.copy(self.model.Et)
-  
+ 
+    def __lavarello_alpha(self):
+        K = get_operator_matrix(self.model.Ei,self.model.domain.M,
+                                self.model.domain.L,self.model.GS,
+                                self.model.Ei.shape[0])
+        _, S, _ = lag.svd(K)
+        return S[0]**2
+    
+    def __lavarello_update(self,es,residual,alpha0):
+        RRE = residual/lag.norm(es.reshape(-1))
+        if 0.5 < RRE:
+            return alpha0/2
+        elif .25 < RRE and RRE <= .5:
+            return alpha0/20
+        elif RRE <= .25:
+            return alpha0/200
+
+    def __kirsch_choice(self,es,delta):
+        K = get_operator_matrix(self.model.Ei,self.model.domain.M,
+                                self.model.domain.L,self.model.GS,
+                                self.model.Ei.shape[0])
+        
+        return delta*lag.norm(K)**2/(lag.norm(es.reshape(-1))-delta)
+
 @jit(nopython=True)
 def get_operator_matrix(et,M,L,GS,N):
         
@@ -651,3 +771,16 @@ def initialsolution1(es,et,GS,M,L,N,epsilon_rb,sigma_b,omega):
     sigma[:] = 0.0
         
     return epsilon_r, sigma
+
+@jit(nopython=True)
+def rqi(A,x=None,k=8):
+    I = np.eye(A.shape[0])
+    if x is None:
+        x = np.random.rand(I)-0.5
+    for j in range(k):
+        u = x/lag.norm(x) # normalize
+        lam = np.dot(u,np.dot(A,u)) # Rayleigh quotient
+        x = lag.solve(A-lam*I,u) # inverse power iteration
+    u = x/lag.norm(x)
+    lam = np.dot(u,np.dot(A,u))
+    return lam,x/lag.norm(x,np.inf)

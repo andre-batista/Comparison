@@ -637,11 +637,11 @@ class Model:
         dx, dy = self.domain.Lx/Nx, self.domain.Ly/Ny
         min_radius = np.sqrt((self.domain.Lx/2)**2+(self.domain.Ly/2)**2)
         
-        if epsr is None:
-            epsr = self.epsilon_rb*np.ones((Nx,Ny))
+        # if epsr is None:
+        #     epsr = self.epsilon_rb*np.ones((Nx,Ny))
             
-        if sig is None:
-            sig = self.sigma_b*np.ones((Nx,Ny))
+        # if sig is None:
+        #     sig = self.sigma_b*np.ones((Nx,Ny))
             
         if self.domain.R_obs > min_radius:
             xmin,xmax = -1.05*self.domain.R_obs, 1.05*self.domain.R_obs
@@ -657,103 +657,235 @@ class Model:
         epsilon_r = self.epsilon_rb*np.ones(x.shape)
         sigma = self.sigma_b*np.ones(x.shape)
         
-        epsilon_r[np.ix_(np.logical_and(x[0,:] > -self.domain.Lx/2,
+        if epsr is not None:
+            epsilon_r[np.ix_(np.logical_and(x[0,:] > -self.domain.Lx/2,
+                                            x[0,:] < self.domain.Lx/2),
+                             np.logical_and(y[:,0] > -self.domain.Ly/2,
+                                            y[:,0] < self.domain.Ly/2))] = epsr
+        
+        if sig is not None:
+            sigma[np.ix_(np.logical_and(x[0,:] > -self.domain.Lx/2,
                                         x[0,:] < self.domain.Lx/2),
                          np.logical_and(y[:,0] > -self.domain.Ly/2,
-                                        y[:,0] < self.domain.Ly/2))] = epsr
+                                        y[:,0] < self.domain.Ly/2))] = sig
         
-        sigma[np.ix_(np.logical_and(x[0,:] > -self.domain.Lx/2,
-                                    x[0,:] < self.domain.Lx/2),
-                     np.logical_and(y[:,0] > -self.domain.Ly/2,
-                                    y[:,0] < self.domain.Ly/2))] = sig
+        if epsr is not None and sig is not None:
         
-        fig = plt.figure(figsize=(10,4))
-        fig.subplots_adjust(left=.125, bottom=.1, right=.9, top=.9, wspace=.5, 
-                            hspace=.2)
+            fig = plt.figure(figsize=(10,4))
+            fig.subplots_adjust(left=.125, bottom=.1, right=.9, top=.9, 
+                                wspace=.5, hspace=.2)
         
-        ax = fig.add_subplot(1,2,1)
+            ax = fig.add_subplot(1,2,1)
         
-        if isinstance(self.f,float):
-            lambda_b = get_wavelength(self.f,epsilon_r=self.epsilon_rb)
+            if isinstance(self.f,float):
+                
+                lambda_b = get_wavelength(self.f,
+                                          epsilon_r=self.epsilon_rb)
             
-            im1 = ax.imshow(epsilon_r,extent=[xmin/lambda_b,xmax/lambda_b,
-                                              ymin/lambda_b,ymax/lambda_b])
+                im1 = ax.imshow(epsilon_r,extent=[xmin/lambda_b,
+                                                  xmax/lambda_b,
+                                                  ymin/lambda_b,
+                                                  ymax/lambda_b])
             
-            ax.plot(np.array([-self.domain.Lx/2/lambda_b,-self.domain.Lx/2/lambda_b,
-                              self.domain.Lx/2/lambda_b,self.domain.Lx/2/lambda_b,
-                              -self.domain.Lx/2/lambda_b]),
-                    np.array([-self.domain.Ly/2/lambda_b,self.domain.Ly/2/lambda_b,
-                              self.domain.Ly/2/lambda_b,-self.domain.Ly/2/lambda_b,
-                              -self.domain.Ly/2/lambda_b]),'k--')
+                ax.plot(np.array([-self.domain.Lx/2/lambda_b,
+                                  -self.domain.Lx/2/lambda_b,
+                                  self.domain.Lx/2/lambda_b,
+                                  self.domain.Lx/2/lambda_b,
+                                  -self.domain.Lx/2/lambda_b]),
+                        np.array([-self.domain.Ly/2/lambda_b,
+                                  self.domain.Ly/2/lambda_b,
+                                  self.domain.Ly/2/lambda_b,
+                                  -self.domain.Ly/2/lambda_b,
+                                  -self.domain.Ly/2/lambda_b]),'k--')
             
-            lg_m, = ax.plot(xm/lambda_b,ym/lambda_b,'ro',label='Probe')
-            lg_l, = ax.plot(xl/lambda_b,yl/lambda_b,'go',label='Source')
+                lg_m, = ax.plot(xm/lambda_b,ym/lambda_b,'ro',
+                                label='Probe')
+                lg_l, = ax.plot(xl/lambda_b,yl/lambda_b,'go',
+                                label='Source')
             
-            ax.set_xlabel(r'x [$\lambda_b$]')
-            ax.set_ylabel(r'y [$\lambda_b$]')
+                ax.set_xlabel(r'x [$\lambda_b$]')
+                ax.set_ylabel(r'y [$\lambda_b$]')
+            
+            else:
+                
+                im1 = ax.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax])
+            
+                ax.plot(np.array([-self.domain.Lx/2,-self.domain.Lx/2,
+                                  self.domain.Lx/2,self.domain.Lx/2,
+                                  -self.domain.Lx/2]),
+                        np.array([-self.domain.Ly/2,self.domain.Ly/2,
+                                  self.domain.Ly/2,-self.domain.Ly/2,
+                                  -self.domain.Ly/2]),'k--')
+
+                lg_m, = ax.plot(xm,ym,'ro',label='Probe')
+                lg_l, = ax.plot(xl,yl,'go',label='Source')
+            
+                ax.set_xlabel('x [m]')
+                ax.set_ylabel('y [m]')
+            
+            plt.legend(handles=[lg_m,lg_l],loc='upper right')
+            cbar = fig.colorbar(im1,fraction=0.046,pad=0.04)
+            cbar.set_label(r'$\epsilon_r$')
+            ax.set_title('Relative Permittivity')
+
+            ax = fig.add_subplot(1,2,2)
+
+            if isinstance(self.f,float):
+                
+                lambda_b = get_wavelength(self.f,
+                                          epsilon_r=self.epsilon_rb)
+            
+                im1 = ax.imshow(sigma,extent=[xmin/lambda_b,
+                                              xmax/lambda_b,
+                                              ymin/lambda_b,
+                                              ymax/lambda_b])
+            
+                ax.plot(np.array([-self.domain.Lx/2/lambda_b,
+                                  -self.domain.Lx/2/lambda_b,
+                                  self.domain.Lx/2/lambda_b,
+                                  self.domain.Lx/2/lambda_b,
+                                  -self.domain.Lx/2/lambda_b]),
+                        np.array([-self.domain.Ly/2/lambda_b,
+                                  self.domain.Ly/2/lambda_b,
+                                  self.domain.Ly/2/lambda_b,
+                                  -self.domain.Ly/2/lambda_b,
+                                  -self.domain.Ly/2/lambda_b]),'k--')
+            
+                lg_m, = ax.plot(xm/lambda_b,ym/lambda_b,'ro',
+                                label='Probe')
+                lg_l, = ax.plot(xl/lambda_b,yl/lambda_b,'go',
+                                label='Source')
+            
+                ax.set_xlabel(r'x [$\lambda_b$]')
+                ax.set_ylabel(r'y [$\lambda_b$]')
+            
+            else:
+                
+                im1 = ax.imshow(sigma,extent=[xmin,xmax,ymin,ymax])
+            
+                ax.plot(np.array([-self.domain.Lx/2,-self.domain.Lx/2,
+                                  self.domain.Lx/2,self.domain.Lx/2,
+                                  -self.domain.Lx/2]),
+                        np.array([-self.domain.Ly/2,self.domain.Ly/2,
+                                  self.domain.Ly/2,-self.domain.Ly/2,
+                                  -self.domain.Ly/2]),'k--')
+
+                lg_m, = ax.plot(xm,ym,'ro',label='Probe')
+                lg_l, = ax.plot(xl,yl,'go',label='Source')
+            
+                ax.set_xlabel('x [m]')
+                ax.set_ylabel('y [m]')
+            
+            cbar = fig.colorbar(im1,fraction=0.046,pad=0.04)
+            cbar.set_label(r'$\sigma$ [S/m]')
+            ax.set_title('Conductivity')
+            plt.legend(handles=[lg_m,lg_l],loc='upper right')
+        
+        elif epsr is not None:
+            
+            if isinstance(self.f,float):
+                
+                lambda_b = get_wavelength(self.f,
+                                          epsilon_r=self.epsilon_rb)
+            
+                im1 = plt.imshow(epsilon_r,extent=[xmin/lambda_b,
+                                                   xmax/lambda_b,
+                                                   ymin/lambda_b,
+                                                   ymax/lambda_b])
+            
+                plt.plot(np.array([-self.domain.Lx/2/lambda_b,
+                                   -self.domain.Lx/2/lambda_b,
+                                   self.domain.Lx/2/lambda_b,
+                                   self.domain.Lx/2/lambda_b,
+                                   -self.domain.Lx/2/lambda_b]),
+                         np.array([-self.domain.Ly/2/lambda_b,
+                                   self.domain.Ly/2/lambda_b,
+                                   self.domain.Ly/2/lambda_b,
+                                   -self.domain.Ly/2/lambda_b,
+                                   -self.domain.Ly/2/lambda_b]),'k--')
+            
+                lg_m, = plt.plot(xm/lambda_b,ym/lambda_b,'ro',
+                                 label='Probe')
+                lg_l, = plt.plot(xl/lambda_b,yl/lambda_b,'go',
+                                 label='Source')
+            
+                plt.xlabel(r'x [$\lambda_b$]')
+                plt.ylabel(r'y [$\lambda_b$]')
+        
+            else:
+                
+                im1 = plt.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax])
+            
+                plt.plot(np.array([-self.domain.Lx/2,-self.domain.Lx/2,
+                                   self.domain.Lx/2,self.domain.Lx/2,
+                                   -self.domain.Lx/2]),
+                         np.array([-self.domain.Ly/2,self.domain.Ly/2,
+                                   self.domain.Ly/2,-self.domain.Ly/2,
+                                   -self.domain.Ly/2]),'k--')
+
+                lg_m, = plt.plot(xm,ym,'ro',label='Probe')
+                lg_l, = plt.plot(xl,yl,'go',label='Source')
+            
+                plt.set_xlabel('x [m]')
+                plt.set_ylabel('y [m]')
+            
+            plt.legend(handles=[lg_m,lg_l],loc='upper right')
+            cbar = plt.colorbar()
+            cbar.set_label(r'$\epsilon_r$')
+            plt.title('Relative Permittivity')
             
         else:
-            im1 = ax.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax])
             
-            ax.plot(np.array([-self.domain.Lx/2,-self.domain.Lx/2,
-                              self.domain.Lx/2,self.domain.Lx/2,
-                              -self.domain.Lx/2]),
-                    np.array([-self.domain.Ly/2,self.domain.Ly/2,
-                              self.domain.Ly/2,-self.domain.Ly/2,
-                              -self.domain.Ly/2]),'k--')
+            if isinstance(self.f,float):
+                
+                lambda_b = get_wavelength(self.f,
+                                          epsilon_r=self.epsilon_rb)
+            
+                im1 = plt.imshow(sigma,extent=[xmin/lambda_b,
+                                               xmax/lambda_b,
+                                               ymin/lambda_b,
+                                               ymax/lambda_b])
+            
+                plt.plot(np.array([-self.domain.Lx/2/lambda_b,
+                                   -self.domain.Lx/2/lambda_b,
+                                   self.domain.Lx/2/lambda_b,
+                                   self.domain.Lx/2/lambda_b,
+                                   -self.domain.Lx/2/lambda_b]),
+                         np.array([-self.domain.Ly/2/lambda_b,
+                                   self.domain.Ly/2/lambda_b,
+                                   self.domain.Ly/2/lambda_b,
+                                   -self.domain.Ly/2/lambda_b,
+                                   -self.domain.Ly/2/lambda_b]),'k--')
+            
+                lg_m, = plt.plot(xm/lambda_b,ym/lambda_b,'ro',
+                                label='Probe')
+                lg_l, = plt.plot(xl/lambda_b,yl/lambda_b,'go',
+                                label='Source')
+            
+                plt.xlabel(r'x [$\lambda_b$]')
+                plt.ylabel(r'y [$\lambda_b$]')
+            
+            else:
+                
+                im1 = plt.imshow(sigma,extent=[xmin,xmax,ymin,ymax])
+            
+                plt.plot(np.array([-self.domain.Lx/2,-self.domain.Lx/2,
+                                   self.domain.Lx/2,self.domain.Lx/2,
+                                   -self.domain.Lx/2]),
+                         np.array([-self.domain.Ly/2,self.domain.Ly/2,
+                                   self.domain.Ly/2,-self.domain.Ly/2,
+                                   -self.domain.Ly/2]),'k--')
 
-            lg_m, = ax.plot(xm,ym,'ro',label='Probe')
-            lg_l, = ax.plot(xl,yl,'go',label='Source')
+                lg_m, = plt.plot(xm,ym,'ro',label='Probe')
+                lg_l, = plt.plot(xl,yl,'go',label='Source')
             
-            ax.set_xlabel('x [m]')
-            ax.set_ylabel('y [m]')
+                plt.xlabel('x [m]')
+                plt.ylabel('y [m]')
             
-        plt.legend(handles=[lg_m,lg_l],loc='upper right')
-        cbar = fig.colorbar(im1,fraction=0.046,pad=0.04)
-        cbar.set_label(r'$\epsilon_r$')
-        ax.set_title('Relative Permittivity')
-
-        ax = fig.add_subplot(1,2,2)
-
-        if isinstance(self.f,float):
-            lambda_b = get_wavelength(self.f,epsilon_r=self.epsilon_rb)
-            
-            im1 = ax.imshow(sigma,extent=[xmin/lambda_b,xmax/lambda_b,
-                                          ymin/lambda_b,ymax/lambda_b])
-            
-            ax.plot(np.array([-self.domain.Lx/2/lambda_b,-self.domain.Lx/2/lambda_b,
-                              self.domain.Lx/2/lambda_b,self.domain.Lx/2/lambda_b,
-                              -self.domain.Lx/2/lambda_b]),
-                    np.array([-self.domain.Ly/2/lambda_b,self.domain.Ly/2/lambda_b,
-                              self.domain.Ly/2/lambda_b,-self.domain.Ly/2/lambda_b,
-                              -self.domain.Ly/2/lambda_b]),'k--')
-            
-            lg_m, = ax.plot(xm/lambda_b,ym/lambda_b,'ro',label='Probe')
-            lg_l, = ax.plot(xl/lambda_b,yl/lambda_b,'go',label='Source')
-            
-            ax.set_xlabel(r'x [$\lambda_b$]')
-            ax.set_ylabel(r'y [$\lambda_b$]')
-            
-        else:
-            im1 = ax.imshow(sigma,extent=[xmin,xmax,ymin,ymax])
-            
-            ax.plot(np.array([-self.domain.Lx/2,-self.domain.Lx/2,
-                              self.domain.Lx/2,self.domain.Lx/2,
-                              -self.domain.Lx/2]),
-                    np.array([-self.domain.Ly/2,self.domain.Ly/2,
-                              self.domain.Ly/2,-self.domain.Ly/2,
-                              -self.domain.Ly/2]),'k--')
-
-            lg_m, = ax.plot(xm,ym,'ro',label='Probe')
-            lg_l, = ax.plot(xl,yl,'go',label='Source')
-            
-            ax.set_xlabel('x [m]')
-            ax.set_ylabel('y [m]')
-            
-        cbar = fig.colorbar(im1,fraction=0.046,pad=0.04)
-        cbar.set_label(r'$\sigma$ [S/m]')
-        ax.set_title('Conductivity')
-        plt.legend(handles=[lg_m,lg_l],loc='upper right')
+            cbar = fig.colorbar()
+            cbar.set_label(r'$\sigma$ [S/m]')
+            plt.title('Conductivity')
+            plt.legend(handles=[lg_m,lg_l],loc='upper right')
         
         if file_name is None:
             plt.show()
@@ -861,8 +993,16 @@ def load_maps(file_name,file_path=''):
 
 def add_noise(x,delta):
     originalshape = x.shape
-    xd = (rnd.normal(loc=np.real(x.reshape(-1)),scale=delta/16,
+    N = x.size
+    xd = (rnd.normal(loc=np.real(x.reshape(-1)),
+                     scale=delta/1.9/np.sqrt(N),
                      size=x.size)
-          + 1j*rnd.normal(loc=np.imag(x.reshape(-1)),scale=delta/16,
+          + 1j*rnd.normal(loc=np.imag(x.reshape(-1)),
+                          scale=delta/1.9/np.sqrt(N),
                           size=x.size))
     return np.reshape(xd,originalshape)
+
+def load_greenfunction(file_name,file_path=''):
+    with open(file_path + file_name,'rb') as datafile:
+        data = pickle.load(datafile)
+    return data['green_function_s']
