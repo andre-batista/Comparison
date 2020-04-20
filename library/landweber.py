@@ -138,6 +138,12 @@ class Landweber(bim.BIM):
 @jit(nopython=True)
 def landweber_iteration(K,y,a,x0,M):
     x = np.copy(x0)
-    for i in range(M):
+    d = lag.norm(y-K@x)
+    d_last = 2*d
+    it = 0
+    while it < M and (d_last-d)/d_last > 0.01:
         x = x + a*K.T.conj()@(y-K@x)
+        d_last = d
+        d = lag.norm(y-K@x)
+        it += 1
     return x
