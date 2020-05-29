@@ -38,9 +38,9 @@ def build_square(I,J,dx,dy,l,epsilon_rb=1.,sigma_b=0.,epsilon_robj=1.,
     - center is and array with the position of the center of the square."""
     
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
     Lx, Ly = I*dx, J*dy
     x, y = np.meshgrid(np.linspace(-Lx/2,Lx/2,I,endpoint=False)+center[0],
                        np.linspace(-Ly/2,Ly/2,J,endpoint=False)+center[1])
@@ -49,15 +49,15 @@ def build_square(I,J,dx,dy,l,epsilon_rb=1.,sigma_b=0.,epsilon_robj=1.,
     xp = x*np.cos(theta) + y*np.sin(theta)
     yp = -x*np.sin(theta) + y*np.cos(theta)    
     
-    epsilon_r[np.logical_and(np.logical_and(xp >= -l/2,
-                                            xp <= l/2),
-                             np.logical_and(yp >= -l/2,
-                                            yp <= l/2))] = epsilon_robj
+    epsilon_r[np.logical_and(np.logical_and(yp >= -l/2,
+                                            yp <= l/2),
+                             np.logical_and(xp >= -l/2,
+                                            xp <= l/2))] = epsilon_robj
     
-    sigma[np.logical_and(np.logical_and(xp >= -l/2,
-                                        xp <= l/2),
-                         np.logical_and(yp >= -l/2,
-                                        yp <= l/2))] = sigma_obj
+    sigma[np.logical_and(np.logical_and(yp >= -l/2,
+                                        yp <= l/2),
+                         np.logical_and(xp >= -l/2,
+                                        xp <= l/2))] = sigma_obj
     
     return epsilon_r,sigma
 

@@ -19,6 +19,7 @@ class ConjugatedGradient(bim.BIM):
     
     delta = float()
     regularization_method_name = 'CONJUGATED GRADIENT'
+    execution_info = ''
     
     def set_regularization_parameter(self, newparameter):
         self.delta = newparameter
@@ -93,7 +94,7 @@ def cg_method(K,y,x0,delta):
     
     p = -K.conj().T@y
     x = np.copy(x0)
-    
+    it = 0
     
     while True:
         
@@ -102,11 +103,12 @@ def cg_method(K,y,x0,delta):
         x_last = np.copy(x)
         x = x - tm*p
         
-        if  K.conj().T@(K@x-y) > delta:
+        if  lag.norm(K.conj().T@(K@x-y)) < delta:
             break
         
         gamma = (lag.norm(K.conj().T@(K@x-y))**2
                  /lag.norm(K.conj().T@(K@x_last-y))**2)
         p = K.conj().T@(K@x-y)+gamma*p
+        it += 1
         
     return x
