@@ -259,7 +259,8 @@ class BIM(slv.Solver):
         ymax = self.model.domain.y[-1,0]/self.model.lambda_b
         
         if epsilon_r is not None:
-            plt.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax])
+            plt.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax],
+                       origin='lower')
             plt.xlabel(r'x [$\lambda_b$]')
             plt.ylabel(r'y [$\lambda_b$]')
             cbar = plt.colorbar()
@@ -276,7 +277,7 @@ class BIM(slv.Solver):
                 plt.close()
                 
         if sigma is not None:
-            plt.imshow(sigma,extent=[xmin,xmax,ymin,ymax])
+            plt.imshow(sigma,extent=[xmin,xmax,ymin,ymax],origin='lower')
             plt.xlabel(r'x [$\lambda_b$]')
             plt.ylabel(r'y [$\lambda_b$]')
             cbar = plt.colorbar()
@@ -439,11 +440,11 @@ class BIM(slv.Solver):
             xmin, xmax = dm.get_bounds(Lx)
             ymin, ymax = dm.get_bounds(Ly)
 
-            Nxo, Nyo = epsilon_original.shape[0], epsilon_original.shape[1]
+            Nyo, Nxo = epsilon_original.shape[0], epsilon_original.shape[1]
             xo, yo = dm.get_domain_coordinates(Nxo/Lx,Nyo/Ly,xmin,xmax,
                                                ymin,ymax)
 
-            Nxr, Nyr = epsilon_recovered.shape[0], epsilon_recovered.shape[1]
+            Nyr, Nxr = epsilon_recovered.shape[0], epsilon_recovered.shape[1]
             xr, yr = dm.get_domain_coordinates(Nxr/Lx,Nyr/Ly,xmin,xmax,
                                                ymin,ymax)
 
@@ -458,11 +459,11 @@ class BIM(slv.Solver):
             xmin, xmax = dm.get_bounds(Lx)
             ymin, ymax = dm.get_bounds(Ly)
 
-            Nxo, Nyo = sigma_original.shape[0], sigma_original.shape[1]
+            Nyo, Nxo = sigma_original.shape[0], sigma_original.shape[1]
             xo, yo = dm.get_domain_coordinates(Nxo/Lx,Nyo/Ly,xmin,xmax,
                                                ymin,ymax)
 
-            Nxr, Nyr = sigma_recovered.shape[0], sigma_recovered.shape[1]
+            Nyr, Nxr = sigma_recovered.shape[0], sigma_recovered.shape[1]
             xr, yr = dm.get_domain_coordinates(Nxr/Lx,Nyr/Ly,xmin,xmax,
                                                ymin,ymax)
 

@@ -73,7 +73,7 @@ class Model:
         
         if Nx is not None and Ny is not None and frequencies is not None:
             self.f = frequencies
-            self.__compute_model_parameters(Ny,Ny)
+            self.__compute_model_parameters(Nx,Ny)
         else:
             if Nx is not None:
                 self.Nx = Nx
@@ -120,13 +120,13 @@ class Model:
             print('SOLVE ERROR: Either epsilon_r or sigma or both must be given!')
             sys.exit()
         elif sigma is None:
-            Nx, Ny = epsilon_r.shape
+            Ny, Nx = epsilon_r.shape
             sigma = self.sigma_b*np.ones(epsilon_r.shape)
         elif epsilon_r is None:
-            Nx, Ny = sigma.shape
+            Ny, Nx = sigma.shape
             epsilon_r = self.epsilon_rb*np.ones(sigma.shape)
         else:
-            Nx, Ny = epsilon_r.shape
+            Ny, Nx = epsilon_r.shape
 
         if ((self.Nx is None and self.Ny is None) or (Nx != self.Nx 
                                                       or Ny != self.Ny) 
@@ -296,18 +296,18 @@ class Model:
             # Matrix elements for off-diagonal entries
             Zmn = ((1j*np.pi*kb*an)/2)*spc.jv(1,kb*an)*spc.hankel2(0,kb*Rmn) # m=/n
             # Matrix elements for diagonal entries 
-            Zmn[Nx-1,Ny-1]= ((1j*np.pi*kb*an)/2)*spc.hankel2(1,kb*an)+1 # m==n
+            Zmn[Ny-1,Nx-1]= ((1j*np.pi*kb*an)/2)*spc.hankel2(1,kb*an)+1 # m==n
 
             # Extended matrix (2N-1)x(2N-1) 
-            Z = np.zeros((2*Nx-1,2*Ny-1),dtype=complex)
-            Z[:Nx,:Ny] = Zmn[Nx-1:2*Nx-1,Ny-1:2*Ny-1]
-            Z[Nx:2*Nx-1,Ny:2*Ny-1] = Zmn[:Nx-1,:Ny-1]
-            Z[:Nx,Ny:2*Ny-1] = Zmn[Nx-1:2*Nx-1,:Ny-1]
-            Z[Nx:2*Nx-1,:Ny] = Zmn[:Nx-1,Ny-1:2*Ny-1]
+            Z = np.zeros((2*Ny-1,2*Nx-1),dtype=complex)
+            Z[:Ny,:Nx] = Zmn[Ny-1:2*Ny-1,Nx-1:2*Nx-1]
+            Z[Ny:2*Ny-1,Nx:2*Nx-1] = Zmn[:Ny-1,:Nx-1]
+            Z[Ny:2*Ny-1,:Nx] = Zmn[:Ny-1,Nx-1:2*Nx-1]
+            Z[:Ny,Nx:2*Nx-1] = Zmn[Ny-1:2*Ny-1,:Nx-1]
             
         else:
             
-            Z = np.zeros((2*Nx-1,2*Ny-1,kb.size),dtype=complex)
+            Z = np.zeros((2*Ny-1,2*Nx-1,kb.size),dtype=complex)
             
             for f in range(kb.size):
                 
@@ -315,12 +315,12 @@ class Model:
                 Zmn = (((1j*np.pi*kb[f]*an)/2)*spc.jv(1,kb[f]*an)
                        * spc.hankel2(0,kb[f]*Rmn)) # m=/n
                 # Matrix elements for diagonal entries 
-                Zmn[Nx-1,Ny-1]= ((1j*np.pi*kb[f]*an)/2)*spc.hankel2(1,kb[f]*an)+1 # m==n
+                Zmn[Ny-1,Nx-1]= ((1j*np.pi*kb[f]*an)/2)*spc.hankel2(1,kb[f]*an)+1 # m==n
                 
-                Z[:Nx,:Ny,f] = Zmn[Nx-1:2*Nx-1,Ny-1:2*Ny-1]
-                Z[Nx:2*Nx-1,Ny:2*Ny-1,f] = Zmn[:Nx-1,:Ny-1]
-                Z[:Nx,Ny:2*Ny-1,f] = Zmn[Nx-1:2*Nx-1,:Ny-1]
-                Z[Nx:2*Nx-1,:Ny,f] = Zmn[:Nx-1,Ny-1:2*Ny-1]
+                Z[:Ny,:Nx,f] = Zmn[Ny-1:2*Ny-1,Nx-1:2*Nx-1]
+                Z[Ny:2*Ny-1,Nx:2*Nx-1,f] = Zmn[:Ny-1,:Nx-1]
+                Z[Ny:2*Ny-1,:Nx,f] = Zmn[:Ny-1,Nx-1:2*Nx-1]
+                Z[:Ny,Nx:2*Nx-1,f] = Zmn[Ny-1:2*Ny-1,:Nx-1]
     
         return Z
         
@@ -381,11 +381,11 @@ class Model:
     def __fft_A(self,J,Z,Nx,Ny,Ni,Xr):
         """ Compute Matrix-vector product by using two-dimensional FFT."""
 
-        J = np.reshape(J,(Nx,Ny,Ni))
+        J = np.reshape(J,(Ny,Nx,Ni))
         Z = np.tile(Z[:,:,np.newaxis],(1,1,Ni))
         e = fft.ifft2(fft.fft2(Z,axes=(0,1))
-                      * fft.fft2(J,axes=(0,1),s=(2*Nx-1,2*Ny-1)),axes=(0,1))
-        e = e[:Nx,:Ny,:]
+                      * fft.fft2(J,axes=(0,1),s=(2*Ny-1,2*Nx-1)),axes=(0,1))
+        e = e[:Ny,:Nx,:]
         e = np.reshape(e,(Nx*Ny,Ni))
         e = np.reshape(J,(Nx*Ny,Ni)) + np.tile(Xr.reshape((-1,1)),(1,Ni))*e
 
@@ -395,11 +395,11 @@ class Model:
         """ Compute Matrix-vector product by using two-dimensional FFT*
             complex conjugate operator."""
 
-        J = np.reshape(J,(Nx,Ny,Ni))
+        J = np.reshape(J,(Ny,Nx,Ni))
         Z = np.tile(Z[:,:,np.newaxis],(1,1,Ni))
         e = fft.ifft2(fft.fft2(np.conj(Z),axes=(0,1))
-                      *fft.fft2(J,axes=(0,1),s=(2*Nx-1,2*Ny-1)),axes=(0,1))
-        e = e[:Nx,:Ny,:]
+                      *fft.fft2(J,axes=(0,1),s=(2*Ny-1,2*Nx-1)),axes=(0,1))
+        e = e[:Ny,:Nx,:]
         e = np.reshape(e,(Nx*Ny,Ni))
         e = (np.reshape(J,(Nx*Ny,Ni)) 
              + np.conj(np.tile(Xr.reshape((-1,1)),(1,Ni)))*e)
@@ -494,9 +494,9 @@ class Model:
         """ Plot the fields from last simulation."""
         
         if isinstance(self.f,float):
-            et = np.reshape(self.Et,(self.Nx,self.Ny,self.domain.L))
+            et = np.reshape(self.Et,(self.Ny,self.Nx,self.domain.L))
         else:
-            et = np.reshape(self.Et,(self.Nx,self.Ny,self.domain.L,self.f.size))
+            et = np.reshape(self.Et,(self.Ny,self.Nx,self.domain.L,self.f.size))
         
         xmin, xmax = get_bounds(self.domain.Lx)
         ymin, ymax = get_bounds(self.domain.Ly)
@@ -509,7 +509,8 @@ class Model:
             
             plt.imshow(np.abs(et[:,:,source_index,frequency_index]),
                        extent=[xmin[frequency_index],xmax[frequency_index],
-                               ymin[frequency_index],ymax[frequency_index]])
+                               ymin[frequency_index],ymax[frequency_index]],
+                       origin='lower')
             plt.title('Intern field, Source = %d' %(source_index+1) 
                       + ', Frequency = %.3f' %(self.f[frequency_index]/1e9) 
                       + ' [GHz]')
@@ -522,7 +523,7 @@ class Model:
         elif source_index is not None and isinstance(self.f,float):
             
             plt.imshow(np.abs(et[:,:,source_index]),
-                       extent=[xmin,xmax,ymin,ymax])
+                       extent=[xmin,xmax,ymin,ymax],origin='lower')
             plt.title('Intern field, Source = %d' %(source_index+1) 
                        + ', Frequency = %.3f' %(self.f/1e9) + ' [GHz]')
             
@@ -541,7 +542,8 @@ class Model:
                 fig.subplots_adjust(left=.125, bottom=.1, right=.9, top=.9, 
                                     wspace=.9, hspace=.2)
                 temp = ax.imshow(np.abs(et[:,:,ifig]),extent=[xmin,xmax,
-                                                              ymin,ymax])
+                                                              ymin,ymax],
+                                 origin='lower')
                 ax.set_xlabel(r'x [$\lambda_b$]')
                 ax.set_ylabel(r'y [$\lambda_b$]')
                 cbar = plt.colorbar(ax=ax,mappable=temp,fraction=0.046,pad=0.04)
@@ -561,7 +563,8 @@ class Model:
                     fig[-1].subplots_adjust(left=.125, bottom=.1, right=.9, 
                                             top=.9, wspace=.9, hspace=.2)
                     temp = ax.imshow(np.abs(et[:,:,ifig,f]),extent=
-                                     [xmin[f],xmax[f],ymin[f],ymax[f]])
+                                     [xmin[f],xmax[f],ymin[f],ymax[f]]
+                                     ,origin='lower')
                     ax.set_xlabel(r'x [$\lambda_b$]')
                     ax.set_ylabel(r'y [$\lambda_b$]')
                     cbar = plt.colorbar(ax=ax,mappable=temp,fraction=0.046,
@@ -582,7 +585,8 @@ class Model:
                                  extent=[xmin[frequency_index],
                                          xmax[frequency_index],
                                          ymin[frequency_index],
-                                         ymax[frequency_index]])
+                                         ymax[frequency_index]]
+                                 ,origin='lower')
                 fig.subplots_adjust(left=.125, bottom=.1, right=.9, 
                                     top=.9, wspace=.9, hspace=.2)
                 ax.set_xlabel(r'x [$\lambda_b$]')
@@ -630,19 +634,13 @@ class Model:
         if epsr is None and sig is None:
             Nx, Ny = 100, 100
         elif epsr is not None:
-            Nx, Ny = epsr.shape
+            Ny, Nx = epsr.shape
         else:
-            Nx, Ny = sig.shape
+            Ny, Nx = sig.shape
         
         dx, dy = self.domain.Lx/Nx, self.domain.Ly/Ny
         min_radius = np.sqrt((self.domain.Lx/2)**2+(self.domain.Ly/2)**2)
         
-        # if epsr is None:
-        #     epsr = self.epsilon_rb*np.ones((Nx,Ny))
-            
-        # if sig is None:
-        #     sig = self.sigma_b*np.ones((Nx,Ny))
-            
         if self.domain.R_obs > min_radius:
             xmin,xmax = -1.05*self.domain.R_obs, 1.05*self.domain.R_obs
             ymin,ymax = -1.05*self.domain.R_obs, 1.05*self.domain.R_obs
@@ -658,16 +656,16 @@ class Model:
         sigma = self.sigma_b*np.ones(x.shape)
         
         if epsr is not None:
-            epsilon_r[np.ix_(np.logical_and(x[0,:] > -self.domain.Lx/2,
-                                            x[0,:] < self.domain.Lx/2),
-                             np.logical_and(y[:,0] > -self.domain.Ly/2,
-                                            y[:,0] < self.domain.Ly/2))] = epsr
+            epsilon_r[np.ix_(np.logical_and(y[:,0] > -self.domain.Ly/2,
+                                            y[:,0] < self.domain.Ly/2),
+                             np.logical_and(x[0,:] > -self.domain.Lx/2,
+                                            x[0,:] < self.domain.Lx/2))] = epsr
         
         if sig is not None:
-            sigma[np.ix_(np.logical_and(x[0,:] > -self.domain.Lx/2,
-                                        x[0,:] < self.domain.Lx/2),
-                         np.logical_and(y[:,0] > -self.domain.Ly/2,
-                                        y[:,0] < self.domain.Ly/2))] = sig
+            sigma[np.ix_(np.logical_and(y[:,0] > -self.domain.Ly/2,
+                                        y[:,0] < self.domain.Ly/2),
+                         np.logical_and(x[0,:] > -self.domain.Lx/2,
+                                        x[0,:] < self.domain.Lx/2))] = sig
         
         if epsr is not None and sig is not None:
         
@@ -685,7 +683,8 @@ class Model:
                 im1 = ax.imshow(epsilon_r,extent=[xmin/lambda_b,
                                                   xmax/lambda_b,
                                                   ymin/lambda_b,
-                                                  ymax/lambda_b])
+                                                  ymax/lambda_b],
+                                origin='lower')
             
                 ax.plot(np.array([-self.domain.Lx/2/lambda_b,
                                   -self.domain.Lx/2/lambda_b,
@@ -708,7 +707,8 @@ class Model:
             
             else:
                 
-                im1 = ax.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax])
+                im1 = ax.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax],
+                                origin='lower')
             
                 ax.plot(np.array([-self.domain.Lx/2,-self.domain.Lx/2,
                                   self.domain.Lx/2,self.domain.Lx/2,
@@ -738,7 +738,8 @@ class Model:
                 im1 = ax.imshow(sigma,extent=[xmin/lambda_b,
                                               xmax/lambda_b,
                                               ymin/lambda_b,
-                                              ymax/lambda_b])
+                                              ymax/lambda_b],
+                                origin='lower')
             
                 ax.plot(np.array([-self.domain.Lx/2/lambda_b,
                                   -self.domain.Lx/2/lambda_b,
@@ -761,7 +762,8 @@ class Model:
             
             else:
                 
-                im1 = ax.imshow(sigma,extent=[xmin,xmax,ymin,ymax])
+                im1 = ax.imshow(sigma,extent=[xmin,xmax,ymin,ymax],
+                                origin='lower')
             
                 ax.plot(np.array([-self.domain.Lx/2,-self.domain.Lx/2,
                                   self.domain.Lx/2,self.domain.Lx/2,
@@ -791,7 +793,8 @@ class Model:
                 im1 = plt.imshow(epsilon_r,extent=[xmin/lambda_b,
                                                    xmax/lambda_b,
                                                    ymin/lambda_b,
-                                                   ymax/lambda_b])
+                                                   ymax/lambda_b],
+                                 origin='lower')
             
                 plt.plot(np.array([-self.domain.Lx/2/lambda_b,
                                    -self.domain.Lx/2/lambda_b,
@@ -814,7 +817,8 @@ class Model:
         
             else:
                 
-                im1 = plt.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax])
+                im1 = plt.imshow(epsilon_r,extent=[xmin,xmax,ymin,ymax],
+                                 origin='lower')
             
                 plt.plot(np.array([-self.domain.Lx/2,-self.domain.Lx/2,
                                    self.domain.Lx/2,self.domain.Lx/2,
@@ -844,7 +848,8 @@ class Model:
                 im1 = plt.imshow(sigma,extent=[xmin/lambda_b,
                                                xmax/lambda_b,
                                                ymin/lambda_b,
-                                               ymax/lambda_b])
+                                               ymax/lambda_b],
+                                 origin='lower')
             
                 plt.plot(np.array([-self.domain.Lx/2/lambda_b,
                                    -self.domain.Lx/2/lambda_b,
@@ -943,7 +948,7 @@ def get_contrast_map(epsilon_r,sigma,epsilon_rb,sigma_b,omega):
 def get_greenfunction(xm,ym,x,y,kb):
     """ Compute the Green function."""
 
-    Nx, Ny = x.shape
+    Ny, Nx = x.shape
     M = xm.size
     dx, dy = x[0,1]-x[0,0], y[1,0]-y[0,0]
     an = np.sqrt(dx*dy/np.pi) # radius of the equivalent circle
