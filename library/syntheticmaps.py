@@ -69,9 +69,9 @@ def build_triangle(I,J,dx,dy,l,epsilon_rb=1.,sigma_b=.0,epsilon_robj=1.,
     - l is the length of the triangle in sides."""
 
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
         
     Lx, Ly = I*dx, J*dy
     
@@ -97,9 +97,9 @@ def build_star(I,J,dx,dy,l,epsilon_rb=1.,sigma_b=.0,epsilon_robj=1.,
       the star."""
 
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
         
     Lx, Ly = I*dx, J*dy
     
@@ -119,53 +119,6 @@ def build_star(I,J,dx,dy,l,epsilon_rb=1.,sigma_b=.0,epsilon_robj=1.,
     sigma[np.logical_and(np.logical_and(y<=l/4,y>=3/2*x-l/2),
                          y>=-3/2*x-l/2)] = sigma_obj
 
-
-    # x = np.arange(dx,dx*(I+1),dx)
-    # y = np.arange(dy,dy*(J+1),dy)
-    # Lx, Ly = I*dx, J*dy
-    # xc = l/6
-
-    # for i in range(I):
-    #     for j in range(J):
-
-    #         if x[i]+xc+center[0] >= Lx/2-l/2 and x[i]+xc+center[0] <= Lx/2+l/2:
-    #             a = x[i]+xc+center[0]-.5*(Lx-l)
-    #             FLAG = False
-    #             if y[j]+center[1] < Ly/2:
-    #                 b = y[j]+center[1]-.5*(Ly-l)
-    #                 v = -.5*a+l/2
-    #                 if b >= v:
-    #                     FLAG = True
-    #             else:
-    #                 b = y[j]+center[1]-Lx/2
-    #                 v = .5*a
-    #                 if b <= v:
-    #                     FLAG = True
-    #             if FLAG == True:
-    #                 epsilon_r[i,j] = epsilon_robj
-    #                 sigma[i,j] = sigma_obj
-
-    # for i in range(I):
-    #     for j in range(J):
-
-    #         if x[i]-xc+center[0] >= Lx/2-l/2 and x[i]-xc+center[0] <= Lx/2+l/2:
-    #             a = x[i]-xc+center[0]-.5*(Lx-l)
-    #             FLAG = False
-    #             if y[j]+center[1] < Ly/2:
-    #                 b = y[j]+center[1]-.5*(Ly-l)
-    #                 v = .5*a
-    #                 if b >= v:
-    #                     FLAG = True
-    #             else:/
-    #                 b = y[j]+center[1]-Lx/2
-    #                 v = -.5*a+l/2
-    #                 if b <= v:
-    #                     FLAG = True
-    #             if FLAG is True:
-    #                 epsilon_r[i,j] = epsilon_robj
-    #                 sigma[i,j] = sigma_obj
-                    
-
     return epsilon_r, sigma
 
 def build_ring(I,J,dx,dy,ra,rb,rc,epsilon_rb=1.,sigma_b=.0,epsilon_robj=1.,
@@ -179,9 +132,9 @@ def build_ring(I,J,dx,dy,ra,rb,rc,epsilon_rb=1.,sigma_b=.0,epsilon_robj=1.,
       image considering equal displacements in each axis."""
 
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
     x = np.arange(1,I+1)*dx
     y = np.arange(1,J+1)*dy
     xc = I*dx/2+delta
@@ -193,22 +146,22 @@ def build_ring(I,J,dx,dy,ra,rb,rc,epsilon_rb=1.,sigma_b=.0,epsilon_robj=1.,
             r = np.sqrt((x[i]-xc+center[0])**2+(y[j]-yc+center[1])**2)
             if r <= ra and r >= rb:
                 if isinstance(epsilon_robj,float):
-                    epsilon_r[i,j] = epsilon_robj
+                    epsilon_r[j,i] = epsilon_robj
                 else:
-                    epsilon_r[i,j] = epsilon_robj[0]
+                    epsilon_r[j,i] = epsilon_robj[0]
                 if isinstance(sigma_obj,float):
-                    sigma[i,j] = sigma_obj
+                    sigma[j,i] = sigma_obj
                 else:
-                    sigma[i,j] = sigma_obj[0]
+                    sigma[j,i] = sigma_obj[0]
             elif r <= rc:
                 if isinstance(epsilon_robj,float):
-                    epsilon_r[i,j] = epsilon_robj
+                    epsilon_r[j,i] = epsilon_robj
                 else:
-                    epsilon_r[i,j] = epsilon_robj[1]
+                    epsilon_r[j,i] = epsilon_robj[1]
                 if isinstance(sigma_obj,float):
-                    sigma[i,j] = sigma_obj
+                    sigma[j,i] = sigma_obj
                 else:
-                    sigma[i,j] = sigma_obj[1]
+                    sigma[j,i] = sigma_obj[1]
     return epsilon_r, sigma
 
 def build_ellipses(I,J,dx,dy,la,lb,delta,epsilon_rb=1.,sigma_b=.0,
@@ -221,9 +174,9 @@ def build_ellipses(I,J,dx,dy,la,lb,delta,epsilon_rb=1.,sigma_b=.0,
     - delta is the displacement between the center of the two ellipses."""
 
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
     x = np.arange(1,I+1)*dx
     y = np.arange(1,J+1)*dy
     xc = I*dx/2
@@ -234,22 +187,22 @@ def build_ellipses(I,J,dx,dy,la,lb,delta,epsilon_rb=1.,sigma_b=.0,
 
             if (x[i]+center[0]-(xc-delta))**2/la**2 + (y[j]+center[1]-yc)**2/lb**2 <= 1:
                 if isinstance(epsilon_robj,float) == 1:
-                    epsilon_r[i,j] = epsilon_robj
+                    epsilon_r[j,i] = epsilon_robj
                 else:
-                    epsilon_r[i,j] = epsilon_robj[0]
+                    epsilon_r[j,i] = epsilon_robj[0]
                 if isinstance(sigma_obj,float) == 1:
-                    sigma[i,j] = sigma_obj
+                    sigma[j,i] = sigma_obj
                 else:
-                    sigma[i,j] = sigma_obj[0]
+                    sigma[j,i] = sigma_obj[0]
             elif (x[i]+center[0]-(xc+delta))**2/la**2 + (y[j]+center[1]-yc)**2/lb**2 <= 1:
                 if isinstance(epsilon_robj,float) == 1:
-                    epsilon_r[i,j] = epsilon_robj
+                    epsilon_r[j,i] = epsilon_robj
                 else:
-                    epsilon_r[i,j] = epsilon_robj[1]
+                    epsilon_r[j,i] = epsilon_robj[1]
                 if isinstance(sigma_obj,float) == 1:
-                    sigma[i,j] = sigma_obj
+                    sigma[j,i] = sigma_obj
                 else:
-                    sigma[i,j] = sigma_obj[1]
+                    sigma[j,i] = sigma_obj[1]
     return epsilon_r, sigma
 
 def build_2circles(I,J,dx,dy,ra,delta,epsilon_rb=1.,sigma_b=.0,
@@ -264,9 +217,9 @@ def build_2circles(I,J,dx,dy,ra,delta,epsilon_rb=1.,sigma_b=.0,
     - delta is the displacement of the two circles."""
 
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
     x = np.arange(1,I+1)*dx
     y = np.arange(1,J+1)*dy
     
@@ -283,14 +236,14 @@ def build_2circles(I,J,dx,dy,ra,delta,epsilon_rb=1.,sigma_b=.0,
             r2 = np.sqrt((x[i]+center[0]-xc2)**2+(y[j]+center[1]-yc2)**2)
         
             if r1 <= ra and r2 <= ra:
-                epsilon_r[i,j] = epsilon_robj[2]
-                sigma[i,j] = sigma_obj[2]
+                epsilon_r[j,i] = epsilon_robj[2]
+                sigma[j,i] = sigma_obj[2]
             elif r1 <= ra:
-                epsilon_r[i,j] = epsilon_robj[0]
-                sigma[i,j] = sigma_obj[0]
+                epsilon_r[j,i] = epsilon_robj[0]
+                sigma[j,i] = sigma_obj[0]
             elif r2 <= ra:
-                epsilon_r[i,j] = epsilon_robj[1]
-                sigma[i,j] = sigma_obj[1]
+                epsilon_r[j,i] = epsilon_robj[1]
+                sigma[j,i] = sigma_obj[1]
     return epsilon_r, sigma
 
 def build_3objects(I,J,dx,dy,ra,dela,lb,delb,lc,delc,epsilon_rb=1.,
@@ -309,9 +262,9 @@ def build_3objects(I,J,dx,dy,ra,dela,lb,delb,lc,delc,epsilon_rb=1.,
     - delc is an array with the displacement in each axis of the triangle."""
     
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
     x = np.arange(1,I+1)*dx
     y = np.arange(1,J+1)*dy
     
@@ -330,14 +283,14 @@ def build_3objects(I,J,dx,dy,ra,dela,lb,delb,lc,delc,epsilon_rb=1.,
             r = np.sqrt((x[i]-xca)**2+(y[j]-yca)**2)
            
             if r <= ra:
-                epsilon_r[i,j] = epsilon_robj[0]
-                sigma[i,j] = sigma_obj[0]
+                epsilon_r[j,i] = epsilon_robj[0]
+                sigma[j,i] = sigma_obj[0]
                 
             elif (x[i] >= xcb-lb/2 and x[i] <= xcb+lb/2 
                   and y[j] >= ycb-lb/2 and y[j] <= ycb+lb/2):
                 
-                epsilon_r[i,j] = epsilon_robj[1]
-                sigma[i,j] = sigma_obj[1]
+                epsilon_r[j,i] = epsilon_robj[1]
+                sigma[j,i] = sigma_obj[1]
                 
             elif (x[i] >= xcc-lc/2 and x[i] <= xcc+lc/2 
                   and y[j] >= ycc-lc/2 and y[j] <= ycc+lc/2):
@@ -356,8 +309,8 @@ def build_3objects(I,J,dx,dy,ra,dela,lb,delb,lc,delc,epsilon_rb=1.,
                     if yp <= a*x[i]+b:
                         FLAG = True
                 if FLAG is True:
-                    epsilon_r[i,j] = epsilon_robj[2]
-                    sigma[i,j] = sigma_obj[2]
+                    epsilon_r[j,i] = epsilon_robj[2]
+                    sigma[j,i] = sigma_obj[2]
     return epsilon_r, sigma
 
 def build_filledring(I,J,dx,dy,ra,rb,epsilon_rb=1.,sigma_b=.0,
@@ -372,9 +325,9 @@ def build_filledring(I,J,dx,dy,ra,rb,epsilon_rb=1.,sigma_b=.0,
     - rb is the inner radius of the ring."""
 
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
     x = np.arange(1,I+1)*dx
     y = np.arange(1,J+1)*dy
     
@@ -387,17 +340,17 @@ def build_filledring(I,J,dx,dy,ra,rb,epsilon_rb=1.,sigma_b=.0,
             r = np.sqrt((x[i]+center[0]-xc)**2+(y[j]+center[1]-yc)**2)
            
             if r <= ra and r >= rb:
-                epsilon_r[i,j] = epsilon_robj[0]
-                sigma[i,j] = sigma_obj[0]
+                epsilon_r[j,i] = epsilon_robj[0]
+                sigma[j,i] = sigma_obj[0]
             elif r <= rb:
-                epsilon_r[i,j] = epsilon_robj[1]
-                sigma[i,j] = sigma_obj[1]
+                epsilon_r[j,i] = epsilon_robj[1]
+                sigma[j,i] = sigma_obj[1]
     return epsilon_r, sigma
 
 def build_sine(I,J,wavelength,epsilon_rmin,sigma_min,epsilon_rpeak,sigma_peak):
     
-    y,x = np.meshgrid(np.linspace(-wavelength/4,wavelength/4,J,endpoint=False),
-                      np.linspace(-wavelength/4,wavelength/4,I,endpoint=False))
+    x,y = np.meshgrid(np.linspace(-wavelength/4,wavelength/4,I,endpoint=False),
+                      np.linspace(-wavelength/4,wavelength/4,J,endpoint=False))
     
     epsilon_r = epsilon_rmin + (epsilon_rpeak*np.cos(2*np.pi/wavelength*x)
                                 * np.cos(2*np.pi/wavelength*y))
@@ -412,9 +365,9 @@ def build_x(I,J,dx,dy,height,width,thick,epsilon_rb=1.,sigma_b=.0,
             sigma=None):
     
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
     Lx, Ly = I*dx, J*dy
     x, y = np.meshgrid(np.linspace(-Lx/2,Lx/2,I,endpoint=False),
                        np.linspace(-Ly/2,Ly/2,J,endpoint=False))
@@ -423,14 +376,14 @@ def build_x(I,J,dx,dy,height,width,thick,epsilon_rb=1.,sigma_b=.0,
     
     for i in range(I):
         for j in range(J):
-            if (x[i,j]-center[0] >= - width/2 and x[i,j]-center[0] <= width/2 and
-                y[i,j]+center[1] >= -height/2 and y[i,j]+center[1] <= height/2 and
-                ((y[i,j]+center[1] <= a*(x[i,j]-center[0] + thick/2) 
-                  and y[i,j]+center[1] >= a*(x[i,j]-center[0]-thick/2))
-                 or (y[i,j]+center[1] >= -a*(x[i,j]-center[0] + thick/2) 
-                     and y[i,j]+center[1] <= -a*(x[i,j]-center[0]-thick/2)))):
-                epsilon_r[i,j] = epsilon_robj
-                sigma[i,j] = sigma_obj
+            if (x[j,i]-center[0] >= - width/2 and x[j,i]-center[0] <= width/2 and
+                y[j,i]+center[1] >= -height/2 and y[j,i]+center[1] <= height/2 and
+                ((y[j,i]+center[1] <= a*(x[j,i]-center[0] + thick/2) 
+                  and y[j,i]+center[1] >= a*(x[j,i]-center[0]-thick/2))
+                 or (y[j,i]+center[1] >= -a*(x[j,i]-center[0] + thick/2) 
+                     and y[j,i]+center[1] <= -a*(x[j,i]-center[0]-thick/2)))):
+                epsilon_r[j,i] = epsilon_robj
+                sigma[j,i] = sigma_obj
                 
     return epsilon_r, sigma
 
@@ -439,20 +392,20 @@ def build_cross(I,J,dx,dy,height,width,thick,epsilon_rb=1.,sigma_b=.0,
                 sigma=None):
     
     if epsilon_r is None:
-        epsilon_r = epsilon_rb*np.ones((I,J))
+        epsilon_r = epsilon_rb*np.ones((J,I))
     if sigma is None:
-        sigma = sigma_b*np.ones((I,J))
+        sigma = sigma_b*np.ones((J,I))
     Lx, Ly = I*dx, J*dy
     x, y = np.meshgrid(np.linspace(-Lx/2,Lx/2,I,endpoint=False),
                        np.linspace(-Ly/2,Ly/2,J,endpoint=False))
     
     for i in range(I):
         for j in range(J):
-            if ((x[i,j]+center[0] >= -width/2 and x[i,j]+center[0] <= width/2
-                 and y[i,j]+center[1] >= -thick/2 and y[i,j]+center[1] <= thick/2)
-                or (x[i,j]+center[0] >= -thick/2 and x[i,j]+center[0] <= thick/2
-                and y[i,j]+center[1] >= -height/2 and y[i,j]+center[1] <= height/2)):
-                epsilon_r[i,j] = epsilon_robj
-                sigma[i,j] = sigma_obj
+            if ((x[j,i]+center[0] >= -width/2 and x[j,i]+center[0] <= width/2
+                 and y[j,i]+center[1] >= -thick/2 and y[j,i]+center[1] <= thick/2)
+                or (x[j,i]+center[0] >= -thick/2 and x[j,i]+center[0] <= thick/2
+                and y[j,i]+center[1] >= -height/2 and y[j,i]+center[1] <= height/2)):
+                epsilon_r[j,i] = epsilon_robj
+                sigma[j,i] = sigma_obj
 
     return epsilon_r, sigma
