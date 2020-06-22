@@ -2,8 +2,9 @@
 import pickle
 import numpy as np
 import scipy.constants as ct
+import scipy.special as spc
 import matplotlib.pyplot as plt
-import error
+import library_v2.error as error
 
 # Constants for easy access of saved pickle file
 NAME = 'name'
@@ -46,13 +47,13 @@ class Configuration:
     f, lambda_b, kb = float(), float(), float()
     perfect_dielectric, good_conductor = bool(), bool()
 
-    def __init__(self, name, number_measurements=10, number_sources=10,
+    def __init__(self, name=None, number_measurements=10, number_sources=10,
                  observation_radius=None, frequency=None, wavelength=None,
                  background_permittivity=1., background_conductivity=.0,
                  image_size=[1., 1.], wavelength_unit=True,
-                 perfect_dielectric=True, good_conductor=False):
-
-        """Build the configuration object.
+                 perfect_dielectric=False, good_conductor=False,
+                 import_filename=None, import_filepath=''):
+        """Build or import a configuration object.
 
         Keyword arguments:
             name -- a string naming the problem configuration
@@ -71,43 +72,54 @@ class Configuration:
             wavelength_unit -- a flag to indicate if image_size is given
                 in wavelength or not (default True)
             perfect_dielectric -- a flag to indicate the assumption of
-                only perfect dielectric objects (default True)
+                only perfect dielectric objects (default False)
             good_conductor -- a flag to indicate the assumption of
-                only good conductors objects (default True)
+                only good conductors objects (default False)
+            import_filename -- a string with the name of object to be
+                imported.
+            import_filepath -- a string containing the path to the
+                object to be imported. (default '')
+
+        Obs.: you must give either the name and path to the imported
+        object or give the parameters to create one.
         """
+        if import_filename is not None:
+            self.importdata(import_filename, import_filepath)
 
-        if wavelength is None and frequency is None:
-            raise error.InputError('frequency=None,wavelength=None',
-                                   'ERROR:CONFIGURATION:CONFIGURATION:'
-                                   + '__INIT__: Either frequency or '
-                                   + 'wavelenth must be given!')
-        elif wavelength is not None and frequency is not None:
-            raise error.InputError('frequency=None,wavelength=None',
-                                   'ERROR:CONFIGURATION:CONFIGURATION:'
-                                   + '__INIT__: Either frequency or '
-                                   + 'wavelenth must be none!')
-
-        self.name = name
-        self.NM = number_measurements
-        self.NS = number_sources
-        self.Ro = observation_radius
-        self.epsilon_rb = background_permittivity
-        self.sigma_b = background_conductivity
-        self.perfect_dielectric = perfect_dielectric
-        self.good_conductor = good_conductor
-
-        if frequency is not None:
-            self.f = frequency
-            self.lambda_b = compute_wavelength(frequency, self.epsilon_rb)
         else:
-            self.lambda_b = wavelength
-            self.f = compute_frequency(self.lambda_b, self.epsilon_rb)
 
-        self.kb = compute_wavenumber_real(self.f, self.epsilon_rb)
+            if name is None:
+                raise error.MissingInputError('Configuration.__init__()',
+                                              'name')
+            if wavelength is None and frequency is None:
+                raise error.MissingInputError('Configuration.__init__()',
+                                              'frequency or wavelength')
+            elif wavelength is not None and frequency is not None:
+                raise error.ExcessiveInputsError('Configuration.__init__()',
+                                                 ['frequency', 'wavelength'])
 
-        if wavelength_unit:
-            self.Lx = image_size[0]*self.lambda_b
-            self.Ly = image_size[1]*self.lambda_b
+            self.name = name
+            self.NM = number_measurements
+            self.NS = number_sources
+            self.Ro = observation_radius
+            self.epsilon_rb = background_permittivity
+            self.sigma_b = background_conductivity
+            self.perfect_dielectric = perfect_dielectric
+            self.good_conductor = good_conductor
+
+            if frequency is not None:
+                self.f = frequency
+                self.lambda_b = compute_wavelength(frequency, self.epsilon_rb)
+            else:
+                self.lambda_b = wavelength
+                self.f = compute_frequency(self.lambda_b, self.epsilon_rb)
+
+            self.kb = compute_wavenumber(self.f, epsilon_r=self.epsilon_rb,
+                                         sigma=self.sigma_b)
+
+            if wavelength_unit:
+                self.Lx = image_size[0]*self.lambda_b
+                self.Ly = image_size[1]*self.lambda_b
 
     def save(self, file_path=''):
         """Save the problem configuration within a pickle file."""
@@ -129,8 +141,9 @@ class Configuration:
         with open(file_path + self.name, 'wb') as datafile:
             pickle.dump(data, datafile)
 
-    def draw(self, self, epsr=None, sig=None, file_path='', file_format='eps'):
-        """ Draw domain, sources and probes."""
+    def draw(self, epsr=None, sig=None, file_path='', file_format='eps',
+             show=False):
+        """Draw domain, sources and probes."""
         if epsr is None and sig is None:
             Nx, Ny = 100, 100
         elif epsr is not None:
@@ -148,9 +161,9 @@ class Configuration:
             xmin, xmax = -self.Lx/2, self.Lx/2
             ymin, ymax = -self.Ly/2, self.Ly/2
 
-        xm, ym = get_coordinates(self.Ro, self.NM)
-        xl, yl = get_coordinates(self.Ro, self.NS)
-        x, y = get_domain_coordinates(dx, dy, xmin, xmax, ymin, ymax)
+        xm, ym = get_coordinates_sdomain(self.Ro, self.NM)
+        xl, yl = get_coordinates_sdomain(self.Ro, self.NS)
+        x, y = get_coordinates_ddomain(dx, dy, xmin, xmax, ymin, ymax)
 
         epsilon_r = self.epsilon_rb*np.ones(x.shape)
         sigma = self.sigma_b*np.ones(x.shape)
@@ -265,7 +278,7 @@ class Configuration:
                 plt.xlabel('x [m]')
                 plt.ylabel('y [m]')
 
-            cbar = fig.colorbar()
+            cbar = plt.colorbar()
             cbar.set_label(r'$\sigma$ [S/m]')
             plt.title('Conductivity')
             plt.legend(handles=[lg_m, lg_l], loc='upper right')
@@ -380,12 +393,29 @@ class Configuration:
             ax.set_title('Conductivity')
             plt.legend(handles=[lg_m, lg_l], loc='upper right')
 
-        if file_name is None:
+        if show:
             plt.show()
         else:
-            plt.savefig(file_path + file_name + '.' + file_format,
+            plt.savefig(file_path + self.name + '.' + file_format,
                         format=file_format)
             plt.close()
+
+    def importdata(self, file_name, file_path=''):
+        """Import data from a saved object."""
+        with open(file_path + file_name, 'rb') as datafile:
+            data = pickle.load(datafile)
+        self.name = data[NAME]
+        self.NM = data[NUMBER_MEASUREMENTS]
+        self.NS = data[NUMBER_SOURCES]
+        self.Ro = data[OBSERVATION_RADIUS]
+        self.Lx, self.Ly = data[IMAGE_SIZE]
+        self.epsilon_rb = data[BACKGROUND_RELATIVE_PERMITTIVITY]
+        self.sigma_b = data[BACKGROUND_CONDUCTIVITY]
+        self.f = data[FREQUENCY]
+        self.lambda_b = data[BACKGROUND_WAVELENGTH]
+        self.kb = data[BACKGROUND_WAVENUMBER]
+        self.perfect_dielectric = data[PERFECT_DIELECTRIC_FLAG]
+        self.good_conductor = data[GOOD_CONDUCTOR_FLAG]
 
 
 def compute_wavelength(frequency, epsilon_r=1., mu_r=1.):
@@ -429,9 +459,7 @@ def get_coordinates_ddomain(dx, dy, xmin, xmax, ymin, ymax):
 
 
 def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
-    """Compute the contrast function for a given image represented by the
-    relative permittivity and conductivity."""
-
+    """Compute the contrast function for a given image."""
     if isinstance(omega, float):
         return ((epsilon_r - 1j*sigma/omega/ct.epsilon_0)
                 / (epsilon_rb - 1j*sigma_b/omega/ct.epsilon_0) - 1)
@@ -447,8 +475,7 @@ def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
 
 
 def get_greenfunction(xm, ym, x, y, kb):
-    """ Compute the Green function."""
-
+    """Compute the Green function."""
     Ny, Nx = x.shape
     M = xm.size
     dx, dy = x[0, 1]-x[0, 0], y[1, 0]-y[0, 0]
