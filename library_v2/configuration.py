@@ -4,6 +4,7 @@ import numpy as np
 import scipy.constants as ct
 import scipy.special as spc
 import matplotlib.pyplot as plt
+from numba import jit
 import library_v2.error as error
 
 # Constants for easy access of saved pickle file
@@ -109,7 +110,8 @@ class Configuration:
 
             if frequency is not None:
                 self.f = frequency
-                self.lambda_b = compute_wavelength(frequency, self.epsilon_rb)
+                self.lambda_b = compute_wavelength(frequency, self.epsilon_rb,
+                                                   sigma=self.sigma_b)
             else:
                 self.lambda_b = wavelength
                 self.f = compute_frequency(self.lambda_b, self.epsilon_rb)
@@ -418,14 +420,19 @@ class Configuration:
         self.good_conductor = data[GOOD_CONDUCTOR_FLAG]
 
 
-def compute_wavelength(frequency, epsilon_r=1., mu_r=1.):
+def compute_wavelength(frequency, epsilon_r=1., mu_r=1., sigma=.0):
     """Compute wavelength [m]."""
-    return 1/np.sqrt(epsilon_r*ct.epsilon_0*mu_r*ct.mu_0)/frequency
+    omega = 2*np.pi*frequency
+    return 1/np.real(frequency*np.sqrt(ct.mu_0*(epsilon_r*ct.epsilon_0
+                                                - 1j*sigma/omega)))
 
 
-def compute_frequency(wavelength, epsilon_r=1., mu_r=1.):
+def compute_frequency(wavelength, epsilon_r=1., mu_r=1., sigma=.0):
     """Compute frequency [Hz]."""
-    return 1/np.sqrt(epsilon_r*ct.epsilon_0*mu_r*ct.mu_0)/wavelength
+    if sigma == 0.:
+        return 1/np.sqrt(mu_r*ct.mu_0*epsilon_r*ct.epsilon_0)/wavelength
+    else:
+        return solve_frequency(wavelength, mu_r, epsilon_r, sigma)
 
 
 def compute_wavenumber(frequency, epsilon_r=1., mu_r=1., sigma=0.):
@@ -504,3 +511,65 @@ def get_greenfunction(xm, ym, x, y, kb):
             G[:, :, f] = aux
 
     return G
+
+
+@jit(nopython=True)
+def solve_frequency(lambda_b, mu_r, epsilon_r, sigma):
+    """Approximate the frequency.
+
+    Arguments:
+        lambda_b -- the wavelength [m]
+        mu_r -- relative permeability
+        epsilon_r -- relative permittivity
+        sigma -- conductivity [S/m]
+    """
+    # Constants
+    mu = mu_r*ct.mu_0
+    epsilon = epsilon_r*ct.epsilon_0
+
+    # Initial guess of frequency interval
+    a, b = 1e0, 2e0
+
+    # Error of the initial guess
+    fa = (lambda_b-1/a/np.real(np.sqrt(mu*(epsilon-1j*sigma/(2*np.pi*a)))))**2
+    fb = (lambda_b-1/b/np.real(np.sqrt(mu*(epsilon-1j*sigma/(2*np.pi*b)))))**2
+
+    # Find interval
+    evals = 2
+    while fb < fa:
+        a = b
+        fa = fb
+        b = 2*b
+        fb = (lambda_b-1/b/np.real(np.sqrt(mu*(epsilon-1j*sigma/(2*np.pi*b))))
+              )**2
+        evals += 1
+    if evals <= 3:
+        a = 1e0
+    else:
+        a = a/2
+
+    # Solve the frequency
+    xa = b - .618*(b-a)
+    xb = a + .618*(b-a)
+    fa = (lambda_b-1/xa/np.real(np.sqrt(mu*(epsilon-1j*sigma/(2*np.pi*xa))))
+          )**2
+    fb = (lambda_b-1/xb/np.real(np.sqrt(mu*(epsilon-1j*sigma/(2*np.pi*xb))))
+          )**2
+    while (b-a) > 1e-3:
+        if fa > fb:
+            a = xa
+            xa = xb
+            xb = a + 0.618*(b-a)
+            fa = fb
+            fb = (lambda_b-1/xb/np.real(np.sqrt(mu*(epsilon-1j*sigma/(2*np.pi
+                                                                      *xb))))
+                  )**2
+        else:
+            b = xb
+            xb = xa
+            xa = b - 0.618*(b-a)
+            fb = fa
+            fa = (lambda_b-1/xa/np.real(np.sqrt(mu*(epsilon-1j*sigma/(2*np.pi
+                                                                      *xa))))
+                  )**2
+    return (a+b)/2
