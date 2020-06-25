@@ -1,4 +1,21 @@
-"""Class and functions to define the configuration of problem."""
+"""A module for fixed parameters of problems.
+
+Each problem addressed by a method may share common parameters, such as
+the number of sources, measuments etc. This module contains a class for
+storing information which will be shared by different scenarios. We call
+this problem configuration and it determines information regarding
+parameters of image and measurement domains.
+
+The :class:`Configuration` implements the container. In addition,
+auxiliary routines are provided in order to standardize some kind of
+information which may be necessary for other modules.
+
+The following class is defined
+
+:class:`Configuration`
+    The container of all fixed information shared between scenarios.
+"""
+
 import pickle
 import numpy as np
 import scipy.constants as ct
@@ -6,6 +23,7 @@ import scipy.special as spc
 import matplotlib.pyplot as plt
 from numba import jit
 import library_v2.error as error
+import library_v2.results as rst
 
 # Constants for easy access of saved pickle file
 NAME = 'name'
@@ -21,24 +39,54 @@ BACKGROUND_WAVENUMBER = 'kb'
 PERFECT_DIELECTRIC_FLAG = 'perfect_dielectric'
 GOOD_CONDUCTOR_FLAG = 'good_conductor'
 
+# Other constants
+TITLE_PROBLEM_CONFIGURATION = 'Problem Configuration'
+
 
 class Configuration:
-    """Problem configuration class.
+    """The container of all fixed information shared between scenarios.
 
-    Attributes:
-        name -- a string naming the problem configuration
-        NM -- number of measurements
-        NS -- number of sources
-        Ro -- radius of observation (S-domain) [m]
-        Lx -- size of image domain (D-domain) in x-axis [m]
-        epsilon_rb -- background relative permittivity
-        sigma_b -- background conductivity [S/m]
-        frequency -- linear frequency of operation [Hz]
-        lambda_b -- background wavelength [m]
-        kb -- background wavenumber [1/m]
-        perfect_dielectric -- flag for assuming perfect dielectric
-            objects
-        good_conductor -- flag for assuming good conductor objects
+    It stores all the information regarding domains sizes, background
+    media and flags for indicating simplifications.
+
+    Attributes
+    ----------
+        name
+            A string naming the problem configuration.
+
+        NM
+            Number of measurements
+
+        NS
+            Number of sources
+
+        Ro
+            Radius of observation (S-domain) [m]
+
+        Lx
+            Size of image domain (D-domain) in x-axis [m]
+
+        epsilon_rb
+            Background relative permittivity
+
+        sigma_b
+            Background conductivity [S/m]
+
+        frequency
+            Linear frequency of operation [Hz]
+
+        lambda_b
+            Background wavelength [m]
+
+        kb
+            Background wavenumber [1/m]
+
+        perfect_dielectric
+            Flag for assuming perfect dielectric objects
+
+        good_conductor
+            Flag for assuming good conductor objects
+
     """
 
     name = ''
@@ -56,33 +104,63 @@ class Configuration:
                  import_filename=None, import_filepath=''):
         """Build or import a configuration object.
 
-        Keyword arguments:
-            name -- a string naming the problem configuration
-            number_measurements -- receivers in S-domain (default 10)
-            number_sources -- sources in S-domain (default 10)
-            observation_radius -- radius for circular array of sources
-                and receivers at S-domain [m]
-                (default 1.1*sqrt(2)*max([Lx,Ly]))
-            frequency -- linear frequency of operation [Hz]
-            wavelength -- background wavelength [m]
-            background_permittivity -- Relative permittivity (default 1.0)
-            background_conductivity -- [S/m] (default 0.0)
-            image_size -- a tuple with the side sizes of image domain
-                (D-domain). It may be given in meters or in wavelength
-                proportion (default (1.,1.))
-            wavelength_unit -- a flag to indicate if image_size is given
-                in wavelength or not (default True)
-            perfect_dielectric -- a flag to indicate the assumption of
-                only perfect dielectric objects (default False)
-            good_conductor -- a flag to indicate the assumption of
-                only good conductors objects (default False)
-            import_filename -- a string with the name of object to be
-                imported.
-            import_filepath -- a string containing the path to the
-                object to be imported. (default '')
+        You may either give the parameters or import information from a
+        save object. In addition, you must give either the frequency of
+        operation or the wavelength.
 
-        Obs.: you must give either the name and path to the imported
-        object or give the parameters to create one.
+        Parameters
+        ----------
+            name : string
+                A string naming the problem configuration.
+
+            number_measurements : int, default: 10
+                Receivers in S-domain.
+
+            number_sources : int, default: 10
+                Sources in S-domain
+
+            observation_radius : float, default: 1.1*sqrt(2)*max([Lx,Ly])
+                Radius for circular array of sources and receivers at
+                S-domain [m]
+
+            frequency : float
+                Linear frequency of operation [Hz]
+
+            wavelength : float
+                Background wavelength [m]
+
+            background_permittivity : float, default: 1.
+                Relative permittivity.
+
+            background_conductivity : float, default: .0 [S/m]
+
+            image_size : 2-tuple of int, default: (1., 1.)
+                Side length of the image domain (D-domain). It may be
+                given in meters or in wavelengths.
+
+            wavelength_unit : boolean, default: True
+                If `True`, the variable image_size will be interpreted
+                as given in wavelegnths. Otherwise, it will be
+                interpreted in meters.
+
+            perfect_dielectric : boolean, default: False
+                If `True`, it indicates the assumption of only perfect
+                dielectric objects. Then, only the relative permittivity
+                map will be recovered.
+
+            good_conductor : boolean, default: False
+                If `True`, it indicates the assumption of only good
+                conductors objects. Then, only the conductivity map will
+                be recovered.
+
+            import_filename : string, default: None
+                A string with the name of the pickle file containing the
+                information of a previous Configuration object.
+
+            import_filepath : string, default: ''
+                A string containing the path to the object to be
+                imported.
+
         """
         if import_filename is not None:
             self.importdata(import_filename, import_filepath)
@@ -124,7 +202,12 @@ class Configuration:
                 self.Ly = image_size[1]*self.lambda_b
 
     def save(self, file_path=''):
-        """Save the problem configuration within a pickle file."""
+        """Save the problem configuration within a pickle file.
+
+        It will only be saved the attribute variables, not the object
+        itself. If you want to load these variables, you may use the
+        constant string variables for a more friendly usage.
+        """
         data = {
             NAME: self.name,
             NUMBER_MEASUREMENTS: self.NM,
@@ -145,7 +228,35 @@ class Configuration:
 
     def draw(self, epsr=None, sig=None, file_path='', file_format='eps',
              show=False):
-        """Draw domain, sources and probes."""
+        """Draw domain, sources and probes.
+
+        Plot an illustration of the problem configuration based on the
+        values defined in the object. You may plot an empty problem or
+        give a map.
+
+        Parameters
+        ----------
+            epsr : :class:`numpy.ndarray`, default: None
+                A matrix with the relative permittivity map that you may
+                want to draw as example.
+
+            sig : :class:`numpy.ndarray`, default: None
+                A matrix with the conductivity [S/m] map that you may
+                want to draw as example.
+
+            show : boolean, default: False
+                If `True`, a window with the figure will appear. If
+                `False`, the figure will be saved as a file.
+
+            file_path : string, default: ''
+                A string indicating the path where you want to save the
+                figure.
+
+            file_format : string, default: 'eps'
+                Format of the saved figure. It must be the same
+                supported formats of `matplotlib.pyplot.savefig()`.
+
+        """
         if epsr is None and sig is None:
             Nx, Ny = 100, 100
         elif epsr is not None:
@@ -166,6 +277,7 @@ class Configuration:
         xm, ym = get_coordinates_sdomain(self.Ro, self.NM)
         xl, yl = get_coordinates_sdomain(self.Ro, self.NS)
         x, y = get_coordinates_ddomain(dx, dy, xmin, xmax, ymin, ymax)
+        bounds = (xmin/lambda_b, xmax/lambda_b, ymin/lambda_b, ymax/lambda_b)
 
         epsilon_r = self.epsilon_rb*np.ones(x.shape)
         sigma = self.sigma_b*np.ones(x.shape)
@@ -182,217 +294,43 @@ class Configuration:
                          np.logical_and(x[0, :] > -self.Lx/2,
                                         x[0, :] < self.Lx/2))] = sig
 
-        if self.perfect_dielectric:
-
-            if isinstance(self.f, float):
-
-                im1 = plt.imshow(epsilon_r, extent=[xmin/self.lambda_b,
-                                                    xmax/self.lambda_b,
-                                                    ymin/self.lambda_b,
-                                                    ymax/self.lambda_b],
-                                 origin='lower')
-
-                plt.plot(np.array([-self.Lx/2/self.lambda_b,
-                                   -self.Lx/2/self.lambda_b,
-                                   self.Lx/2/self.lambda_b,
-                                   self.Lx/2/self.lambda_b,
-                                   -self.Lx/2/self.lambda_b]),
-                         np.array([-self.Ly/2/self.lambda_b,
-                                   self.Ly/2/self.lambda_b,
-                                   self.Ly/2/self.lambda_b,
-                                   -self.Ly/2/self.lambda_b,
-                                   -self.Ly/2/self.lambda_b]), 'k--')
-
-                lg_m, = plt.plot(xm/self.lambda_b, ym/self.lambda_b, 'ro',
-                                 label='Probe')
-                lg_l, = plt.plot(xl/self.lambda_b, yl/self.lambda_b, 'go',
-                                 label='Source')
-
-                plt.xlabel(r'x [$\lambda_b$]')
-                plt.ylabel(r'y [$\lambda_b$]')
-
+        if self.perfect_dielectric or self.good_conductor:
+            figure = plt.figure(figsize=rst.IMAGE_SIZE_SINGLE)
+            axes = rst.get_single_figure_axes(figure)
+            if self.perfect_dielectric:
+                rst.add_image(axes, epsilon_r,
+                              TITLE_PROBLEM_CONFIGURATION,
+                              rst.COLORBAR_RELATIVE_PERMITTIVITY,
+                              bounds=bounds)
             else:
-
-                im1 = plt.imshow(epsilon_r, extent=[xmin, xmax, ymin, ymax],
-                                 origin='lower')
-
-                plt.plot(np.array([-self.Lx/2, -self.Lx/2,
-                                   self.Lx/2, self.Lx/2,
-                                   -self.Lx/2]),
-                         np.array([-self.Ly/2, self.Ly/2,
-                                   self.Ly/2, -self.Ly/2,
-                                   -self.Ly/2]), 'k--')
-
-                lg_m, = plt.plot(xm, ym, 'ro', label='Probe')
-                lg_l, = plt.plot(xl, yl, 'go', label='Source')
-
-                plt.set_xlabel('x [m]')
-                plt.set_ylabel('y [m]')
-
-            plt.legend(handles=[lg_m, lg_l], loc='upper right')
-            cbar = plt.colorbar()
-            cbar.set_label(r'$\epsilon_r$')
-            plt.title('Relative Permittivity')
-
-        elif self.good_conductor:
-
-            if isinstance(self.f, float):
-
-                im1 = plt.imshow(sigma, extent=[xmin/self.lambda_b,
-                                                xmax/self.lambda_b,
-                                                ymin/self.lambda_b,
-                                                ymax/self.lambda_b],
-                                 origin='lower')
-
-                plt.plot(np.array([-self.Lx/2/self.lambda_b,
-                                   -self.Lx/2/self.lambda_b,
-                                   self.Lx/2/self.lambda_b,
-                                   self.Lx/2/self.lambda_b,
-                                   -self.Lx/2/self.lambda_b]),
-                         np.array([-self.Ly/2/self.lambda_b,
-                                   self.Ly/2/self.lambda_b,
-                                   self.Ly/2/self.lambda_b,
-                                   -self.Ly/2/self.lambda_b,
-                                   -self.Ly/2/self.lambda_b]), 'k--')
-
-                lg_m, = plt.plot(xm/self.lambda_b, ym/self.lambda_b, 'ro',
-                                 label='Probe')
-                lg_l, = plt.plot(xl/self.lambda_b, yl/self.lambda_b, 'go',
-                                 label='Source')
-
-                plt.xlabel(r'x [$\lambda_b$]')
-                plt.ylabel(r'y [$\lambda_b$]')
-
-            else:
-
-                im1 = plt.imshow(sigma, extent=[xmin, xmax, ymin, ymax])
-
-                plt.plot(np.array([-self.Lx/2, -self.Lx/2,
-                                   self.Lx/2, self.Lx/2,
-                                   -self.Lx/2]),
-                         np.array([-self.Ly/2, self.Ly/2,
-                                   self.Ly/2, -self.Ly/2,
-                                   -self.Ly/2]), 'k--')
-
-                lg_m, = plt.plot(xm, ym, 'ro', label='Probe')
-                lg_l, = plt.plot(xl, yl, 'go', label='Source')
-
-                plt.xlabel('x [m]')
-                plt.ylabel('y [m]')
-
-            cbar = plt.colorbar()
-            cbar.set_label(r'$\sigma$ [S/m]')
-            plt.title('Conductivity')
+                rst.add_image(axes, sigma,
+                              TITLE_PROBLEM_CONFIGURATION,
+                              rst.COLORBAR_CONDUCTIVITY, bounds=bounds)
+            plot_ddomain_limits(axes, self.Lx, self.Ly, self.lambda_b)
+            lg_m = plot_antennas(axes, xm, ym, self.lambda_b, 'r', 'Probe')
+            lg_l = plot_antennas(axes, xl, yl, self.lambda_b, 'g', 'Source')
             plt.legend(handles=[lg_m, lg_l], loc='upper right')
 
         else:
+            figure = plt.figure(figsize=rst.IMAGE_SIZE_1x2)
+            rst.set_subplot_size(figure)
 
-            fig = plt.figure(figsize=(10, 4))
-            fig.subplots_adjust(left=.125, bottom=.1, right=.9, top=.9,
-                                wspace=.5, hspace=.2)
-
-            ax = fig.add_subplot(1, 2, 1)
-
-            if isinstance(self.f, float):
-
-                im1 = ax.imshow(epsilon_r, extent=[xmin/self.lambda_b,
-                                                   xmax/self.lambda_b,
-                                                   ymin/self.lambda_b,
-                                                   ymax/self.lambda_b],
-                                origin='lower')
-
-                ax.plot(np.array([-self.Lx/2/self.lambda_b,
-                                  -self.Lx/2/self.lambda_b,
-                                  self.Lx/2/self.lambda_b,
-                                  self.Lx/2/self.lambda_b,
-                                  -self.Lx/2/self.lambda_b]),
-                        np.array([-self.Ly/2/self.lambda_b,
-                                  self.Ly/2/self.lambda_b,
-                                  self.Ly/2/self.lambda_b,
-                                  -self.Ly/2/self.lambda_b,
-                                  -self.Ly/2/self.lambda_b]), 'k--')
-
-                lg_m, = ax.plot(xm/self.lambda_b, ym/self.lambda_b, 'ro',
-                                label='Probe')
-                lg_l, = ax.plot(xl/self.lambda_b, yl/self.lambda_b, 'go',
-                                label='Source')
-
-                ax.set_xlabel(r'x [$\lambda_b$]')
-                ax.set_ylabel(r'y [$\lambda_b$]')
-
-            else:
-
-                im1 = ax.imshow(epsilon_r, extent=[xmin, xmax, ymin, ymax],
-                                origin='lower')
-
-                ax.plot(np.array([-self.Lx/2, -self.Lx/2,
-                                  self.Lx/2, self.Lx/2,
-                                  -self.Lx/2]),
-                        np.array([-self.Ly/2, self.Ly/2,
-                                  self.Ly/2, -self.Ly/2,
-                                  -self.Ly/2]), 'k--')
-
-                lg_m, = ax.plot(xm, ym, 'ro', label='Probe')
-                lg_l, = ax.plot(xl, yl, 'go', label='Source')
-
-                ax.set_xlabel('x [m]')
-                ax.set_ylabel('y [m]')
-
+            axes = figure.add_subplot(1, 2, 1)
+            rst.add_image(axes, epsilon_r,
+                          rst.TITLE_RELATIVE_PERMITTIVITY,
+                          rst.COLORBAR_RELATIVE_PERMITTIVITY, bounds=bounds)
+            plot_ddomain_limits(axes, self.Lx, self.Ly, self.lambda_b)
+            lg_m = plot_antennas(axes, xm, ym, self.lambda_b, 'r', 'Probe')
+            lg_l = plot_antennas(axes, xl, yl, self.lambda_b, 'g', 'Source')
             plt.legend(handles=[lg_m, lg_l], loc='upper right')
-            cbar = fig.colorbar(im1, fraction=0.046, pad=0.04)
-            cbar.set_label(r'$\epsilon_r$')
-            ax.set_title('Relative Permittivity')
 
-            ax = fig.add_subplot(1, 2, 2)
-
-            if isinstance(self.f, float):
-
-                im1 = ax.imshow(sigma, extent=[xmin/self.lambda_b,
-                                               xmax/self.lambda_b,
-                                               ymin/self.lambda_b,
-                                               ymax/self.lambda_b],
-                                origin='lower')
-
-                ax.plot(np.array([-self.Lx/2/self.lambda_b,
-                                  -self.Lx/2/self.lambda_b,
-                                  self.Lx/2/self.lambda_b,
-                                  self.Lx/2/self.lambda_b,
-                                  -self.Lx/2/self.lambda_b]),
-                        np.array([-self.Ly/2/self.lambda_b,
-                                  self.Ly/2/self.lambda_b,
-                                  self.Ly/2/self.lambda_b,
-                                  -self.Ly/2/self.lambda_b,
-                                  -self.Ly/2/self.lambda_b]), 'k--')
-
-                lg_m, = ax.plot(xm/self.lambda_b, ym/self.lambda_b, 'ro',
-                                label='Probe')
-                lg_l, = ax.plot(xl/self.lambda_b, yl/self.lambda_b, 'go',
-                                label='Source')
-
-                ax.set_xlabel(r'x [$\lambda_b$]')
-                ax.set_ylabel(r'y [$\lambda_b$]')
-
-            else:
-
-                im1 = ax.imshow(sigma, extent=[xmin, xmax, ymin, ymax],
-                                origin='lower')
-
-                ax.plot(np.array([-self.Lx/2, -self.Lx/2,
-                                  self.Lx/2, self.Lx/2,
-                                  -self.Lx/2]),
-                        np.array([-self.Ly/2, self.Ly/2,
-                                  self.Ly/2, -self.Ly/2,
-                                  -self.Ly/2]), 'k--')
-
-                lg_m, = ax.plot(xm, ym, 'ro', label='Probe')
-                lg_l, = ax.plot(xl, yl, 'go', label='Source')
-
-                ax.set_xlabel('x [m]')
-                ax.set_ylabel('y [m]')
-
-            cbar = fig.colorbar(im1, fraction=0.046, pad=0.04)
-            cbar.set_label(r'$\sigma$ [S/m]')
-            ax.set_title('Conductivity')
+            axes = figure.add_subplot(1, 2, 2)
+            rst.add_image(axes, sigma,
+                          rst.TITLE_CONDUCTIVITY,
+                          rst.COLORBAR_CONDUCTIVITY, bounds=bounds)
+            plot_ddomain_limits(axes, self.Lx, self.Ly, self.lambda_b)
+            lg_m = plot_antennas(axes, xm, ym, self.lambda_b, 'r', 'Probe')
+            lg_l = plot_antennas(axes, xl, yl, self.lambda_b, 'g', 'Source')
             plt.legend(handles=[lg_m, lg_l], loc='upper right')
 
         if show:
@@ -421,14 +359,54 @@ class Configuration:
 
 
 def compute_wavelength(frequency, epsilon_r=1., mu_r=1., sigma=.0):
-    """Compute wavelength [m]."""
+    """Compute wavelength.
+
+    Parameters
+    ----------
+        frequency : float
+            Linear frequency of operation [Hz].
+
+        epsilon_r : float, default: 1.
+            Relative permittivity of the medium.
+
+        mu_r : float, default: 1.
+            Relative permeability of the medium.
+
+        sigma : float, default: .0
+            Conductivity of the medium [S/m].
+
+    Returns
+    -------
+        wavelength : float
+            In meters.
+    """
     omega = 2*np.pi*frequency
     return 1/np.real(frequency*np.sqrt(ct.mu_0*(epsilon_r*ct.epsilon_0
                                                 - 1j*sigma/omega)))
 
 
 def compute_frequency(wavelength, epsilon_r=1., mu_r=1., sigma=.0):
-    """Compute frequency [Hz]."""
+    """Compute frequency.
+
+    Parameters
+    ----------
+        wavelength : float
+            In meters.
+
+        epsilon_r : float, default: 1.
+            Relative permittivity of the medium.
+
+        mu_r : float, default: 1.
+            Relative permeability of the medium.
+
+        sigma : float, default: .0
+            Conductivity of the medium [S/m].
+
+    Returns
+    -------
+        frequency : float
+            In Hertz.
+    """
     if sigma == 0.:
         return 1/np.sqrt(mu_r*ct.mu_0*epsilon_r*ct.epsilon_0)/wavelength
     else:
@@ -436,19 +414,66 @@ def compute_frequency(wavelength, epsilon_r=1., mu_r=1., sigma=.0):
 
 
 def compute_wavenumber(frequency, epsilon_r=1., mu_r=1., sigma=0.):
-    """Compute real part of wavenumber."""
+    """Compute wavenumber.
+
+    Parameters
+    ----------
+        frequency : float
+            Linear frequency of operation [Hz].
+
+        epsilon_r : float, default: 1.
+            Relative permittivity of the medium.
+
+        mu_r : float, default: 1.
+            Relative permeability of the medium.
+
+        sigma : float, default: .0
+            Conductivity of the medium [S/m].
+
+    Returns
+    -------
+        wavenumber : float
+            In [1/m].
+    """
     omega, mu, epsilon = 2*np.pi*frequency
     mu, epsilon = mu_r*ct.mu_0, epsilon_r*ct.epsilon_0
     return np.sqrt(-1j*omega*mu*sigma + omega**2*mu*epsilon)
 
 
 def get_angles(n_samples):
-    """Compute angles [rad] in a circular array of points equaly spaced."""
+    """Compute angles [rad] in a circular array of points equaly spaced.
+
+    Parameter
+    ---------
+        n_samples : int
+            Number of samples.
+
+    Returns
+    -------
+        `numpy.ndarray`
+    """
     return np.arange(0, 2*np.pi, 2*np.pi/n_samples)
 
 
 def get_coordinates_sdomain(radius, n_samples, shift=0.):
-    """Compute coordinates of points in a circular array equaly spaced."""
+    """Compute coordinates of points in a circular array equaly spaced.
+
+    Parameters
+    ----------
+        radius : float
+            Observation radius [m].
+
+        n_samples : int
+            Number of sampled points.
+
+        shift : float, default: .0
+            A radial shift in array position.
+
+    Returns
+    -------
+        x, y
+            Coordinates of the sampled points.
+    """
     phi = get_angles(n_samples)
     return (radius*np.cos(phi + np.deg2rad(shift)),
             radius*np.sin(phi + np.deg2rad(shift)))
@@ -460,55 +485,106 @@ def get_bounds(length):
 
 
 def get_coordinates_ddomain(dx, dy, xmin, xmax, ymin, ymax):
-    """Return the meshgrid of the image domain."""
+    """Return the meshgrid of the image domain.
+
+    Parameters
+    ----------
+        dx : float
+            Cell size in x-direction [m].
+
+        dy : float
+            Cell size in y-direction [m].
+
+        xmin : float
+            Left bound of x-axis [m].
+
+        xmax : float
+            Right bound of x-axis [m].
+
+        ymin : float
+            Left bound of y-axis [m].
+
+        ymax : float
+            Right bound of y-axis [m].
+
+    Notes
+    -----
+        The D-domain are such that (x,y) in [xmin,xmax] times [ymin,
+        ymax]. The coordinates are positioned at the center of the
+        cells.
+    """
     return np.meshgrid(np.arange(xmin + .5*dx, xmax + .5*dx, dx),
                        np.arange(ymin + .5*dy, ymax + .5*dy, dy))
 
 
 def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
-    """Compute the contrast function for a given image."""
-    if isinstance(omega, float):
-        return ((epsilon_r - 1j*sigma/omega/ct.epsilon_0)
-                / (epsilon_rb - 1j*sigma_b/omega/ct.epsilon_0) - 1)
+    """Compute the contrast function for a given image.
 
-    else:
-        Xr = np.zeros((epsilon_r.shape[0], epsilon_r.shape[1], omega.size),
-                      dtype=complex)
-        for f in range(omega.size):
-            Xr[:, :, f] = ((epsilon_r - 1j*sigma/omega[f]/ct.epsilon_0)
-                           / (epsilon_rb - 1j*sigma_b/omega[f]/ct.epsilon_0)
-                           - 1)
-        return Xr
+    Parameters
+    ----------
+        epsilon_r : `:class:numpy.ndarray`
+            A matrix with the relative permittivity map.
+
+        sigma : `:class:numpy.ndarray`
+            A matrix with the conductivity map [S/m].
+
+        epsilon_rb : float
+            Background relative permittivity of the medium.
+
+        sigma_b : float
+            Background conductivity of the medium [S/m].
+
+        frequency : float
+            Linear frequency of operation [Hz].
+    """
+    return ((epsilon_r - 1j*sigma/omega/ct.epsilon_0)
+            / (epsilon_rb - 1j*sigma_b/omega/ct.epsilon_0) - 1)
 
 
 def get_greenfunction(xm, ym, x, y, kb):
-    """Compute the Green function."""
+    """Compute the Green function matrix for pulse basis discretization.
+
+    Parameters
+    ----------
+        xm : `numpy.ndarray`
+            A 1-d array with the x-coordinates of measumerent points in
+            the S-domain [m].
+
+        ym : `numpy.ndarray`
+            A 1-d array with the y-coordinates of measumerent points in
+            the S-domain [m].
+
+        x : `numpy.ndarray`
+            A meshgrid matrix of x-coordinates in the D-domain [m].
+
+        y : `numpy.ndarray`
+            A meshgrid matrix of y-coordinates in the D-domain [m].
+
+        kb : float or complex
+            Wavenumber of background medium [1/m].
+
+    Returns
+    -------
+        G : `numpy.ndarray`, complex
+            A matrix with the evaluation of Green function at D-domain
+            for each measument point, considering pulse basis
+            discretization. The shape of the matrix is NM x (Nx.Ny),
+            where NM is the number of measurements (size of xm, ym) and
+            Nx and Ny are the number of points in each axis of the
+            discretized D-domain (shape of x, y).
+    """
     Ny, Nx = x.shape
     M = xm.size
     dx, dy = x[0, 1]-x[0, 0], y[1, 0]-y[0, 0]
     an = np.sqrt(dx*dy/np.pi)  # radius of the equivalent circle
-
-    if isinstance(kb, float):
-        MONO_FREQUENCY = True
-    else:
-        MONO_FREQUENCY = False
 
     xg = np.tile(xm.reshape((-1, 1)), (1, Nx*Ny))
     yg = np.tile(ym.reshape((-1, 1)), (1, Nx*Ny))
     R = np.sqrt((xg-np.tile(np.reshape(x, (Nx*Ny, 1)).T, (M, 1)))**2
                 + (yg-np.tile(np.reshape(y, (Nx*Ny, 1)).T, (M, 1)))**2)
 
-    if MONO_FREQUENCY:
-        G = (-1j*kb*np.pi*an/2*spc.jv(1, kb*an) * spc.hankel2(0, kb*R))
-        G[R == 0] = 1j/2*(np.pi*kb*an*spc.hankel2(1, kb*an)-2j)
-
-    else:
-        G = np.zeros((M, Nx*Ny, kb.size), dtype=complex)
-        for f in range(kb.size):
-            aux = (-1j*kb[f]*np.pi*an/2*spc.jv(1, kb[f]*an)
-                   * spc.hankel2(0, kb[f]*R))
-            aux[R == 0] = 1j/2*(np.pi*kb[f]*an*spc.hankel2(1, kb[f]*an)-2j)
-            G[:, :, f] = aux
+    G = (-1j*kb*np.pi*an/2*spc.jv(1, kb*an) * spc.hankel2(0, kb*R))
+    G[R == 0] = 1j/2*(np.pi*kb*an*spc.hankel2(1, kb*an)-2j)
 
     return G
 
@@ -517,11 +593,19 @@ def get_greenfunction(xm, ym, x, y, kb):
 def solve_frequency(lambda_b, mu_r, epsilon_r, sigma):
     """Approximate the frequency.
 
-    Arguments:
-        lambda_b -- the wavelength [m]
-        mu_r -- relative permeability
-        epsilon_r -- relative permittivity
-        sigma -- conductivity [S/m]
+    Parameters
+    ----------
+        lambda_b : float
+            Wavelength [m].
+
+        mu_r : float
+            Relative permeability.
+
+        epsilon_r : float
+            Relative permittivity
+
+        sigma : float
+            Conductivity [S/m]
     """
     # Constants
     mu = mu_r*ct.mu_0
@@ -562,7 +646,7 @@ def solve_frequency(lambda_b, mu_r, epsilon_r, sigma):
             xb = a + 0.618*(b-a)
             fa = fb
             fb = (lambda_b-1/xb/np.real(np.sqrt(mu*(epsilon-1j*sigma/(2*np.pi
-                                                                      *xb))))
+                                                                      * xb))))
                   )**2
         else:
             b = xb
@@ -570,6 +654,57 @@ def solve_frequency(lambda_b, mu_r, epsilon_r, sigma):
             xa = b - 0.618*(b-a)
             fb = fa
             fa = (lambda_b-1/xa/np.real(np.sqrt(mu*(epsilon-1j*sigma/(2*np.pi
-                                                                      *xa))))
+                                                                      * xa))))
                   )**2
     return (a+b)/2
+
+
+def plot_ddomain_limits(axes, xlength, ylength, wavelength):
+    """Plot lines of D-domain limits.
+
+    Parameters
+    ----------
+        axes : :class:`matplotlib.pyplot.Figure.axes.Axes`
+            Axes object.
+
+        xlength : float
+            Length of x-axis.
+
+        ylength : float
+            Length of y-axis.
+
+        wavelength : float
+
+    """
+    axes.plot(np.array([-xlength/2/wavelength, -xlength/2/wavelength,
+                        xlength/2/wavelength, xlength/2/wavelength,
+                        -xlength/2/wavelength]),
+              np.array([-xlength/2/wavelength, xlength/2/wavelength,
+                        xlength/2/wavelength, -xlength/2/wavelength,
+                        -xlength/2/wavelength]), 'k--')
+
+
+def plot_antennas(axes, x, y, wavelength, color, label):
+    """Plot antennas array.
+
+    Parameters
+    ----------
+        axes : :class:`matplotlib.pyplot.Figure.axes.Axes`
+            Axes object.
+
+        x : :class:`numpy.ndarray`
+            Array with the x-coordinates.
+
+        y : :class:`numpy.ndarray`
+            Array with the y-coordinates.
+
+        wavelength : float
+
+        color : {'r', 'g'}
+            Color of the points.
+
+        label : string
+            Name of the antenna array.
+
+    """
+    return axes.plot(x/wavelength, y/wavelength, color + 'o', label=label)[0]
