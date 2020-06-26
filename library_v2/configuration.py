@@ -36,6 +36,7 @@ BACKGROUND_CONDUCTIVITY = 'sigma_b'
 FREQUENCY = 'f'
 BACKGROUND_WAVELENGTH = 'lambda_b'
 BACKGROUND_WAVENUMBER = 'kb'
+MAGNITUDE = 'E0'
 PERFECT_DIELECTRIC_FLAG = 'perfect_dielectric'
 GOOD_CONDUCTOR_FLAG = 'good_conductor'
 
@@ -86,6 +87,9 @@ class Configuration:
 
         good_conductor
             Flag for assuming good conductor objects
+            
+        E0
+            Magnitude of incident field [V/m].
 
     """
 
@@ -95,11 +99,12 @@ class Configuration:
     epsilon_rb, sigma_b = float(), float()
     f, lambda_b, kb = float(), float(), float()
     perfect_dielectric, good_conductor = bool(), bool()
+    E0 = float()
 
     def __init__(self, name=None, number_measurements=10, number_sources=10,
                  observation_radius=None, frequency=None, wavelength=None,
                  background_permittivity=1., background_conductivity=.0,
-                 image_size=[1., 1.], wavelength_unit=True,
+                 image_size=[1., 1.], wavelength_unit=True, magnitude=1.,
                  perfect_dielectric=False, good_conductor=False,
                  import_filename=None, import_filepath=''):
         """Build or import a configuration object.
@@ -143,6 +148,9 @@ class Configuration:
                 as given in wavelegnths. Otherwise, it will be
                 interpreted in meters.
 
+            magnitude : float, default: 1.0
+                Magnitude of the incident field.
+
             perfect_dielectric : boolean, default: False
                 If `True`, it indicates the assumption of only perfect
                 dielectric objects. Then, only the relative permittivity
@@ -185,6 +193,7 @@ class Configuration:
             self.sigma_b = background_conductivity
             self.perfect_dielectric = perfect_dielectric
             self.good_conductor = good_conductor
+            self.E0 = magnitude
 
             if frequency is not None:
                 self.f = frequency
@@ -219,6 +228,7 @@ class Configuration:
             FREQUENCY: self.f,
             BACKGROUND_WAVELENGTH: self.lambda_b,
             BACKGROUND_WAVENUMBER: self.kb,
+            MAGNITUDE: self.E0,
             PERFECT_DIELECTRIC_FLAG: self.perfect_dielectric,
             GOOD_CONDUCTOR_FLAG: self.good_conductor
         }
@@ -277,7 +287,8 @@ class Configuration:
         xm, ym = get_coordinates_sdomain(self.Ro, self.NM)
         xl, yl = get_coordinates_sdomain(self.Ro, self.NS)
         x, y = get_coordinates_ddomain(dx, dy, xmin, xmax, ymin, ymax)
-        bounds = (xmin/lambda_b, xmax/lambda_b, ymin/lambda_b, ymax/lambda_b)
+        bounds = (xmin/self.lambda_b, xmax/self.lambda_b, ymin/self.lambda_b,
+                  ymax/self.lambda_b)
 
         epsilon_r = self.epsilon_rb*np.ones(x.shape)
         sigma = self.sigma_b*np.ones(x.shape)

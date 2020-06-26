@@ -1,4 +1,22 @@
-"""Class and functions to define input data of class Solver."""
+"""A module to represent problem case.
+
+Based on the same problem configuration, there may be infinite scenarios
+describing different geometries and resolutions. So, this module
+provides a class in which we may store information about a scenario,
+i.e., a problem case in which we may the scattered field measurements
+and some other information which will be received by the solver
+describing the problem to be solved.
+
+The :class:`InputData` implements a container which will be the standard
+input to solvers and include all the information necessary to solve a
+inverse scattering problem.
+
+The following class is defined
+
+:class:`InputData`
+    The container representing an instance of a inverse scattering
+    problem.
+"""
 
 import pickle
 import numpy as np
@@ -18,25 +36,39 @@ NOISE = 'noise'
 
 
 class InputData:
-    """Class for storing information required for solvers.
+    """The container representing an instance of a problem.
 
-    Attributes:
-        name -- a string naming the problem.
-        configuration_filename -- a string for referencing the problem
-            configuration.
-        resolution -- a tuple with the size, in pixels, of the recovered
-            image.
-        scattered_field -- matrix containing the scattered field
-            information at S-domain.
-        total_field -- matrix containing the total field information
-                at D-domain.
-        incident_field -- matrix containing the incident field
-                information at D-domain.
-        relative_permittivity_map -- matrix with the discretized image
-                of the relative permittivity map.
-        conductivity_map -- matrix with the discretized image of the
-                conductivity map.
-        noise -- noise level of scattered field data.
+    Attributes
+    ----------
+        name
+            A string naming the instance.
+
+        configuration_filename
+            A string for referencing the problem configuration.
+
+        resolution
+            A tuple with the size, in pixels, of the recovered image.
+
+        scattered_field
+            Matrix containing the scattered field information at
+            S-domain.
+
+        total_field
+            Matrix containing the total field information at D-domain.
+
+        incident_field
+            Matrix containing the incident field information at
+            D-domain.
+
+        relative_permittivity_map
+            Matrix with the discretized image of the relative
+            permittivity map.
+
+        conductivity_map
+            Matrix with the discretized image of the conductivity map.
+
+        noise
+            noise level of scattered field data.
     """
 
     name = ''
@@ -55,27 +87,56 @@ class InputData:
                  noise=None, import_filename=None, import_filepath=''):
         """Build or import an object.
 
-        Keyword arguments:
-            name -- a string naming the problem.
-            configuration_filename -- a string with the name of the
-                problem configuration file.
-            resolution -- the size, in pixels, of the final image.
-            scattered_field -- matrix containing the scattered field
-                information at S-domain. (optional)
-            total_field -- matrix containing the total field information
-                at D-domain. (optional)
-            incident_field -- matrix containing the incident field
-                information at D-domain. (optional)
-            relative_permittivity_map -- matrix with the discretized
-                image of the relative permittivity map. (optional)
-            conductivity_map -- matrix with the discretized image of the
-                conductivity map. (optional)
-            noise -- noise level of scattered field data.
-            import_filename -- a string with the name of the saved file.
-            import_filepath -- a string with the path to the saved file.
-
-        Obs.: you must give either the import file name and path or the
+        You must give either the import file name and path or the
         required variables.
+
+        Call signatures::
+
+            InputData(import_filename='my_file',
+                      import_filepath='./data/')
+            InputData(name='instance00',
+                      configuration_filename='setup00', ...)
+
+        Parameters
+        ----------
+            name : string
+                The name of the instance.
+
+            configuration_filename : string
+                A string with the name of the problem configuration
+                file.
+
+            resolution : 2-tuple
+                The size, in pixels, of the image to be recovered
+
+            scattered_field : :class:`numpy.ndarray`
+                A matrix containing the scattered field information at
+                S-domain.
+
+            total_field : :class:`numpy.ndarray`
+                A matrix containing the total field information at
+                D-domain.
+
+            incident_field : :class:`numpy.ndarray`
+                A matrix containing the incident field information at
+                D-domain.
+
+            relative_permittivity_map : :class:`numpy.ndarray`
+                A matrix with the discretized image of the relative
+                permittivity map.
+
+            conductivity_map : :class:`numpy.ndarray`
+                A matrix with the discretized image of the conductivity
+                map.
+
+            noise : float
+                Noise level of scattered field data.
+
+            import_filename : string
+                A string with the name of the saved file.
+
+            import_filepath : string
+                A string with the path to the saved file.
         """
         if import_filename is not None:
             self.importdata(import_filename, import_filepath)
@@ -158,7 +219,24 @@ class InputData:
 
     def draw(self, figure_title=None, file_path='', file_format='eps',
              show=False):
-        """Draw figure with the relative permittivity/conductivity map."""
+        """Draw the relative permittivity/conductivity map.
+
+        Parameters
+        ----------
+            figure_title : str, optional
+                A title that you want to give to the figure.
+
+            show : boolean, default: False
+                If `True`, a window will be raised to show the image. If
+                `False`, the image will be saved.
+
+            file_path : str, default: ''
+                A path where you want to save the figure.
+
+            file_format : str, default: 'eps'
+                The file format. It must be one of the available ones by
+                `matplotlib.pyplot.savefig()`.
+        """
         if self.epsilon_r is not None and self.sigma is None:
             plt.imshow(self.epsilon_r, origin='lower')
             plt.xlabel('x [Pixels]')
