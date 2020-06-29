@@ -290,24 +290,3 @@ class InputData:
                 plt.savefig(file_path + self.name + '.' + file_format,
                             format=file_format)
                 plt.close()
-
-    def set_scattered_field(self, scattered_field, noise=0.):
-        """Set scattered field and noise data."""
-        self.es = np.copy(scattered_field)
-        self.noise = noise
-
-    def set_total_field(self, total_field):
-        """Set total field data."""
-        self.et = np.copy(total_field)
-
-    def set_incident_field(self, incident_field):
-        """Set incident field data."""
-        self.ei = np.copy(incident_field)
-
-    def set_relative_permittivity_map(self, relative_permittivity_map):
-        """Set relative permittivity map."""
-        self.epsilon_r = np.copy(relative_permittivity_map)
-
-    def set_conductivity_map(self, conductivity_map):
-        """Set conductivity map."""
-        self.sigma = np.copy(conductivity_map)
