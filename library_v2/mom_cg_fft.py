@@ -1,6 +1,18 @@
-"""Brief definition of the module.
+"""Method of Moments - Conjugate-Gradient FFT Method.
 
-Brief explanation of the module.
+This module provides the implementation of Method of Moments (MoM) with
+the Conjugated-Gradient FFT formulation. It solves the forward problem
+following the Forward Solver abstract class.
+
+References
+----------
+.. [1] P. Zwamborn and P. M. van den Berg, "The three dimensional weak
+   form of the conjugate gradient FFT method for solving scattering
+   problems," in IEEE Transactions on Microwave Theory and Techniques,
+   vol. 40, no. 9, pp. 1757-1766, Sept. 1992, doi: 10.1109/22.156602.
+
+.. [2] Chen, Xudong. "Computational methods for electromagnetic inverse
+   scattering". John Wiley & Sons, 2018.
 """
 
 import time
@@ -14,44 +26,89 @@ import library_v2.inputdata as ipt
 import library_v2.configuration as cfg
 
 # Predefined constants
-MEMORY_LIMIT = 16e9
+MEMORY_LIMIT = 16e9  # [GB]
 
 
 class MoM_CG_FFT(fwr.ForwardSolver):
-    """Define the class.
+    """Method of Moments - Conjugated-Gradient FFT Method.
 
-    Definition of attributes.
+    This class implements the Method of Moments following the
+    Conjugated-Gradient FFT formulation.
+
+    Attributes
+    ----------
+        MAX_IT : int
+            Maximum number of iterations.
+        TOL : float
+            Tolerance level of error.
     """
 
     MAX_IT = int()
     TOL = float()
 
     def __init__(self, configuration, configuration_filepath='',
-                 tolerance=1e-6, maximum_iterations=100):
-        """Brief definition of the constructor.
+                 tolerance=1e-6, maximum_iterations=10000):
+        """Create the object.
 
-        Brief definition of parameters.
+        Parameters
+        ----------
+            configuration : string or :class:`Configuration`:Configuration
+                Either a configuration object or a string with the name
+                of file in which the configuration is saved. In this
+                case, the file path may also be provided.
+
+            configuration_filepath : string, optional
+                A string with the path to the configuration file (when
+                the file name is provided).
+
+            tolerance : float, default: 1e-6
+                Minimum error tolerance.
+
+            maximum_iteration : int, default: 10000
+                Maximum number of iterations.
         """
         super().__init__(configuration, configuration_filepath)
         self.TOL = tolerance
         self.MAX_IT = maximum_iterations
+        self.name = 'Method of Moments - CG-FFT'
 
-    def solve(self, scenario, PRINT_INFO=False, COMPUTE_INTERN_FIELD=False):
-        """Brief definition of the function.
+    def solve(self, scenario, PRINT_INFO=False, COMPUTE_INTERN_FIELD=True):
+        """Solve the forward problem.
 
-        Brief definition of parameters.
+        Parameters
+        ----------
+            scenario : :class:`inputdata:InputData`
+                An object describing the dielectric property map.
+
+            PRINT_INFO : boolean, default: False
+                Print iteration information.
+
+            COMPUTE_INTERN_FIELD : boolean, default: True
+                Compute the total field in D-domain.
+
+        Return
+        ------
+            es, et, ei : :class:`numpy:ndarray`
+                Matrices with the scattered, total and incident field
+                information.
+
+        Examples
+        --------
+        >>> solver = MoM_CG_FFT(configuration)
+        >>> es, et, ei = solver.solve(scenario)
+        >>> es, ei = solver.solve(scenario, COMPUTE_INTERN_FIELD=False)
         """
         super().solve(scenario)
         # Quick access for configuration variables
-        NM = self.config.NM
-        NS = self.config.NS
-        Ro = self.config.Ro
-        epsilon_rb = self.config.epsilon_rb
-        sigma_b = self.config.sigma_b
-        f = self.config.f
+        NM = self.configuration.NM
+        NS = self.configuration.NS
+        Ro = self.configuration.Ro
+        epsilon_rb = self.configuration.epsilon_rb
+        sigma_b = self.configuration.sigma_b
+        f = self.configuration.f
         omega = 2*np.pi*f
-        kb = self.config.kb
-        Lx, Ly = self.config.Lx, self.config.Ly
+        kb = self.configuration.kb
+        Lx, Ly = self.configuration.Lx, self.configuration.Ly
         NX, NY = scenario.resolution
         N = NX*NY
         epsilon_r, sigma = scenario.epsilon_r, scenario.sigma
@@ -65,11 +122,11 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         scenario.ei = np.copy(ei)
         GS = cfg.get_greenfunction(xm, ym, x, y, kb)
 
-        if isinstance(self.f, float):
+        if isinstance(f, float):
             MONO_FREQUENCY = True
         else:
             MONO_FREQUENCY = False
-            NF = self.f.size
+            NF = f.size
 
         deltasn = dx*dy  # area of the cell
         an = np.sqrt(deltasn/np.pi)  # radius of the equivalent circle
@@ -86,9 +143,9 @@ class MoM_CG_FFT(fwr.ForwardSolver):
 
         else:
             b = np.zeros((N, NS, NF), dtype=complex)
-            for f in range(NF):
-                b[:, :, f] = (np.tile(Xr[:, :, f].reshape((-1, 1)), (1, NS))
-                              * ei[:, :, f])
+            for nf in range(NF):
+                b[:, :, nf] = (np.tile(Xr[:, :, nf].reshape((-1, 1)), (1, NS))
+                               * ei[:, :, nf])
 
         if MONO_FREQUENCY:
             tic = time.time()
@@ -105,29 +162,29 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             num_cores = multiprocessing.cpu_count()
 
             results = (Parallel(n_jobs=num_cores)(delayed(self.__CG_FFT)
-                                                  (np.squeeze(Z[:, :, f]),
-                                                   np.squeeze(b[:, :, f]),
+                                                  (np.squeeze(Z[:, :, nf]),
+                                                   np.squeeze(b[:, :, nf]),
                                                    NX, NY, NS,
-                                                   np.squeeze(Xr[:, :, f]),
+                                                   np.squeeze(Xr[:, :, nf]),
                                                    self.MAX_IT, self.TOL,
                                                    False)
                                                   for f in range(NF)))
 
-            for f in range(NF):
-                J[:, :, f] = results[f][0]
-                niter[f] = results[f][1]
-                error[:, f] = results[f][2]
-                print('Frequency: %.3f ' % (self.f[f]/1e9) + '[GHz] - '
-                      + 'Number of iterations: %d - ' % (niter[f]+1)
-                      + 'Error: %.3e' % error[int(niter[f]), f])
+            for nf in range(NF):
+                J[:, :, nf] = results[nf][0]
+                niter[nf] = results[nf][1]
+                error[:, nf] = results[nf][2]
+                print('Frequency: %.3f ' % (f[nf]/1e9) + '[GHz] - '
+                      + 'Number of iterations: %d - ' % (niter[nf]+1)
+                      + 'Error: %.3e' % error[int(niter[nf]), nf])
 
         if MONO_FREQUENCY:
             es = GS@J  # Scattered Field, NM x NS
 
         else:
             es = np.zeros((NM, NS, NF), dtype=complex)
-            for f in range(NF):
-                es[:, :, f] = GS[:, :, f]@J[:, :, f]
+            for nf in range(NF):
+                es[:, :, nf] = GS[:, :, nf]@J[:, :, nf]
 
         if scenario.noise > 0:
             es = fwr.add_noise(es, scenario.noise)
@@ -145,13 +202,13 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                 if 8*(N)**2*NF < MEMORY_LIMIT:
                     GD = cfg.get_greenfunction(x.reshape(-1), y.reshape(-1), x,
                                                y, kb)
-                    for f in range(NF):
-                        et[:, :, f] = GD[:, :, f]@J[:, :, f]
+                    for nf in range(NF):
+                        et[:, :, nf] = GD[:, :, nf]@J[:, :, nf]
                 else:
                     for f in range(NF):
                         GD = cfg.get_greenfunction(x.reshape(-1),
-                                                   y.reshape(-1), x, y, kb[f])
-                        et[:, :, f] = GD@J[:, :, f]
+                                                   y.reshape(-1), x, y, kb[nf])
+                        et[:, :, nf] = GD@J[:, :, nf]
 
             et = et + ei
             scenario.et = np.copy(et)
@@ -162,7 +219,27 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             return es, ei
 
     def __get_extended_matrix(self, Rmn, kb, an, NX, NY):
-        """Return the extended matrix of Method of Moments."""
+        """Return the extended matrix of Method of Moments.
+
+        Parameters
+        ----------
+            Rmn : :class:`numpy:ndarray`
+                Radius matrix.
+
+            kb : float or :class:`numpy:ndarray`
+                Wavenumber [1/m]
+
+            an : float
+                Radius of equivalent element radius circle.
+
+            Nx, Ny : int
+                Number of cells in each direction.
+
+        Returns
+        -------
+            Z : :class:`numpy:ndarray`
+                The extent matrix.
+        """
         if isinstance(kb, float):
 
             # Matrix elements for off-diagonal entries (m=/n)
@@ -231,7 +308,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
 
         Returns
         -------
-            J : :class:`numpy.ndarray`
+            J : :class:`numpy:ndarray`
                 Current density, (NX.NY)xNS
         """
         Jo = np.zeros((NX*NY, NS), dtype=complex)  # initial guess

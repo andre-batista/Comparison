@@ -1,4 +1,8 @@
 from abc import ABC, abstractmethod
 
 class Inverse(ABC):
-    pass
+    name = ''
+
+    @abstractmethod
+    def print_parametrization(self):
+        pass

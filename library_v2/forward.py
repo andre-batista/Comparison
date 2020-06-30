@@ -38,24 +38,31 @@ class ForwardSolver(ABC):
 
     Attributes
     ----------
+        name : str
+            The name of the method. It should be defined within the
+            implementation of the method.
         et, ei : :class:`numpy.ndarray`
             Matrices containing the total and incident field
             information. The rows are points in D-domain following 'C'
             order. The columns are the sources.
+
         es : :class:`numpy.ndarray`
             Matrix containing the scattered field information. The rows
             correspond to the measurement points and the columns
             correspond to the sources.
+
         epsilon_r, sigma : :class:`numpy.ndarray`
             Matrices representing the dielectric properties in each
             pixel of the image. *epsilon_r* stands for the relative
             permitivitty and *sigma* stands for the conductivity (S/m).
             `Obs.:` the rows correspond to the y-coordinates, and the
             columns, to the x-ones.
+
         configuration : :class:`configuration:Configuration`
             Configuration object.
     """
 
+    name = ''
     et = np.array([], dtype=complex)
     ei = np.array([], dtype=complex)
     es = np.array([], dtype=complex)
@@ -100,7 +107,7 @@ class ForwardSolver(ABC):
                 import_filename=new_configuration
             )
         else:
-            self.config = cp.deepcopy(new_configuration)
+            self.configuration = cp.deepcopy(new_configuration)
 
     def __init__(self, configuration, configuration_filepath=''):
         """Create a forward solver object.
@@ -111,6 +118,7 @@ class ForwardSolver(ABC):
                 Either a configuration object or a string with the name
                 of file in which the configuration is saved. In this
                 case, the file path may also be provided.
+
             configuration_filepath : string, optional
                 A string with the path to the configuration file (when
                 the file name is provided).

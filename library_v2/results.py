@@ -42,7 +42,7 @@ class Results:
     configuration will result in information which will be stored in
     this class.
 
-    Atributtes
+    Attributes
     ----------
         name
             A string identifying the stored result. It may be a

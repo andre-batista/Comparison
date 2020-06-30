@@ -85,7 +85,8 @@ class InputData:
                  scattered_field=None, total_field=None, incident_field=None,
                  relative_permittivity_map=None, conductivity_map=None,
                  noise=None, import_filename=None, import_filepath=''):
-        """Build or import an object.
+        r"""
+        Build or import an object.
 
         You must give either the import file name and path or the
         required variables.
@@ -102,7 +103,7 @@ class InputData:
             name : string
                 The name of the instance.
 
-            configuration_filename : string
+            `configuration_filename` : string
                 A string with the name of the problem configuration
                 file.
 
