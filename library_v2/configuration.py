@@ -27,6 +27,7 @@ import library_v2.results as rst
 
 # Constants for easy access of saved pickle file
 NAME = 'name'
+PATH = 'path'
 NUMBER_MEASUREMENTS = 'NM'
 NUMBER_SOURCES = 'NS'
 OBSERVATION_RADIUS = 'Ro'
@@ -54,6 +55,9 @@ class Configuration:
     ----------
         name
             A string naming the problem configuration.
+
+        path
+            The path where the object file was saved.
 
         NM
             Number of measurements
@@ -87,13 +91,14 @@ class Configuration:
 
         good_conductor
             Flag for assuming good conductor objects
-            
+
         E0
             Magnitude of incident field [V/m].
 
     """
 
     name = ''
+    path = ''
     NM, NS = int(), int()
     Ro, Lx, Ly = float(), float(), float()
     epsilon_rb, sigma_b = float(), float()
@@ -217,8 +222,10 @@ class Configuration:
         itself. If you want to load these variables, you may use the
         constant string variables for a more friendly usage.
         """
+        self.path = file_path
         data = {
             NAME: self.name,
+            PATH: self.path,
             NUMBER_MEASUREMENTS: self.NM,
             NUMBER_SOURCES: self.NS,
             OBSERVATION_RADIUS: self.Ro,
@@ -286,7 +293,8 @@ class Configuration:
 
         xm, ym = get_coordinates_sdomain(self.Ro, self.NM)
         xl, yl = get_coordinates_sdomain(self.Ro, self.NS)
-        x, y = get_coordinates_ddomain(dx, dy, xmin, xmax, ymin, ymax)
+        x, y = get_coordinates_ddomain(dx=dx, dy=dy, xmin=xmin, xmax=xmax,
+                                       ymin=ymin, ymax=ymax)
         bounds = (xmin/self.lambda_b, xmax/self.lambda_b, ymin/self.lambda_b,
                   ymax/self.lambda_b)
 
@@ -353,9 +361,9 @@ class Configuration:
 
     def importdata(self, file_name, file_path=''):
         """Import data from a saved object."""
-        with open(file_path + file_name, 'rb') as datafile:
-            data = pickle.load(datafile)
+        data = import_dict(file_name, file_path)
         self.name = data[NAME]
+        self.path = data[PATH]
         self.NM = data[NUMBER_MEASUREMENTS]
         self.NS = data[NUMBER_SOURCES]
         self.Ro = data[OBSERVATION_RADIUS]
@@ -367,6 +375,13 @@ class Configuration:
         self.kb = data[BACKGROUND_WAVENUMBER]
         self.perfect_dielectric = data[PERFECT_DIELECTRIC_FLAG]
         self.good_conductor = data[GOOD_CONDUCTOR_FLAG]
+
+
+def import_dict(file_name, file_path=''):
+    """Import dictionary with configuration data."""
+    with open(file_path + file_name, 'rb') as datafile:
+        data = pickle.load(datafile)
+    return data
 
 
 def compute_wavelength(frequency, epsilon_r=1., mu_r=1., sigma=.0):
@@ -495,28 +510,37 @@ def get_bounds(length):
     return -length/2, length/2
 
 
-def get_coordinates_ddomain(dx, dy, xmin, xmax, ymin, ymax):
+def get_coordinates_ddomain(configuration=None, resolution=None,
+                            dx=None, dy=None, xmin=None, xmax=None, ymin=None,
+                            ymax=None):
     """Return the meshgrid of the image domain.
+
+    Examples
+    --------
+        The function must be called in only one of the two different
+        ways:
+
+        >>> get_coordinates_ddomain(configuration=Configuration()
+                                    resolution=(100, 100))
+        >>> get_coordinates_ddomain(dx=.1, dy=.1, xmin=-1., xmax=1.,
+                                    ymin=-1., ymax=1.)
 
     Parameters
     ----------
-        dx : float
-            Cell size in x-direction [m].
+        configuration : :class:`Configuration`
+            A configuration object.
 
-        dy : float
-            Cell size in y-direction [m].
+        resolution : 2-tuple
+            Discretization size in y- and x-coordinates (this order).
 
-        xmin : float
-            Left bound of x-axis [m].
+        dx, dy : float
+            Cell size.
 
-        xmax : float
-            Right bound of x-axis [m].
+        xmin, xmax : float
+            Limits of the interval in x-axis.
 
-        ymin : float
-            Left bound of y-axis [m].
-
-        ymax : float
-            Right bound of y-axis [m].
+        ymin, ymax : float
+            Limits of the interval in y-axis.  
 
     Notes
     -----
@@ -524,6 +548,34 @@ def get_coordinates_ddomain(dx, dy, xmin, xmax, ymin, ymax):
         ymax]. The coordinates are positioned at the center of the
         cells.
     """
+    function_name = 'get_coordinates_ddomain'
+    if configuration is not None and resolution is None:
+        raise error.MissingInputError(function_name, 'resolution')
+    elif configuration is None and resolution is not None:
+        raise error.MissingInputError(function_name, 'configuration')
+    elif (dx is None or dy is None or xmin is None or xmax is None 
+            or ymin is None or ymax is None):
+        inputs = []
+        if dx is None:
+            inputs.append('dx')
+        if dy is None:
+            inputs.append('dy')
+        if xmin is None:
+            inputs.append('xmin')
+        if xmax is None:
+            inputs.append('xmax')
+        if ymin is None:
+            inputs.append('ymin')
+        if ymax is None:
+            inputs.append('ymax')
+        raise error.MissingInputError(function_name, inputs)
+
+    if configuration is not None:
+        NY, NX = resolution
+        xmin, xmax = get_bounds(configuration.Lx)
+        ymin, ymax = get_bounds(configuration.Ly)
+        dx, dy = configuration.Lx/NX, configuration.Ly/NY
+
     return np.meshgrid(np.arange(xmin + .5*dx, xmax + .5*dx, dx),
                        np.arange(ymin + .5*dy, ymax + .5*dy, dy))
 

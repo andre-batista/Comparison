@@ -116,8 +116,8 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         ymin, ymax = cfg.get_bounds(Ly)
         dx, dy = Lx/NX, Ly/NY
         xm, ym = cfg.get_coordinates_sdomain(Ro, NM)
-        x, y = cfg.get_coordinates_ddomain(dx, dy, xmin, xmax, ymin,
-                                           ymax)
+        x, y = cfg.get_coordinates_ddomain(dx=dx, dy=dy, xmin=xmin, xmax=xmax,
+                                           ymin=ymin, ymax=ymax)
         ei = self.incident_field(scenario.resolution)
         scenario.ei = np.copy(ei)
         GS = cfg.get_greenfunction(xm, ym, x, y, kb)

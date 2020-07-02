@@ -27,6 +27,9 @@ class Solver(ABC):
         name : str
             The name of the solver.
 
+        version : str
+            The version of method.
+
         config : :class:`configuration.Configuration`
             An object of problem configuration.
 
@@ -36,6 +39,12 @@ class Solver(ABC):
     """
 
     name = ''
+    version = ''
+
+    @property
+    def configuration(self):
+        """Get routine of configuration attribute."""
+        return cp.deepcopy(self._configuration)
 
     @configuration.setter
     def configuration(self, new_configuration):
@@ -112,52 +121,6 @@ class Solver(ABC):
         print('Method: ' + self.name)
         print('Problem configuration: ' + self.configuration.name)
         print('Instance: ' + instance.name)
-
-    def _compute_zeta_rn(self, es_o, es_a):
-        r"""Compute the zeta_rn error.
-
-        The zeta_rn error is the residual norm error of the scattered
-        field approximation.
-
-        Parameters
-        ----------
-            es_o : :class:`numpy.ndarray`
-                Original scattered field matrix.
-
-            es_a : :class:`numpy.ndarray`
-                Approximated scattered field matrix.
-
-        Notes
-        -----
-            The error is computed through the following relation:
-
-            .. math:: ||E^s-E^{s,\delta}|| = \sqrt{\iint_S(y-y^\prime)
-            \overline{(y-y^\prime)}d\theta
-        """
-        theta = cfg.get_angles(self.configuration.NM)
-        phi = cfg.get_angles(self.configuration.NS)
-        y = (es_o-es_a)*np.conj(es_o-es_a)
-        return np.sqrt(np.trapz(np.trapz(y, x=phi), x=theta))
-
-    def _compute_zeta_rpad(self, es_o, es_r):
-        r"""Compute the zeta_padr error.
-
-        The zeta_padr error is the residual percentage average deviation
-        of the scattered field approximation.
-
-        Parameters
-        ----------
-            es_o : :class:`numpy.ndarray`
-                Original scattered field matrix.
-
-            es_a : :class:`numpy.ndarray`
-                Approximated scattered field matrix.
-        """
-        y = np.hstack((np.real(es_o.flatten()),
-                       np.imag(es_o.flatten())))
-        yp = np.hstack((np.real(es_r.flatten()),
-                        np.imag(es_r.flatten())))
-        return np.mean(np.abs((y-yp)/y))
 
 
 @jit(nopython=True)

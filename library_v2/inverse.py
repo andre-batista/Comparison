@@ -6,3 +6,7 @@ class Inverse(ABC):
     @abstractmethod
     def print_parametrization(self):
         pass
+
+    def solve(self, instance):
+        pass
+

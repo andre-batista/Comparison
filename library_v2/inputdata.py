@@ -69,6 +69,10 @@ class InputData:
 
         noise
             noise level of scattered field data.
+
+        homogeneous_objects : bool
+            A flag to indicate if the instance only contains
+            homogeneous objects.
     """
 
     name = ''
@@ -79,12 +83,14 @@ class InputData:
     ei = np.array((int(), int()), dtype=complex)
     epsilon_r = np.array((int(), int()), dtype=complex)
     sigma = np.array((int(), int()), dtype=complex)
+    homogeneous_objects = bool()
     noise = float()
 
     def __init__(self, name=None, configuration_filename=None, resolution=None,
                  scattered_field=None, total_field=None, incident_field=None,
                  relative_permittivity_map=None, conductivity_map=None,
-                 noise=None, import_filename=None, import_filepath=''):
+                 noise=None, import_filename=None, import_filepath='',
+                 homogeneous_objects=True):
         r"""
         Build or import an object.
 
@@ -133,6 +139,10 @@ class InputData:
             noise : float
                 Noise level of scattered field data.
 
+            homogeneous_objects : bool
+                A flag to indicate if the instance only contains
+                homogeneous objects.
+
             import_filename : string
                 A string with the name of the saved file.
 
@@ -156,6 +166,7 @@ class InputData:
             self.name = name
             self.configuration_filename = configuration_filename
             self.resolution = resolution
+            self.homogeneous_objects = homogeneous_objects
 
             if scattered_field is not None:
                 self.es = np.copy(scattered_field)

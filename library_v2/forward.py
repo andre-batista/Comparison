@@ -163,7 +163,7 @@ class ForwardSolver(ABC):
         Parameters
         ----------
             resolution : 2-tuple
-                The image size of D-domain in pixels.
+                The image size of D-domain in pixels (y and x).
 
         Returns
         -------
@@ -172,15 +172,12 @@ class ForwardSolver(ABC):
                 in the image following `C`-order and the columns
                 corresponds to the sources.
         """
-        NX, NY = resolution
-        phi = cfg.get_angles(self.config.NS)
-        xmin, xmax = cfg.get_bounds(self.config.Lx)
-        ymin, ymax = cfg.get_bounds(self.config.Ly)
-        dx, dy = self.config.Lx/NX, self.config.Ly/NY
-        x, y = cfg.get_domain_coordinates(dx, dy, xmin, xmax, ymin,
-                                          ymax)
-        kb = self.config.kb
-        E0 = self.config.E0
+        NY, NX = resolution
+        phi = cfg.get_angles(self.configuration.NS)
+        x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
+                                           resolution=resolution)
+        kb = self.configuration.kb
+        E0 = self.configuration.E0
 
         if isinstance(kb, float):
             ei = E0*np.exp(-1j*kb*(x.reshape((-1, 1))
@@ -188,7 +185,8 @@ class ForwardSolver(ABC):
                                    + y.reshape((-1, 1))
                                    @ np.sin(phi.reshape((1, -1)))))
         else:
-            ei = np.zeros((NX*NY, self.config.NS, kb.size), dtype=complex)
+            ei = np.zeros((NX*NY, self.configuration.NS, kb.size),
+                          dtype=complex)
             for f in range(kb.size):
                 ei[:, :, f] = E0*np.exp(-1j*kb[f]*(x.reshape((-1, 1))
                                                    @ np.cos(phi.reshape((1,
@@ -202,7 +200,7 @@ class ForwardSolver(ABC):
     def save(self, file_name, file_path=''):
         """Save simulation data."""
         data = {
-            CONFIGURATION_FILENAME: self.config.name,
+            CONFIGURATION_FILENAME: self.configuration.name,
             TOTAL_FIELD: self.et,
             INCIDENT_FIELD: self.ei,
             SCATTERED_FIELD: self.es,
