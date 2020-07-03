@@ -98,7 +98,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         >>> es, et, ei = solver.solve(scenario)
         >>> es, ei = solver.solve(scenario, COMPUTE_INTERN_FIELD=False)
         """
-        super().solve(scenario)
+        epsilon_r, sigma = super().solve(scenario)
         # Quick access for configuration variables
         NM = self.configuration.NM
         NS = self.configuration.NS
@@ -111,7 +111,6 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         Lx, Ly = self.configuration.Lx, self.configuration.Ly
         NX, NY = scenario.resolution
         N = NX*NY
-        epsilon_r, sigma = scenario.epsilon_r, scenario.sigma
         xmin, xmax = cfg.get_bounds(Lx)
         ymin, ymax = cfg.get_bounds(Ly)
         dx, dy = Lx/NX, Ly/NY

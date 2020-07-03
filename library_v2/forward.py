@@ -126,7 +126,7 @@ class ForwardSolver(ABC):
         self.configuration(configuration, configuration_filepath)
 
     @abstractmethod
-    def solve(self, input):
+    def solve(self, inputdata):
         """Execute the method given a problem input.
 
         This is the basic model of the simulation routine.
@@ -135,8 +135,8 @@ class ForwardSolver(ABC):
         ----------
             input : :class:`inputdata:InputData`
                 An object of InputData type which must contains the
-                following attributes: `resolution`, `epsilon_r` and
-                `sigma`.
+                `resolution` attribute and either `epsilon_r` or
+                `sigma` or both.
 
         Returns
         -------
@@ -144,14 +144,23 @@ class ForwardSolver(ABC):
                 Matrices with the computed scattered, total and incident
                 fields, respectively.
         """
-        if input.resolution is None:
-            error.MissingAttributesError('InputData', 'resolution')
-        if input.epsilon_r is None:
-            error.MissingAttributesError('InputData', 'epsilon_r')
-        if input.sigma is None:
-            error.MissingAttributesError('InputData', 'sigma')
+        if inputdata.resolution is None:
+            raise error.MissingAttributesError('InputData', 'resolution')
+        if inputdata.epsilon_r is None and inputdata.sigma is None:
+            raise error.MissingAttributesError('InputData',
+                                               'epsilon_r or sigma')
+        if inputdata.epsilon_r is None:
+            epsilon_r = (self.configuration.epsilon_rb
+                         * np.ones(inputdata.resolution))
+        else:
+            epsilon_r = np.copy(inputdata.epsilon_r)
 
-        return np.copy(self.es), np.copy(self.et), np.copy(self.ei)
+        if inputdata.sigma is None:
+            sigma = self.configuration.sigma_b*np.ones(inputdata.resolution)
+        else:
+            sigma = np.copy(inputdata.sigma)
+
+        return epsilon_r, sigma
 
     def incident_field(self, resolution):
         """Compute the incident field matrix.

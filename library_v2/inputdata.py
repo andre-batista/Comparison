@@ -73,6 +73,19 @@ class InputData:
         homogeneous_objects : bool
             A flag to indicate if the instance only contains
             homogeneous objects.
+
+        compute_residual_error : bool
+            A flag to indicate the measurement of the residual error
+            throughout or at the end of the solver executation.
+
+        compute_map_error : bool
+            A flag to indicate the measurement of the error in
+            predicting the dielectric properties of the image.
+
+        compute_totalfield_error : bool
+            A flag to indicate the measurement of the estimation error
+            of the total field throughout or at the end of the solver
+            executation.
     """
 
     name = ''
@@ -85,12 +98,16 @@ class InputData:
     sigma = np.array((int(), int()), dtype=complex)
     homogeneous_objects = bool()
     noise = float()
+    compute_residual_error = bool()
+    compute_map_error = bool()
+    compute_totalfield_error = bool()
 
     def __init__(self, name=None, configuration_filename=None, resolution=None,
                  scattered_field=None, total_field=None, incident_field=None,
                  relative_permittivity_map=None, conductivity_map=None,
                  noise=None, import_filename=None, import_filepath='',
-                 homogeneous_objects=True):
+                 homogeneous_objects=True, compute_residual_error=True,
+                 compute_map_error=False, compute_totalfield_error=False):
         r"""
         Build or import an object.
 
@@ -142,6 +159,19 @@ class InputData:
             homogeneous_objects : bool
                 A flag to indicate if the instance only contains
                 homogeneous objects.
+
+            compute_residual_error : bool
+                A flag to indicate the measurement of the residual error
+                throughout or at the end of the solver executation.
+
+             compute_map_error : bool
+                A flag to indicate the measurement of the error in
+                predicting the dielectric properties of the image.
+
+             compute_totalfield_error : bool
+                A flag to indicate the measurement of the estimation
+                error of the total field throughout or at the end of the
+                solver executation.
 
             import_filename : string
                 A string with the name of the saved file.

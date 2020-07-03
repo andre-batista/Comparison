@@ -33,6 +33,9 @@ class Solver(ABC):
         config : :class:`configuration.Configuration`
             An object of problem configuration.
 
+        execution_time : float
+            The amount of time for a single execution of the method.
+
     Notes
     -----
         The name of the method should be defined by default.
@@ -40,6 +43,7 @@ class Solver(ABC):
 
     name = ''
     version = ''
+    execution_time = float()
 
     @property
     def configuration(self):

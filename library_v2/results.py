@@ -38,7 +38,7 @@ IMAGE_SIZE_2X2 = (9., 9.)
 class Results:
     """A class for storing results information of a single execution.
 
-    Each executation of method for a giving input data with 
+    Each executation of method for a giving input data with
     corresponding configuration will result in information which will be
     stored in this class.
 
@@ -84,6 +84,8 @@ class Results:
             The image matrix containing the result of the conductivity
             map estimation. Unit: [S/m]
 
+        execution_time
+            The amount of time of for running the method.
 
     """
 
@@ -94,6 +96,7 @@ class Results:
     et = np.array([])
     es = np.array([])
     epsilon_r, sigma = np.array([]), np.array([])
+    execution_time = float
     zeta_rn, zeta_rpad = list(), list()
     zeta_epad, zeta_spad = list(), list()
     zeta_be = list()
@@ -295,49 +298,74 @@ class Results:
             conductivity_map : :class:`numpy.ndarray`
                 Conductivity image recovered by the solver.
         """
-        if scattered_field is not None and inputdata.es is not None:
+        if inputdata.compute_residual_error:
+            if scattered_field is None:
+                raise error.MissingInputError('Result.update_error',
+                                              'scattered_field')
+            elif inputdata.es is None:
+                raise error.MissingAttributesError('InputData', 'es')
             self.zeta_rn.append(compute_zeta_rn(inputdata.es, scattered_field))
             self.zeta_rpad.append(compute_zeta_rpad(inputdata.es,
                                                     scattered_field))
 
-        if total_field is not None and inputdata.et is not None:
+        if inputdata.compute_totalfield_error:
+            if total_field is None:
+                raise error.MissingInputError('Result.update_error',
+                                              'total_field')
+            elif inputdata.et is None:
+                raise error.MissingAttributesError('InputData', 'et')
             self.zeta_tfmpad.append(compute_zeta_tfmpad(inputdata.et,
                                                         total_field))
             self.zeta_tfppad.append(compute_zeta_tfppad(inputdata.et,
                                                         total_field))
 
-        if self.configuration_filename is None:
-            raise error.MissingAttributesError('Results',
-                                               'configuration_filename')
-        else:
+        if inputdata.compute_map_error:
+            if self.configuration_filename is None:
+                raise error.MissingAttributesError('Results',
+                                                   'configuration_filename')
             config = cfg.import_dict(self.configuration_filename,
                                      self.configuration_filepath)
             epsilon_rb = config[cfg.BACKGROUND_RELATIVE_PERMITTIVITY]
             sigma_b = config[cfg.BACKGROUND_CONDUCTIVITY]
             omega = 2*np.pi*config[cfg.FREQUENCY]
 
-        if (inputdata.epsilon_r is not None
+        if (inputdata.compute_map_error and inputdata.epsilon_r is not None
                 and relative_permittivity_map is not None):
             self.zeta_epad.append(compute_zeta_epad(inputdata.epsilon_r,
                                                     relative_permittivity_map))
-            self.zeta_ebe.append(compute_zeta_ebe(inputdata.epsilon_r,
-                                                  relative_permittivity_map,
-                                                  epsilon_rb))
-            self.zeta_eoe.append(compute_zeta_eoe(inputdata.epsilon_r,
-                                                  relative_permittivity_map,
-                                                  epsilon_rb))
 
-        if inputdata.sigma is not None and conductivity_map is not None:
+        if (inputdata.compute_map_error and inputdata.sigma is not None
+                and conductivity_map is not None):
             self.zeta_spad.append(compute_zeta_spad(inputdata.sigma,
                                                     conductivity_map))
-            self.zeta_sbe.append(compute_zeta_sbe(inputdata.sigma,
-                                                  conductivity_map,
-                                                  sigma_b))
-            self.zeta_soe.append(compute_zeta_soe(inputdata.sigma,
-                                                  conductivity_map,
-                                                  sigma_b))
 
-        if inputdata.homogeneous_objects:
+        if inputdata.compute_map_error and inputdata.homogeneous_objects:
+            if inputdata.epsilon_r is not None:
+                if relative_permittivity_map is None:
+                    raise error.MissingInputError('Results.update_error',
+                                                  'relative_permittivity_map')
+                self.zeta_ebe.append(
+                    compute_zeta_ebe(inputdata.epsilon_r,
+                                     relative_permittivity_map,
+                                     epsilon_rb)
+                )
+                self.zeta_eoe.append(
+                    compute_zeta_eoe(inputdata.epsilon_r,
+                                     relative_permittivity_map,
+                                     epsilon_rb)
+                )
+
+            if inputdata.sigma is not None:
+                if conductivity_map is None:
+                    raise error.MissingInputError('Results.update_error',
+                                                  'conductivity_map')
+                self.zeta_sbe.append(compute_zeta_sbe(inputdata.sigma,
+                                                      conductivity_map,
+                                                      sigma_b))
+                self.zeta_soe.append(compute_zeta_soe(inputdata.sigma,
+                                                      conductivity_map,
+                                                      sigma_b))
+
             if (relative_permittivity_map is not None
                     and conductivity_map is None):
                 conductivity_map = (
@@ -348,18 +376,56 @@ class Results:
                 relative_permittivity_map = (
                     epsilon_rb*np.zeros(conductivity_map.shape)
                 )
+
             x, y = cfg.get_coordinates_ddomain(
                 configuration=cfg.Configuration(
                     import_filename=self.configuration_filename,
                     import_filepath=self.configuration_filepath
                 ), resolution=relative_permittivity_map.shape
             )
+
             self.zeta_be.append(
                 compute_zeta_be(cfg.get_contrast_map(relative_permittivity_map,
                                                      conductivity_map,
                                                      epsilon_rb, sigma_b,
                                                      omega), x, y)
             )
+
+    def last_error_message(self, inputdata, pre_message=''):
+        """Summarize the method."""
+        message = pre_message + ''
+
+        if inputdata.compute_residual_error:
+            message = message + 'Residual norm: %.3e, ' % self.zeta_rn[-1]
+            message = message + 'PAD: %.3e' % self.zeta_rpad[-1]
+
+        if inputdata.compute_map_error:
+            if inputdata.compute_residual_error:
+                message = message + ' - '
+            if len(self.zeta_epad) != 0:
+                message = message + 'Rel. Per. PAD: %.3%' % self.zeta_epad[-1]
+                if inputdata.homogeneous_objects:
+                    message = message + ', Back.: %.3e, ' % self.zeta_ebe[-1]
+                    message = message + 'Ob.: %.3e' % self.zeta_eoe[-1]
+            if len(self.zeta_spad) != 0:
+                if len(self.zeta_epad) != 0:
+                    message = message + ' - '
+                message = message + 'Con. PAD: %.3e' % self.zeta_spad[-1]
+                if inputdata.homogeneous_objects:
+                    message = message + ' Back.: %.3e,' % self.zeta_sbe[-1]
+                    message = message + 'Ob.: %.3e' % self.zeta_soe[-1]
+            if inputdata.homogeneous_objects:
+                message = message + ' - Bound.: %.3e' % self.zeta_be[-1]
+
+        if inputdata.compute_totalfield_error:
+            if inputdata.compute_residual_error or inputdata.compute_map_error:
+                message = message + ' - '
+            message = (message
+                       + 'To. Field Mag. PAD: %.3e' % self.zeta_tfmpad[-1])
+            message = (message
+                       + 'To. Field Phase PAD: %.3e' % self.zeta_tfppad[-1])
+
+        return message
 
 
 def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
