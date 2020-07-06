@@ -91,6 +91,12 @@ class BornIterativeMethod(slv.Solver):
         self.inverse = inverse_solver
         self.version = version
 
+        if self.forward.configuration is None:
+            self.forward.configuration = self.configuration
+
+        if self.inverse.configuration is None:
+            self.inverse.configuration = self.configuration
+
     def solve(self, instance, PRINT_INFO=True):
         """Solve a nonlinear inverse problem.
 

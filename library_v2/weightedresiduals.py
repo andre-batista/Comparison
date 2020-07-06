@@ -9,6 +9,7 @@ from numpy import linalg as lag
 from numba import jit
 
 import library_v2.inverse as inv
+import library_v2.inputdata as ipt
 
 TIKHONOV_METHOD = 'tikhonov'
 LANDWEBER_METHOD = 'landweber'
@@ -24,20 +25,49 @@ class MethodOfWeightedResiduals(inv.Inverse):
     linsolver = str()
     parameter = tuple()
 
-    def __init__(self, linear_solver, parameter):
+    def __init__(self, configuration, linear_solver, parameter):
         """Give a title."""
+        super().__init__(configuration)
         self.linsolver = linear_solver
-        self.parameter = parameter
-        pass
 
-    def compute_A(self):
+        if linear_solver == LANDWEBER_METHOD:
+            if isinstance(parameter, tuple):
+                self.parameter = parameter
+            else:
+                self.parameter = (parameter, 1000)
+
+    def solve(self, inputdata):
+        """Summarize the method."""
+        A = self._compute_A(inputdata)
+        b = self._compute_b(inputdata)
+
+        if self.linsolver == TIKHONOV_METHOD:
+            alpha = tikhonov(A, b, self.parameter)
+        elif self.linsolver == LANDWEBER_METHOD:
+            x0 = np.zeros(b.size, dtype=complex)
+            alpha = landweber(A, b, self.parameter[0], x0, self.parameter[1])
+        elif self.linsolver == CONJUGATED_GRADIENT_METHOD:
+            x0 = np.zeros(b.size, dtype=complex)
+            alpha = conjugated_gradient(A, b, x0, self.parameter)
+        elif self.linsolver == LEAST_SQUARES_METHOD:
+            alpha = least_squares(A, b, self.parameter)
+
+        self._recover_map(inputdata, alpha)
+
+    @abstractmethod
+    def _compute_A(self, inputdata):
         """Give a title."""
         pass
 
-    def compute_b(self):
+    @abstractmethod
+    def _compute_b(self, inputdata):
         """Give a title."""
         pass
 
+    @abstractmethod
+    def _recover_map(self, inputdata, alpha):
+        """Summarize the method."""
+        pass
 
 @jit(nopython=True)
 def tikhonov(A, b, alpha):

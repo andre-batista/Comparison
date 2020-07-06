@@ -123,7 +123,10 @@ class ForwardSolver(ABC):
                 A string with the path to the configuration file (when
                 the file name is provided).
         """
-        self.configuration(configuration, configuration_filepath)
+        if isinstance(configuration, str):
+            self.configuration = (configuration, configuration_filepath)
+        else:
+            self.configuration = configuration
 
     @abstractmethod
     def solve(self, inputdata):
