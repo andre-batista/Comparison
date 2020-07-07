@@ -48,6 +48,7 @@ class InputData:
 
         resolution
             A tuple with the size, in pixels, of the recovered image.
+            Y-X ordered.
 
         scattered_field
             Matrix containing the scattered field information at
@@ -131,7 +132,8 @@ class InputData:
                 file.
 
             resolution : 2-tuple
-                The size, in pixels, of the image to be recovered
+                The size, in pixels, of the image to be recovered. Y-X
+                ordered.
 
             scattered_field : :class:`numpy.ndarray`
                 A matrix containing the scattered field information at

@@ -72,6 +72,50 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         self.MAX_IT = maximum_iterations
         self.name = 'Method of Moments - CG-FFT'
 
+    def incident_field(self, resolution):
+        """Compute the incident field matrix.
+
+        Given the configuration information stored in the object, it
+        computes the incident field matrix considering plane waves in
+        different from different angles.
+
+        Parameters
+        ----------
+            resolution : 2-tuple
+                The image size of D-domain in pixels (y and x).
+
+        Returns
+        -------
+            ei : :class:`numpy.ndarray`
+                Incident field matrix. The rows correspond to the points
+                in the image following `C`-order and the columns
+                corresponds to the sources.
+        """
+        NY, NX = resolution
+        phi = cfg.get_angles(self.configuration.NS)
+        x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
+                                           resolution=resolution)
+        kb = self.configuration.kb
+        E0 = self.configuration.E0
+
+        if isinstance(kb, float):
+            ei = E0*np.exp(-1j*kb*(x.reshape((-1, 1))
+                                   @ np.cos(phi.reshape((1, -1)))
+                                   + y.reshape((-1, 1))
+                                   @ np.sin(phi.reshape((1, -1)))))
+        else:
+            ei = np.zeros((NX*NY, self.configuration.NS, kb.size),
+                          dtype=complex)
+            for f in range(kb.size):
+                ei[:, :, f] = E0*np.exp(-1j*kb[f]*(x.reshape((-1, 1))
+                                                   @ np.cos(phi.reshape((1,
+                                                                         -1)))
+                                                   + y.reshape((-1, 1))
+                                                   @ np.sin(phi.reshape((1,
+                                                                         -1))))
+                                        )
+        return ei
+
     def solve(self, scenario, PRINT_INFO=False, COMPUTE_INTERN_FIELD=True):
         """Solve the forward problem.
 
@@ -109,7 +153,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         omega = 2*np.pi*f
         kb = self.configuration.kb
         Lx, Ly = self.configuration.Lx, self.configuration.Ly
-        NX, NY = scenario.resolution
+        NY, NX = scenario.resolution
         N = NX*NY
         xmin, xmax = cfg.get_bounds(Lx)
         ymin, ymax = cfg.get_bounds(Ly)
@@ -347,3 +391,10 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             go = g
 
         return J, n, error_res
+
+    def __str__(self):
+        """Print method parametrization."""
+        message = super().__str__()
+        message = message + "Number of iterations: %d, " % self.MAX_IT
+        message = message + "Tolerance level: %.3e" % self.TOL
+        return message

@@ -97,7 +97,7 @@ class BornIterativeMethod(slv.Solver):
         if self.inverse.configuration is None:
             self.inverse.configuration = self.configuration
 
-    def solve(self, instance, PRINT_INFO=True):
+    def solve(self, instance, print_info=True):
         """Solve a nonlinear inverse problem.
 
         Parameters
@@ -106,19 +106,19 @@ class BornIterativeMethod(slv.Solver):
                 An object which defines a case problem with scattered
                 field and some others information.
 
-            PRINT_INFO : bool
+            print_info : bool
                 Print or not the iteration information.
         """
+        super().solve(instance, print_info)
         result = rst.Results(instance.name + '_' + self.version,
                              method_name=self.name,
                              configuration_filename=self.configuration.name,
                              configuration_filepath=self.configuration.path,
                              inputdata_filename=instance.name)
 
-        if PRINT_INFO:
-            self._print_title(instance)
+        if print_info:
             print('Iterations: %d' % self.MAX_IT)
-            print('Forward solver: ' + self.forward.name)
+            print(self.forward)
             print('Inverse solver: ' + self.inverse.name)
             self.inverse.print_parametrization()
 
@@ -139,7 +139,8 @@ class BornIterativeMethod(slv.Solver):
                                 conductivity_map=solution.sigma)
             iteration_message = result.last_error_message(instance,
                                                           iteration_message)
-            print(iteration_message)
+            if print_info:
+                print(iteration_message)
 
         result.es = solution.es
         result.et = solution.et

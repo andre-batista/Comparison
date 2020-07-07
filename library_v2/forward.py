@@ -165,49 +165,10 @@ class ForwardSolver(ABC):
 
         return epsilon_r, sigma
 
+    @abstractmethod
     def incident_field(self, resolution):
-        """Compute the incident field matrix.
-
-        Given the configuration information stored in the object, it
-        computes the incident field matrix considering plane waves in
-        different from different angles.
-
-        Parameters
-        ----------
-            resolution : 2-tuple
-                The image size of D-domain in pixels (y and x).
-
-        Returns
-        -------
-            ei : :class:`numpy.ndarray`
-                Incident field matrix. The rows correspond to the points
-                in the image following `C`-order and the columns
-                corresponds to the sources.
-        """
-        NY, NX = resolution
-        phi = cfg.get_angles(self.configuration.NS)
-        x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
-                                           resolution=resolution)
-        kb = self.configuration.kb
-        E0 = self.configuration.E0
-
-        if isinstance(kb, float):
-            ei = E0*np.exp(-1j*kb*(x.reshape((-1, 1))
-                                   @ np.cos(phi.reshape((1, -1)))
-                                   + y.reshape((-1, 1))
-                                   @ np.sin(phi.reshape((1, -1)))))
-        else:
-            ei = np.zeros((NX*NY, self.configuration.NS, kb.size),
-                          dtype=complex)
-            for f in range(kb.size):
-                ei[:, :, f] = E0*np.exp(-1j*kb[f]*(x.reshape((-1, 1))
-                                                   @ np.cos(phi.reshape((1,
-                                                                         -1)))
-                                                   + y.reshape((-1, 1))
-                                                   @ np.sin(phi.reshape((1,
-                                                                         -1))))
-                                        )
-        return ei
+        """Return the incident field for a given resolution."""
+        return np.zeros((int, int), dtype=complex)
 
     def save(self, file_name, file_path=''):
         """Save simulation data."""
@@ -222,6 +183,11 @@ class ForwardSolver(ABC):
 
         with open(file_path + file_name, 'wb') as datafile:
             pickle.dump(data, datafile)
+
+    @abstractmethod
+    def __str__(self):
+        """Print information of the method object."""
+        return "Foward Solver: " + self.name + "\n"
 
 
 def add_noise(x, delta):

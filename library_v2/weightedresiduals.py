@@ -10,11 +10,15 @@ from numba import jit
 
 import library_v2.inverse as inv
 import library_v2.inputdata as ipt
+import library_v2.error as error
 
 TIKHONOV_METHOD = 'tikhonov'
 LANDWEBER_METHOD = 'landweber'
 CONJUGATED_GRADIENT_METHOD = 'cg'
 LEAST_SQUARES_METHOD = 'lstsq'
+MOZOROV_CHOICE = 'mozorov'
+LAVARELLO_CHOICE = 'lavarello'
+FIXED_CHOICE = 'fixed'
 
 
 class MethodOfWeightedResiduals(inv.Inverse):
@@ -23,34 +27,109 @@ class MethodOfWeightedResiduals(inv.Inverse):
     A = np.zeros((int(), int()), dtype=complex)
     b = np.zeros(int(), dtype=complex)
     linsolver = str()
-    parameter = tuple()
+    parameter = None
+    name = "Method of Weighted Residuals"
 
     def __init__(self, configuration, linear_solver, parameter):
         """Give a title."""
         super().__init__(configuration)
-        self.linsolver = linear_solver
 
-        if linear_solver == LANDWEBER_METHOD:
+        if linear_solver == TIKHONOV_METHOD:
+            self.linsolver = linear_solver
+            if isinstance(parameter, str):
+                if (parameter == MOZOROV_CHOICE
+                        or parameter == LAVARELLO_CHOICE):
+                    self.choice_strategy = parameter
+                elif parameter == FIXED_CHOICE:
+                    raise error.MissingInputError(
+                        'MethodOfWeightedResiduals.__init__',
+                        'parameter_value'
+                    )
+                else:
+                    raise error.WrongValueInput(
+                        'MethodOfWeightedResiduals.__init__',
+                        'parameter',
+                        "{'mozorov', 'lavarello', 'fixed'}",
+                        parameter
+                    )
+            elif isinstance(parameter, float):
+                self.parameter = parameter
+                self.choice_strategy = 'Fixed'
+            elif isinstance(parameter, tuple) or isinstance(parameter, list):
+                if parameter[0] == FIXED_CHOICE:
+                    if isinstance(parameter[1], float):
+                        self.choice_strategy = parameter[0]
+                        self.parameter = parameter[1]
+                    else:
+                        raise error.WrongTypeInput(
+                            'MethodOfWeightedResiduals.__init__',
+                            "('fixed', parameter_value)",
+                            'float',
+                            type(parameter[1])
+                        )
+                elif (parameter[0] == LAVARELLO_CHOICE
+                        or parameter[0] == MOZOROV_CHOICE):
+                    self.choice_strategy = parameter[0]
+                    self.parameter = parameter[1]
+                else:
+                    raise error.WrongValueInput(
+                        'MethodOfWeightedResiduals.__init__',
+                        '(choice_strategy,...)',
+                        "{'mozorov', 'lavarello', 'fixed'}",
+                        parameter[0]
+                    )
+        elif linear_solver == LANDWEBER_METHOD:
+            self.linsolver = linear_solver
             if isinstance(parameter, tuple):
                 self.parameter = parameter
             else:
                 self.parameter = (parameter, 1000)
+        elif linear_solver == CONJUGATED_GRADIENT_METHOD:
+            self.linsolver = linear_solver
+            if isinstance(parameter, float):
+                self.parameter = parameter
+            else:
+                raise error.WrongTypeInput(
+                    'MethodOfWeightedResiduals.__init__',
+                    'parameter',
+                    'float',
+                    type(parameter)
+                )
+        elif linear_solver == LEAST_SQUARES_METHOD:
+            self.linsolver = linear_solver
+            if isinstance(parameter, float):
+                self.parameter = parameter
+            elif parameter is None:
+                self.parameter = 1e-3
+            else:
+                raise error.WrongTypeInput(
+                    'MethodOfWeightedResiduals.__init__',
+                    'parameter',
+                    'float',
+                )
+        else:
+            raise error.WrongValueInput('MethodOfWeightedResiduals.__init__',
+                                        'linear_solver',
+                                        "{'tikhonov', 'landweber', 'cg',"
+                                        + "'lstsq'}",
+                                        linear_solver)
 
     def solve(self, inputdata):
         """Summarize the method."""
         A = self._compute_A(inputdata)
-        b = self._compute_b(inputdata)
+        beta = self._compute_b(inputdata)
 
         if self.linsolver == TIKHONOV_METHOD:
-            alpha = tikhonov(A, b, self.parameter)
+            alpha = tikhonov(A, beta, self.parameter)
         elif self.linsolver == LANDWEBER_METHOD:
-            x0 = np.zeros(b.size, dtype=complex)
-            alpha = landweber(A, b, self.parameter[0], x0, self.parameter[1])
+            x0 = np.zeros(beta.size, dtype=complex)
+            alpha = landweber(A, beta, self.parameter[0], x0,
+                              self.parameter[1])
         elif self.linsolver == CONJUGATED_GRADIENT_METHOD:
-            x0 = np.zeros(b.size, dtype=complex)
-            alpha = conjugated_gradient(A, b, x0, self.parameter)
+            x0 = np.zeros(beta.size, dtype=complex)
+            alpha = conjugated_gradient(A, beta, x0, self.parameter)
         elif self.linsolver == LEAST_SQUARES_METHOD:
-            alpha = least_squares(A, b, self.parameter)
+            alpha = least_squares(A, beta, self.parameter)
 
         self._recover_map(inputdata, alpha)
 
@@ -60,7 +139,7 @@ class MethodOfWeightedResiduals(inv.Inverse):
         pass
 
     @abstractmethod
-    def _compute_b(self, inputdata):
+    def _compute_beta(self, inputdata):
         """Give a title."""
         pass
 
@@ -69,11 +148,27 @@ class MethodOfWeightedResiduals(inv.Inverse):
         """Summarize the method."""
         pass
 
+    def __str__(self):
+        """Print method information."""
+        message = super().__str__()
+        message = message + 'Linear solver: '
+        if self.linsolver == TIKHONOV_METHOD:
+            message = message + 'Tikhonov Method\n'
+            message = message + 'Parameter choice strategy: '
+        elif self.linsolver == LANDWEBER_METHOD:
+            message = message + 'Landweber Method'
+        elif self.linsolver == CONJUGATED_GRADIENT_METHOD:
+            message = message + 'Conjugated-Gradient Method'
+        elif self.linsolver == LEAST_SQUARES_METHOD:
+            message = message + 'Least Squares Method'
+        return message
+
+
 @jit(nopython=True)
-def tikhonov(A, b, alpha):
+def tikhonov(A, beta, alpha):
     """Summarize the method."""
     x = np.linalg.solve(A.conj().T@A + alpha*np.eye(A.shape[1]),
-                        A.conj().T@b)
+                        A.conj().T@beta)
     return x
 
 

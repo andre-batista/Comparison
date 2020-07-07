@@ -58,12 +58,12 @@ class Inverse(ABC):
         """Summarize the method."""
         self.configuration = configuration
 
-
     @abstractmethod
-    def print_parametrization(self):
-        """Summarize the method."""
-        pass
-
     def solve(self, inputdata):
         """Summarize the method."""
         pass
+
+    @abstractmethod
+    def __str__(self):
+        """Print method information."""
+        return "Inverse solver: " + self.name + "\n"

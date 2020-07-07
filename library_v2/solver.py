@@ -7,7 +7,6 @@ class aims to compute the dielectric map and the total intern field.
 
 from abc import ABC, abstractmethod
 import numpy as np
-from numba import jit
 import copy as cp
 
 import library_v2.error as error
@@ -96,7 +95,7 @@ class Solver(ABC):
         self.configuration = configuration
 
     @abstractmethod
-    def solve(self, inputdata):
+    def solve(self, inputdata, print_info=True):
         """Solve the inverse scattering problem.
 
         This is the model routine for any method implementation. The
@@ -108,10 +107,17 @@ class Solver(ABC):
             inputdata : :class:`inputdata.InputData`
                 An object of the class which defines an instance.
 
+            print_info : bool
+                A flag to indicate if information should be displayed or
+                not on the screen.
+
         Returns
         -------
             :class:`results.Results`
         """
+        if print_info:
+            self._print_title(inputdata)
+
         return rst.Results(inputdata.name)
 
     def _print_title(self, instance):
@@ -125,35 +131,3 @@ class Solver(ABC):
         print('Method: ' + self.name)
         print('Problem configuration: ' + self.configuration.name)
         print('Instance: ' + instance.name)
-
-
-@jit(nopython=True)
-def get_operator_matrix(et, NM, NS, GS, N):
-    """Compute the kernel.
-
-    This method computes the kernel matrix of the integral equation.
-
-    Parameters
-    ----------
-        et : :class:`numpy.ndarray`
-            The total field matrix.
-
-        NM, NS, N : int
-            The number of measurements, sources and pixels,
-            respectively.
-
-        GS : :class:`numpy.ndarray`
-            The Green function matrix.
-
-    Returns
-    -------
-        K : :class:`numpy.ndarray`
-            The [NM*NS] x N matrix with the kernel evaluation.
-    """
-    K = 1j*np.ones((NM*NS, N))
-    row = 0
-    for m in range(NM):
-        for n in range(NS):
-            K[row, :] = GS[m, :]*et[:, n]
-            row += 1
-    return K

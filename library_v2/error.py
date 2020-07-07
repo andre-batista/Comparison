@@ -10,11 +10,17 @@ class Error(Exception):
 class MissingInputError(Error):
     """Exception raised for errors in the input.
 
-    Attributes:
-        function_name -- a string containing the name of the function.
-        input_names -- a string or a list of string with the names of
-            the missing inputs.
-        message -- explanation of the error
+    Attributes
+    ----------
+        function_name : str
+            A string containing the name of the function.
+
+        input_names : str
+            A string or a list of string with the names of the missing
+            inputs.
+
+        message : str
+            Explanation of the error
     """
 
     def __init__(self, function_name, input_names):
@@ -43,9 +49,13 @@ class MissingInputError(Error):
 class ExcessiveInputsError(Error):
     """An error exception for excessive inputs.
 
-    Attributes:.
-        function_name -- a string with the name of the function.
-        input_names -- a list of strings with the input names.
+    Attributes
+    ----------
+        function_name : str
+            A string with the name of the function.
+
+        input_names : str
+            A list of strings with the input names.
     """
 
     def __init__(self, function_name, input_names):
@@ -62,9 +72,12 @@ class ExcessiveInputsError(Error):
 class MissingAttributesError(Error):
     """Exception raised when some attribute is missing within an object.
 
-    Attributes:
-        class_name -- a string with the name of the class.
-        attribute_name -- the name of the missing attribute.
+    Attributes
+    ----------
+        class_name : str
+            A string with the name of the class.
+        attribute_name : str
+            The name of the missing attribute.
     """
 
     def __init__(self, class_name, attribute_name):
@@ -73,3 +86,55 @@ class MissingAttributesError(Error):
         self.attribute_name = attribute_name
         super().__init__('Attribute ' + self.attribute_name + ' of class '
                          + self.class_name + ' is missing!')
+
+
+class WrongTypeInput(Error):
+    """Exeception raised when some argument is passed in wrong type.
+
+    Attributes
+    ----------
+        function_name, input_name : str
+            Names of the function/method and the name of the input.
+
+        right_type, wrong_type : str
+            Names of the expected and given type, respectively.
+    """
+
+    def __init__(self, function_name, input_name, right_type, wrong_type):
+        """Save the basic information."""
+        self.function_name = function_name
+        self.input_name = input_name
+        self.right_type = right_type
+        self.wrong_type = wrong_type
+        self.message = ('The argument ' + input_name + ' of function '
+                        + function_name + ' is expected to be ' + right_type
+                        + ', not ' + wrong_type + '!')
+        super().__init__(self.message)
+
+
+class WrongValueInput(Error):
+    """Execption raised when some argument is given with wrong value.
+
+    Attributes
+    ----------
+        function_name, input_name : str
+            Names of the function and input.
+
+        expected_values : str
+            A string with the rule or options of inputs.
+
+        given_value : str
+            A string with the given value impressed.
+    """
+
+    def __init__(self, function_name, input_name, expect_values, given_value):
+        """Save the basic information."""
+        self.function_name = function_name
+        self.input_name = input_name
+        self.expect_values = expect_values
+        self.given_value = given_value
+        self.message = ('Wrong value given for argument ' + input_name
+                        + ' of function ' + function_name + '. Instead of '
+                        + given_value + ', you should give according to: '
+                        + expect_values)
+        super().__init__(self.message)
