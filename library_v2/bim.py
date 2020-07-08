@@ -15,6 +15,7 @@ References
 
 import copy as cp
 import time as tm
+import numpy as np
 
 import library_v2.configuration as cfg
 import library_v2.inputdata as ipt
@@ -119,11 +120,11 @@ class BornIterativeMethod(slv.Solver):
         if print_info:
             print('Iterations: %d' % self.MAX_IT)
             print(self.forward)
-            print('Inverse solver: ' + self.inverse.name)
-            self.inverse.print_parametrization()
+            print(self.inverse)
 
         solution = cp.deepcopy(instance)
         solution.et = self.forward.incident_field(instance.resolution)
+        self.inverse.reset_parameters()
         self.execution_time = 0.
 
         for it in range(self.MAX_IT):
@@ -141,6 +142,9 @@ class BornIterativeMethod(slv.Solver):
                                                           iteration_message)
             if print_info:
                 print(iteration_message)
+
+            if it != self.MAX_IT-1:
+                solution.es = np.copy(instance.es)
 
         result.es = solution.es
         result.et = solution.et

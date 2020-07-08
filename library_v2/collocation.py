@@ -19,6 +19,8 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
     """Define the class."""
 
     basis_function = ''
+    discretization_method_name = 'Collocation Method'
+    discretization_method_alias = 'collocation'
 
     def __init__(self, configuration, linear_solver, parameter,
                  basis_function, discretization):
@@ -26,19 +28,30 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
         super().__init__(configuration, linear_solver, parameter)
         self.basis_function = basis_function
         self.discretization = discretization
+        self._not_valid_variables = True
+
+    def reset_parameters(self):
+        """Reset variables."""
+        super().reset_parameters()
+        self._not_valid_variables = True
 
     def _compute_A(self, inputdata):
         """Summarize the method."""
+        if (self.__not_valid_variables
+                or inputdata.resolution[0]*inputdata.resolution[1]
+                != self._fij.shape[1]):
+            self._get_meshes(inputdata)
+            self._not_valid_variables = False
         K = self._get_kernel(inputdata.et, inputdata.resolution)
         if self.basis_function == BASIS_MININUM_NORM:
-            self.fij = self._minimum_norm_basisf(inputdata.et)
+            self._fij = self._minimum_norm_basisf(inputdata.et)
         A = computeA(self.configuration.NM,
                      self.configuration.NS,
                      self.discretization[1],
                      self.discretization[0],
                      inputdata.resolution[1],
                      inputdata.resolution[0],
-                     K, self.fij, self.du, self.dv)
+                     K, self._fij, self._du, self._dv)
         return A
 
     def _compute_beta(self, inputdata):
@@ -52,7 +65,7 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
         omega = 2*np.pi*self.configuration.f
         for i in range(NX):
             for j in range(NY):
-                chi[j, i] = np.sum(alpha*self.fij[:, j*NX+i])
+                chi[j, i] = np.sum(alpha*self._fij[:, j*NX+i])
 
         if (self.configuration.perfect_dielectric
                 or not self.configuration.good_conductor):
@@ -77,24 +90,21 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
                                              self.configuration.NM)
         x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
                                            resolution=inputdata.resolution)
-
         xms, yms = (np.reshape(np.tile(xm.reshape((-1, 1)), (1, NS)), (-1)),
                     np.reshape(np.tile(ym.reshape((-1, 1)), (1, NS)), (-1)))
+        self._xpq, self._ypq = get_elements_mesh(NX, NY, dx, dy, NP, NQ)
+        self._u, self._v = x.reshape(-1), y.reshape(-1)
+        self._du, self._dv = dx, dy
 
-        self.xpq, self.ypq = self._get_collocation_mesh(NX, NY, dx, dy, NP, NQ)
-
-        self.u, self.v = x.reshape(-1), y.reshape(-1)
-        self.du, self.dv = dx, dy
-
-        self.R = np.zeros((NM*NS, self.u.size))
+        self._R = np.zeros((NM*NS, self._u.size))
         for i in range(NM*NS):
-            self.R[i, :] = np.sqrt((xms[i]-self.u)**2 + (yms[i]-self.v)**2)
+            self._R[i, :] = np.sqrt((xms[i]-self._u)**2 + (yms[i]-self._v)**2)
 
         if self.basis_function == BASIS_BILINEAR:
-            self.fij = bilinear_basisf(self.u.reshape((NY, NX)),
-                                       self.v.reshape((NY, NX)),
-                                       self.xpq.reshape((NQ, NP)),
-                                       self.ypq.reshape((NQ, NP)))
+            self._fij = bilinear_basisf(self._u.reshape((NY, NX)),
+                                        self._v.reshape((NY, NX)),
+                                        self._xpq.reshape((NQ, NP)),
+                                        self._ypq.reshape((NQ, NP)))
 
     def _get_kernel(self, et, resolution):
         """Summarize the method."""
@@ -106,32 +116,23 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
         s = 0
         for i in range(NM*NS):
             K[i, :] = (1j*omega*mub*et[:, s]*1j/4
-                       * hankel2(0, self.configuration.kb*self.R[i, :]))
+                       * hankel2(0, self.configuration.kb*self._R[i, :]))
             if s == NS-1:
                 s = 0
             else:
                 s += 1
         return K
 
-    def _get_collocation_mesh(self, NX, NY, dx, dy, NP, NQ):
-        """Summarize the method."""
-        x_min, x_max = cfg.get_bounds(NX*dx)
-        y_min, y_max = cfg.get_bounds(NY*dy)
-        xpq, ypq = np.meshgrid(np.linspace(x_min, x_max, NP),
-                               np.linspace(y_min, y_max, NQ))
-        xpq, ypq = xpq.reshape(-1), ypq.reshape(-1)
-        return xpq, ypq
-
     def _minimum_norm_basisf(self, et):
         """Summarize the method."""
-        N = self.u.size
+        N = self._u.size
         Q, P = self.discretization
         omega = 2*np.pi*self.configuration.f
         mub = ct.mu_0
         Kpq = np.zeros((P*Q, N), dtype=complex)
         s = 0
         for i in range(P*Q):
-            R = np.sqrt((self.xpq[i]-self.u)**2+(self.ypq[i]-self.v)**2)
+            R = np.sqrt((self._xpq[i]-self._u)**2+(self._ypq[i]-self._v)**2)
             Kpq[i, :] = (1j*omega*mub*et[:, s]*1j/4
                          * hankel2(0, self.configuration.kb*R))
             if s == self.configuration.NS-1:
@@ -139,6 +140,14 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
             else:
                 s += 1
         return Kpq
+
+    def __str__(self):
+        """Print method information."""
+        message = super().__str__()
+        message = (message + 'Discretization: Collocation Method, size: %d'
+                   % self.discretization[0] + 'x%d' % self.discretization[1]
+                   + '\nBasis function: ' + self.basis_function + '\n')
+        return message
 
 
 def bilinear_basisf(u, v, x, y):
@@ -201,3 +210,13 @@ def computeA(NM, NS, NP, NQ, NX, NY, K, fij, du, dv):
                                         * fij[j, :].reshape((NY, NX)), dx=du),
                                dx=dv)
     return A
+
+
+def get_elements_mesh(NX, NY, dx, dy, NP, NQ):
+    """Summarize the method."""
+    x_min, x_max = cfg.get_bounds(NX*dx)
+    y_min, y_max = cfg.get_bounds(NY*dy)
+    xpq, ypq = np.meshgrid(np.linspace(x_min, x_max, NP),
+                           np.linspace(y_min, y_max, NQ))
+    xpq, ypq = xpq.reshape(-1), ypq.reshape(-1)
+    return xpq, ypq

@@ -14,16 +14,26 @@ import library_v2.configuration as cfg
 class SubDomainMethod(wrm.MethodOfWeightedResiduals):
     """A class for pulse-basis discretization."""
 
+    discretization_method_name = 'Subdomain Method'
+    discretization_method_alias = 'subdomain'
+    __GS = None
+
     def _compute_A(self, inputdata):
         """Summarize the method."""
-        xm, ym = cfg.get_coordinates_sdomain(self.configuration.Ro,
-                                             self.configuration.NM)
-        x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
-                                           resolution=inputdata.resolution)
-        GS = cfg.get_greenfunction(xm, ym, x, y, self.configuration.kb)
+        if (self.__GS is None
+                or self.__GS.shape[1]
+                != inputdata.resolution[0]*inputdata.resolution[1]):
+            xm, ym = cfg.get_coordinates_sdomain(self.configuration.Ro,
+                                                 self.configuration.NM)
+            x, y = cfg.get_coordinates_ddomain(
+                configuration=self.configuration,
+                resolution=inputdata.resolution
+            )
+            self.__GS = cfg.get_greenfunction(xm, ym, x, y,
+                                              self.configuration.kb)
         A = get_operator_matrix(inputdata.et,
                                 self.configuration.NM,
-                                self.configuration.NS, GS,
+                                self.configuration.NS, self.__GS,
                                 inputdata.resolution[0]
                                 * inputdata.resolution[1])
         return A
@@ -49,9 +59,15 @@ class SubDomainMethod(wrm.MethodOfWeightedResiduals):
             inputdata.sigma[inputdata.sigma < 0] = 0
 
     def __str__(self):
+        """Print discretization information."""
         message = super().__str__()
         message = message + 'Discretization: Subdomain Method'
-        return 
+        return message
+
+    def reset_parameters(self):
+        """Summarize method."""
+        super().reset_parameters()
+        self.__GS = None
 
 @jit(nopython=True)
 def get_operator_matrix(et, NM, NS, GS, N):

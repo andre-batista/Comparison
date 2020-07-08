@@ -533,6 +533,33 @@ def compute_zeta_rn(es_o, es_a):
     return np.sqrt(np.trapz(np.trapz(y, x=phi), x=theta))
 
 
+def compute_rre(es_o, es_a):
+    """Compute the Relative Residual Error (RRE).
+
+    The RRE is a definition found in [1] and it is useful for
+    determining the parameter of Tikhonov regularization.
+
+    Parameters
+    ----------
+        es_o : :class:`numpy.ndarray`
+            Original scattered field matrix.
+
+        es_a : :class:`numpy.ndarray`
+            Approximated scattered field matrix.
+
+    References
+    ----------
+    .. [1] Lavarello, Roberto, and Michael Oelze. "A study on the
+           reconstruction of moderate contrast targets using the
+           distorted Born iterative method." IEEE transactions on
+           ultrasonics, ferroelectrics, and frequency control 55.1
+           (2008): 112-124.
+    """
+    return compute_zeta_rn(es_o, es_a)/compute_zeta_rn(es_o,
+                                                       np.zeros(es_o.shape,
+                                                                dtype=complex))
+
+
 def compute_zeta_rpad(es_o, es_r):
     r"""Compute the residual percentage average deviation.
 
