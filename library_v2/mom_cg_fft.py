@@ -1,4 +1,4 @@
-"""Method of Moments - Conjugate-Gradient FFT Method.
+r"""Method of Moments - Conjugate-Gradient FFT Method.
 
 This module provides the implementation of Method of Moments (MoM) with
 the Conjugated-Gradient FFT formulation. It solves the forward problem

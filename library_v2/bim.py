@@ -1,9 +1,10 @@
-"""The Born Iterative Method.
+r"""The Born Iterative Method.
 
-This module implements the Born Iterative Method [1] as a derivation of
+This module implements the Born Iterative Method [1]_ as a derivation of
 Solver class. The object contains an object of a forward solver and
-one linear inverse solver object. The method solves the nonlinear
-inverse problem iteratively.
+one of linear inverse solver. The method solves the nonlinear
+inverse problem iteratively. The implemented in
+:class:`BornIterativeMethod`
 
 References
 ----------
@@ -13,10 +14,12 @@ References
    100-108.
 """
 
+# Standard libraries
 import copy as cp
 import time as tm
 import numpy as np
 
+# Developed libraries
 import library_v2.configuration as cfg
 import library_v2.inputdata as ipt
 import library_v2.results as rst
@@ -26,9 +29,9 @@ import library_v2.inverse as inv
 
 
 class BornIterativeMethod(slv.Solver):
-    """The Born Interative Method (BIM).
+    r"""The Born Interative Method (BIM).
 
-    This class implements a classical nonlinear inverse solver [1]. The
+    This class implements a classical nonlinear inverse solver [1]_. The
     method is based on coupling forward and inverse solvers in an
     iterative process. Therefore, it depends on the definition of a
     forward solver implementation and an linear inverse one.
@@ -122,8 +125,15 @@ class BornIterativeMethod(slv.Solver):
             print(self.forward)
             print(self.inverse)
 
+        # The solution variable will be an object of InputData.
         solution = cp.deepcopy(instance)
+
+        # First-Order Born Approximation
         solution.et = self.forward.incident_field(instance.resolution)
+
+        # If the same object is used for different resolution instances,
+        # then some parameters may need to be updated within the inverse
+        # solver. So, the next line ensures it:
         self.inverse.reset_parameters()
         self.execution_time = 0.
 
@@ -133,19 +143,30 @@ class BornIterativeMethod(slv.Solver):
             tic = tm.time()
             self.inverse.solve(solution)
             self.forward.solve(solution)
+
+            # The variable `execution_time` will record only the time
+            # expended by the forward and linear routines.
             self.execution_time = self.execution_time + (tm.time()-tic)
+
             result.update_error(instance, scattered_field=solution.es,
                                 total_field=solution.et,
                                 relative_permittivity_map=solution.epsilon_r,
                                 conductivity_map=solution.sigma)
+
             iteration_message = result.last_error_message(instance,
                                                           iteration_message)
             if print_info:
                 print(iteration_message)
 
+            # This is only emergencial feature for ensuring that the
+            # scattered field data received by the inverse solver in the
+            # next iteration will not be the one estimated in the last
+            # call of the forward solver.
             if it != self.MAX_IT-1:
                 solution.es = np.copy(instance.es)
 
+        # Remember: results stores the estimated scattered field. Not
+        # the given one.
         result.es = solution.es
         result.et = solution.et
         result.epsilon_r = solution.epsilon_r

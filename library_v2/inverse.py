@@ -1,16 +1,36 @@
-"""Give a title for the module.
+"""Basic class structure of linear inverse methods.
 
-Define the module.
+This module defines the abstract class of linear inverse methods. Any
+implementation must contain the attributes and methods defined in
+:class:`Inverse`.
 """
 
+# Standard libraries
 from abc import ABC, abstractmethod
 import copy as cp
 
+# Developed libraries
 import library_v2.configuration as cfg
+import library_v2.results as rst
 
 
 class Inverse(ABC):
-    """Summarize the class."""
+    """Abstract class for linear inverse methods.
+
+    This is an abstract class for any method implementation for solving
+    the linear inverse scattering problem. Therefore, based on
+    information of the scattered and total fields, the method should be
+    able to recover the contrast information.
+
+    Attributes
+    ----------
+        name : str
+            The name of the method. Each implementation should define it
+            within the class definition.
+
+        configuration : :class:`configuration.Configuration`
+            An object of problem configuration.
+    """
 
     name = ''
 
@@ -55,13 +75,30 @@ class Inverse(ABC):
             self.configuration = cp.deepcopy(new_configuration)
 
     def __init__(self, configuration):
-        """Summarize the method."""
+        """Initialize the method object."""
         self.configuration = configuration
 
     @abstractmethod
     def solve(self, inputdata):
-        """Summarize the method."""
-        pass
+        """Solve a linear inverse scattering problem.
+
+        This is the routine in which the method is implemented, i.e.,
+        the method receives an instance of an inverse scattering problem
+        containing the scattered and total fields and it returns a
+        solution.
+
+        Parameters
+        ----------
+            inputdata : :class:`inputdata.InputData`
+                An object of :class:`InputData` defining the instance of
+                the problem. It must contains scattered and total fields
+                data.
+
+        Returns
+        -------
+            :class:`results.Result`
+        """
+        return rst.Results('')
 
     @abstractmethod
     def __str__(self):

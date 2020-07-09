@@ -5,10 +5,12 @@ which solve the nonlinear inverse scattering problem. Therefore, this
 class aims to compute the dielectric map and the total intern field.
 """
 
+# Standard libraries
 from abc import ABC, abstractmethod
 import numpy as np
 import copy as cp
 
+# Developed libraries
 import library_v2.error as error
 import library_v2.configuration as cfg
 import library_v2.inputdata as ipt

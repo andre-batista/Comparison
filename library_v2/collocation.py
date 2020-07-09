@@ -144,7 +144,8 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
     def __str__(self):
         """Print method information."""
         message = super().__str__()
-        message = (message + 'Discretization: Collocation Method, size: %d'
+        message = (message + 'Discretization: '
+                   + self.discretization_method_name + ', size: %d'
                    % self.discretization[0] + 'x%d' % self.discretization[1]
                    + '\nBasis function: ' + self.basis_function + '\n')
         return message

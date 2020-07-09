@@ -1,6 +1,44 @@
-"""Give a title for the module.
+r"""The Method of Weighted Residuals.
 
-Define the module.
+This module implements the general structure of the Method of Weighted
+Residual (MWR) [1]_ for solving linear inverse scattering problems. The
+MWR is a large class of methods. Therefore, the method is implemented as
+an abstract class.
+
+The modules provides
+
+    :class:`MethodOfWeightedResiduals`
+        The class with the general structure of MWR.
+    :func:`tikhonov`
+        The Tikhonov Regularization for linear ill-posed systems [2]_.
+    :func:`landweber`
+        The Landweber Regularization for linear ill-posed systems [2]_.
+    :func:`conjugated_gradient`
+        The Conjugated Gradient Method for linear ill-posed
+        systems [2]_.
+    :func:`least_squares`
+        The least-squares solution to a linear matrix equation.
+    :func:`quick_guess`
+        A simple initial solution for a given system.
+    :func:`lavarello_choice`
+        A strategy for chosing the regularization parameter for Tikhonov
+        Regularization [3]_.
+    :func:`mozorov_choice`
+        A strategy for chosing the regularization parameter for Tikhonov
+        Regularization based on the Discrepancy Principle of Mozorov
+        [2]_.
+
+References
+----------
+.. [1] Fletcher, Clive AJ. "Computational galerkin methods."
+   Computational galerkin methods. Springer, Berlin, Heidelberg, 1984.
+   72-85.
+.. [2] Kirsch, Andreas. An introduction to the mathematical theory of
+   inverse problems. Vol. 120. Springer Science & Business Media, 2011.
+.. [3] Lavarello, Roberto, and Michael Oelze. "A study on the
+   reconstruction of moderate contrast targets using the distorted Born
+   iterative method." IEEE transactions on ultrasonics, ferroelectrics,
+   and frequency control 55.1 (2008): 112-124.
 """
 
 from abc import ABC, abstractmethod

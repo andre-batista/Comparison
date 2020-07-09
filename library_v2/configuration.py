@@ -12,8 +12,41 @@ information which may be necessary for other modules.
 
 The following class is defined
 
-:class:`Configuration`
-    The container of all fixed information shared between scenarios.
+    :class:`Configuration`
+        The container of all fixed information shared between scenarios.
+
+The following routines are defined
+
+    :func:`import_dict`
+        A function for importing a dictionary with configuration
+        attributes.
+    :func:`compute_wavelength`
+        Determine the wavelength for a given media and frequency.
+    :func:`compute_frequency`
+        Determine the frequency for a given media and wavelength.
+    :func:`compute_wavenumber`
+        Determine the wavenumber for a given media and frequency.
+    :func:`get_angles`
+        Return angles for a given number of points in S-domain.
+    :func:`get_coordinates_sdomain`
+        Return rectangular coordinates for a given number of points in
+        S-domain.
+    :func:`get_bounds`
+        Return the standard bounds of the interval of D-domain for a
+        given axis length.
+    :func:`get_coordinates_ddomain`
+        Return the standard meshgrid for D-domain.
+    :func:`get_contrast_map`
+        Return the contrast values for a given mesh of values of
+        relative permittivity and conductivity.
+    :func:`get_greenfunction`
+        Return the Green function matrix for pulse-based discretization.
+    :func:`solve_frequency`
+        Estimate the frequency for a given complex media and wavelength.
+    :func:`plot_ddomain_limits`
+        Return a plot with D-domain bounds.
+    :func:`plot_antennas`
+        Return a plot with antennas points.
 """
 
 import pickle
@@ -605,7 +638,10 @@ def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
 
 
 def get_greenfunction(xm, ym, x, y, kb):
-    """Compute the Green function matrix for pulse basis discretization.
+    r"""Compute the Green function matrix for pulse basis discre.
+
+    The routine computes the Green function based on a discretization of
+    the integral equation using pulse basis functions [1]_.
 
     Parameters
     ----------
@@ -635,6 +671,11 @@ def get_greenfunction(xm, ym, x, y, kb):
             where NM is the number of measurements (size of xm, ym) and
             Nx and Ny are the number of points in each axis of the
             discretized D-domain (shape of x, y).
+
+    References
+    ----------
+    .. [1] Pastorino, Matteo. Microwave imaging. Vol. 208. John Wiley
+       & Sons, 2010.
     """
     Ny, Nx = x.shape
     M = xm.size
@@ -654,7 +695,11 @@ def get_greenfunction(xm, ym, x, y, kb):
 
 @jit(nopython=True)
 def solve_frequency(lambda_b, mu_r, epsilon_r, sigma):
-    """Approximate the frequency.
+    r"""Approximate the frequency.
+
+    The routine estimates the corresponding frequency for a given
+    combination of wavelength [1/m], relative permeability, relative
+    permittivity and conductivity [S/m] values.
 
     Parameters
     ----------
@@ -669,6 +714,15 @@ def solve_frequency(lambda_b, mu_r, epsilon_r, sigma):
 
         sigma : float
             Conductivity [S/m]
+
+    Notes
+    -----
+        The estimation is based on the Golden Section Method for
+        unidimensional problems. The solution is the one which minimizes
+        the following objective-function:
+
+        .. math:: \phi(f) = \(\lambda_b - \frac{1}{fR\{\sqrt{\mu(\epsilon
+                  - j\frac{\sigma}{2\pi f})}\}}
     """
     # Constants
     mu = mu_r*ct.mu_0
@@ -737,7 +791,6 @@ def plot_ddomain_limits(axes, xlength, ylength, wavelength):
             Length of y-axis.
 
         wavelength : float
-
     """
     axes.plot(np.array([-xlength/2/wavelength, -xlength/2/wavelength,
                         xlength/2/wavelength, xlength/2/wavelength,
@@ -768,6 +821,5 @@ def plot_antennas(axes, x, y, wavelength, color, label):
 
         label : string
             Name of the antenna array.
-
     """
     return axes.plot(x/wavelength, y/wavelength, color + 'o', label=label)[0]
