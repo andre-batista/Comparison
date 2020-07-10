@@ -1,22 +1,78 @@
-"""Define the title of the module.
+r"""The Collocation Method.
 
-A brief explanation of the module.
+This module implements the Collocation Method for solving the linear
+inverse scattering problem. In this method, the weight function is
+defined as the Dirac :math:`\delta` function and the trial function
+may define as another analytical. This method is also called as the
+Point-Matching Method. The module provide one option of Finite-Element
+discretization and one option of the Spectral Method discretization.
+
+This modules provides
+
+    :class:`CollocationMethod`
+        The definition of the coefficient matrix and right-hand-side
+        array computations of the Method of Weighted Residuals according
+        to the Collocation Method.
+    :func:`bilinear_basisf`
+        The implementation of the bilinear trial function.
+    :func:`computeA`
+        An accelerated code to compute the coefficient matrix.
+    :func:`get_elements_mesh`
+        Define the meshgrid of elements in D-domain.
+
+References
+----------
+.. [1] Fletcher, Clive AJ. "Computational galerkin methods."
+   Computational galerkin methods. Springer, Berlin, Heidelberg, 1984.
+   72-85.
 """
 
+# Standard libraries
 import numpy as np
 from scipy import constants as ct
 from scipy.special import hankel2
 from numba import jit
 
+# Developed libraries
 import library_v2.weightedresiduals as wrm
 import library_v2.configuration as cfg
 
+# String constants
 BASIS_BILINEAR = 'bilinear'
 BASIS_MININUM_NORM = 'mininum_norm'
 
 
 class CollocationMethod(wrm.MethodOfWeightedResiduals):
-    """Define the class."""
+    r"""The Collocation Method.
+
+    This class implements the matrix coefficient and right-hand-side
+    array computations of the Method of Weighted Residuals according to
+    the Collocation Method [1]_.
+
+    The two available options for the trial functions are: the bilinear
+    function [1]_ and the minimum norm definition [2]_.
+
+    Attributes
+    ----------
+        basis_function : {'biliear', 'minimum_norm'}
+            A string indicating which trial function should be used.
+
+    Notes
+    -----
+        The Minimum Norm Formulation is defined as:
+
+        .. math::\Phi_{ij}(u,v) = j\omega\mu_bE_j(u,v)\times\frac{j}{4}
+        H_0^{(2)}(k_b\sqrt{(x_i-u)^2 + (y_i-v)^2})
+
+    References
+    ----------
+    .. [1] Fletcher, Clive AJ. "Computational galerkin methods."
+       Computational galerkin methods. Springer, Berlin, Heidelberg,
+       1984. 72-85.
+    .. [2] Kirsch, Andreas. An introduction to the mathematical theory
+       of inverse problems. Vol. 120. Springer Science & Business Media,
+       2011.
+    """
 
     basis_function = ''
     discretization_method_name = 'Collocation Method'

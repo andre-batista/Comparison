@@ -1,6 +1,24 @@
-"""Define the module.
+r"""The Subdomain Method.
 
-A brief explanation of the module.
+This module provides the implementation of the Subdomain Method [1]_
+which assumes the weight and trial functions as the Dirac :math:`\delta`
+function. This corresponds to the pulse discretization and the Finite-
+Volume Method.
+
+This modules provides
+
+    :class:`SubdomainMethod`
+        The implementation of the method.
+    :func:`get_operator_matrix`
+        Compute the kernel operator.
+
+References
+----------
+.. [1] Fletcher, Clive AJ. "Computational galerkin methods."
+   Computational galerkin methods. Springer, Berlin, Heidelberg, 1984.
+   72-85.
+.. [2] Pastorino, Matteo. Microwave imaging. Vol. 208. John Wiley &
+   Sons, 2010.
 """
 
 import numpy as np
@@ -11,17 +29,45 @@ import library_v2.weightedresiduals as wrm
 import library_v2.configuration as cfg
 
 
-class SubDomainMethod(wrm.MethodOfWeightedResiduals):
-    """A class for pulse-basis discretization."""
+class SubdomainMethod(wrm.MethodOfWeightedResiduals):
+    r"""The Subdomain Method.
+
+    This class implements the definition of the coefficient matrix and
+    right-hand-side of the Method of Weighted Residuals according to the
+    Subdomain Method [1]_. The `_recover_map` function is also defined.
+
+    References
+    ----------
+    .. [1] Fletcher, Clive AJ. "Computational galerkin methods."
+       Computational galerkin methods. Springer, Berlin, Heidelberg,
+       1984. 72-85.
+    """
 
     discretization_method_name = 'Subdomain Method'
     discretization_method_alias = 'subdomain'
-    __GS = None
+    _GS = None
 
     def _compute_A(self, inputdata):
-        """Summarize the method."""
-        if (self.__GS is None
-                or self.__GS.shape[1]
+        """Compute the coefficient matrix.
+
+        The coefficient matrix for the Method of Weighted Residuals is
+        compute.
+
+        Parameters
+        ----------
+            inputdata : :class:`inputdata.InputData`
+                The instance of the problem with the definition of the
+                scattered and total fields.
+
+        Returns
+        -------
+            :class:`numpy.ndarray`
+        """
+        # Check if it is necessary to recompute the Green function or
+        # if the one compute for the last execution is compatible with
+        # the new instance.
+        if (self._GS is None
+                or self._GS.shape[1]
                 != inputdata.resolution[0]*inputdata.resolution[1]):
             xm, ym = cfg.get_coordinates_sdomain(self.configuration.Ro,
                                                  self.configuration.NM)
@@ -29,20 +75,48 @@ class SubDomainMethod(wrm.MethodOfWeightedResiduals):
                 configuration=self.configuration,
                 resolution=inputdata.resolution
             )
-            self.__GS = cfg.get_greenfunction(xm, ym, x, y,
-                                              self.configuration.kb)
+            self._GS = cfg.get_greenfunction(xm, ym, x, y,
+                                             self.configuration.kb)
         A = get_operator_matrix(inputdata.et,
                                 self.configuration.NM,
-                                self.configuration.NS, self.__GS,
+                                self.configuration.NS, self._GS,
                                 inputdata.resolution[0]
                                 * inputdata.resolution[1])
         return A
 
     def _compute_beta(self, inputdata):
+        """Compute the right-hand-side array.
+
+        The right-hand-side array for the Method of Weighted Residuals
+        is compute.
+
+        Parameters
+        ----------
+            inputdata : :class:`inputdata.InputData`
+                The instance of the problem with the definition of the
+                scattered field.
+
+        Returns
+        -------
+            :class:`numpy.ndarray`
+        """
         return np.reshape(inputdata.es, (-1))
 
     def _recover_map(self, inputdata, alpha):
-        """Summarize method."""
+        """Recover the contrast map.
+
+        Recover the relative permittivity and conductivity maps from
+        the solution of the linear system.
+
+        Parameters
+        ----------
+            inputdata : :class:`inputdata.InputData`
+                The instance of the problem with the definition of the
+                image resolution.
+
+            alpha : :class:`numpy.ndarray`
+                The solution of the `A*alpha=beta`.
+        """
         if (self.configuration.perfect_dielectric
                 or not self.configuration.good_conductor):
             inputdata.epsilon_r = np.reshape(self.configuration.epsilon_rb
@@ -65,9 +139,10 @@ class SubDomainMethod(wrm.MethodOfWeightedResiduals):
         return message
 
     def reset_parameters(self):
-        """Summarize method."""
+        """Reset the Green function matrix."""
         super().reset_parameters()
-        self.__GS = None
+        self._GS = None
+
 
 @jit(nopython=True)
 def get_operator_matrix(et, NM, NS, GS, N):
