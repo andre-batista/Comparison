@@ -197,7 +197,7 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
         # contain more sources.
         if self._FLAG_INTERPOLATION:
             new_NS = self.constant_iterpolation*self.configuration.NS
-            inputdata.et = interpolate_intern_field(inputdata.et, new_NS)
+            inputdata.et = interpolate_total_field(inputdata.et, new_NS)
 
         K = self._get_kernel(inputdata.et, inputdata.resolution)
         A = computeA(self._theta.shape[0], self._theta.shape[1], NW, NZ, NP,
@@ -438,7 +438,7 @@ def interpolate_scattered_field(es, new_NM, new_NS):
     return esi
 
 
-def interpolate_intern_field(et, N):
+def interpolate_total_field(et, N):
     """Interpolate intern field data.
 
     Increase the number of sources.
@@ -463,13 +463,56 @@ def interpolate_intern_field(et, N):
 @jit(nopython=True)
 def computeA(NM, NS, NW, NZ, NP, NQ, NX, NY, K, fij, gij, du, dv, dtheta,
              dphi):
-    """Summarize method."""
+    r"""Compute the coefficient matrix.
+
+    Parameters
+    ----------
+        NM, NS : int
+            Number of measurements and sources.
+
+        NW, NZ : int
+            Number of elements of S-domain discretization. NW corresponds
+            to NM, and NZ, to NS.
+
+        NP, NQ : int
+            Number of elements of D-domain discretization. NP corresponds
+            to NX, and NQ, to NY.
+
+        NX, NY : int
+            Number of pixels in each direction for the recovered image.
+
+        K : :class:`numpy.ndarray`
+            Kernel matrix.
+
+        fij, gij : class:`numpy.ndarray`
+            Trial and weight functions, respectively, evaluated at
+            integration points.
+
+        du, dv : float
+            Cell-size of the integration mesh corresponding to D-domain.
+
+        dtheta, dphi : float
+            Cell-size of the integration mesh corresponding to D-domain.
+
+    Returns
+    -------
+        :class:`numpy.ndarray`
+
+    Notes
+    -----
+        Each element of the coefficient matrix corresponds to:
+        .. math:: A_{wz,pq} = \int_0^{2\pi}\int_0^{2\pi}
+           \int_{-L_x/2}^{L_x/2}\int_{-L_y/2}^{L_y/2} K(\theta, \phi,
+           u, v) f_{pq} (u, v) g_{wz}(\theta, \phi) dudvd\phi d\theta
+    """
+    # Integration over the D-domain
     B = 1j*np.zeros((NM*NS, NP*NQ))
     for j in range(NP*NQ):
         for k in range(NM*NS):
             B[k, j] = np.trapz(np.trapz(K[k, :].reshape((NY, NX))
                                         * fij[j, :].reshape((NY, NX)), dx=du),
                                dx=dv)
+    # Integration over the S-domain
     A = 1j*np.zeros((NW*NZ, NP*NQ))
     for i in range(NW*NZ):
         for j in range(NP*NQ):
@@ -481,7 +524,25 @@ def computeA(NM, NS, NW, NZ, NP, NQ, NX, NY, K, fij, gij, du, dv, dtheta,
 
 @jit(nopython=True)
 def computebeta(es, gij, dtheta, dphi):
-    """Summarize the method."""
+    r"""Compute the right-hand-side array.
+
+    Parameters
+    ----------
+        es : :class:`numpy.ndarray`
+            Scattered field matrix.
+
+        gij : :class:`numpy.ndarray`
+            Weighted function evaluated in the integration points.
+
+        dtheta, dphi : float
+            Cell-size of integration mesh.
+
+    Notes
+    -----
+        Each element of the right-hand-side array corresponds to:
+        .. math:: \beta_{wz,pq} = \int_0^{2\pi}\int_0^{2\pi}
+           E^s_z(\theta, \phi) g_{wz}(\theta, \phi) d\phi d\theta
+    """
     beta = 1j*np.zeros(gij.shape[0])
     for i in range(gij.shape[0]):
         beta[i] = np.trapz(np.trapz(es*gij[i, :].reshape(es.shape),
