@@ -1588,3 +1588,333 @@ def draw_4star(radius, axis_length_x=2., axis_length_y=2., resolution=None,
     sigma[np.logical_or(rhombus1, rhombus2)] = sigma_o
 
     return epsilon_r, sigma
+
+
+def draw_wave(number_peaks, rel_permittivity_peak=1., conductivity_peak=0.,
+              rel_permittivity_valley=None, conductivity_valley=None, resolution=None,
+              number_peaks_y=None, axis_length_x=2., axis_length_y=2.,
+              background_relative_permittivity=1., background_conductivity=0.,
+              object_relative_permittivity=1., object_conductivity=0.,
+              relative_permittivity_map=None, conductivity_map=None,
+              wave_bounds_proportion=(1., 1.), center=[0., 0.], rotate=0.):
+    """Draw waves.
+
+    Parameters
+    ----------
+        number_peaks : int
+            Number of peaks for both direction or for x-axis (if
+            `number_peaks_x` is not None).
+
+        number_peaks_y : float, optional
+            Number of peaks in y-direction.
+
+        wave_bounds_proportion : 2-tuple
+            The wave may be placed only at a rectangular area of the
+            image controlled by this parameters. The values should be
+            proportional to `axis_length_y` and `axis_length_x`,
+            respectively, i.e, the values should be > 0. and < 1. Then,
+            you may control center and rotation of the figure.
+
+        axis_length_x, axis_length_y : float, default: 2.0
+            Length of the size of the image.
+
+        resolution : 2-tuple
+            Image resolution, in y and x directions, i.e., (NY, NX).
+            *Either this argument or relative_permittivity_map or
+            conductivity_map must be given!*
+
+        background_relative_permittivity : float, default: 1.0
+
+        background_conductivity : float, default: 0.0
+
+        rel_permittivity_peak : float, default: 1.0
+            Peak value of relative permittivity.
+
+        rel_permittivity_valley : None or float
+            Valley value of relative permittivity. If None, then peak
+            value is assumed.
+
+        conductivity_peak : float, default: 1.0
+            Peak value of conductivity.
+
+        conductivity_valley : None or float
+            Valley value of conductivity. If None, then peak value
+            is assumed.
+
+        center : list, default: [0.0, 0.0]
+            Center of the object in the image. The center of the image
+            corresponds to the origin of the coordinates.
+
+        relative_permittivity_map : :class:`numpy.ndarray`, default:None
+            A predefined image in which the object will be drawn.
+
+        conductivity_map : :class:`numpy.ndarray`, default: None
+            A predefined image in which the object will be drawn.
+
+        rotate : float, default: 0.0 degrees
+            Rotation of the object around its center. In degrees.
+    """
+    # Check input requirements
+    if resolution is None and (relative_permittivity_map is None
+                               or conductivity_map is None):
+        raise error.MissingInputError('draw_wave', 'resolution or relative'
+                                      + '_permittivity_map or '
+                                      + 'conductivity_map')
+
+    # Make variable names more simple
+    Lx, Ly = axis_length_x, axis_length_y
+    epsilon_rb = background_relative_permittivity
+    sigma_b = background_conductivity
+
+    # Set map variables
+    if relative_permittivity_map is None:
+        epsilon_r = epsilon_rb*np.ones(resolution)
+    else:
+        epsilon_r = relative_permittivity_map
+    if conductivity_map is None:
+        sigma = sigma_b*np.ones(resolution)
+    else:
+        sigma = conductivity_map
+
+    # Set discretization variables
+    if resolution is None:
+        resolution = epsilon_r.shape
+    NY, NX = resolution
+    dx, dy = Lx/NX, Ly/NY
+
+    # Get meshgrid
+    x, y = np.meshgrid(np.arange(-Lx/2+dx/2, Lx/2, dx) + center[1],
+                       np.arange(-Ly/2+dy/2, Ly/2, dy) + center[0])
+    theta = np.deg2rad(rotate)
+    xp = x*np.cos(theta) + y*np.sin(theta)
+    yp = -x*np.sin(theta) + y*np.cos(theta)
+
+    # Wave area
+    ly, lx = wave_bounds_proportion[0]*Ly, wave_bounds_proportion[1]*Lx
+    wave = np.logical_and(xp >= -lx/2,
+                          np.logical_and(xp <= lx/2,
+                                         np.logical_and(yp >= -ly/2,
+                                                        yp <= ly/2)))
+
+    # Wave parameters
+    number_peaks_x = number_peaks
+    if number_peaks_y is None:
+        number_peaks_y = number_peaks
+    Kx = 2*number_peaks_x-1
+    Ky = 2*number_peaks_y-1
+
+    # Set up valley magnitude
+    if (rel_permittivity_peak == background_relative_permittivity
+            and rel_permittivity_valley is None):
+        rel_permittivity_valley = background_relative_permittivity
+    elif rel_permittivity_valley is None:
+        rel_permittivity_valley = rel_permittivity_peak
+    if (conductivity_peak == background_conductivity
+            and conductivity_valley is None):
+        conductivity_valley = background_conductivity
+    elif conductivity_valley is None:
+        conductivity_valley = conductivity_peak
+
+    # Relative permittivity
+    epsilon_r[wave] = (np.cos(2*np.pi/(2*lx/Kx)*xp[wave])
+                       * np.cos(2*np.pi/(2*ly/Ky)*yp[wave]))
+    epsilon_r[np.logical_and(wave, epsilon_r >= 0)] = (
+        rel_permittivity_peak*epsilon_r[np.logical_and(wave, epsilon_r >= 0)]
+    )
+    epsilon_r[np.logical_and(wave, epsilon_r < 0)] = (
+        rel_permittivity_valley*epsilon_r[np.logical_and(wave, epsilon_r < 0)]
+    )
+    epsilon_r[wave] = epsilon_r[wave] + epsilon_rb
+    epsilon_r[np.logical_and(wave, epsilon_r < 1.)] = 1.
+
+    # Conductivity
+    sigma[wave] = (np.cos(2*np.pi/(2*lx/Kx)*xp[wave])
+                   * np.cos(2*np.pi/(2*ly/Ky)*yp[wave]))
+    sigma[np.logical_and(wave, epsilon_r >= 0)] = (
+        conductivity_peak*sigma[np.logical_and(wave, sigma >= 0)]
+    )
+    sigma[np.logical_and(wave, sigma < 0)] = (
+        conductivity_valley*sigma[np.logical_and(wave, sigma < 0)]
+    )
+    sigma[wave] = sigma[wave] + sigma_b
+    sigma[np.logical_and(wave, sigma < 0.)] = 0.
+
+    return epsilon_r, sigma
+
+
+def draw_random_waves(number_waves, maximum_number_peaks,
+                      maximum_number_peaks_y=None, resolution=None,
+                      rel_permittivity_amplitude=0., conductivity_amplitude=0.,
+                      number_peaks_y=None, axis_length_x=2., axis_length_y=2.,
+                      background_relative_permittivity=1.,
+                      background_conductivity=0.,
+                      object_relative_permittivity=1., object_conductivity=0.,
+                      relative_permittivity_map=None, conductivity_map=None,
+                      wave_bounds_proportion=(1., 1.), center=[0., 0.],
+                      rotate=0., smooth_cells=0.03):
+    """Draw random waves.
+
+    Parameters
+    ----------
+        number_waves : int
+            Number of wave components.
+
+        maximum_number_peaks : int
+            Different wavelengths are considered. The maximum number of
+            peaks controls the size of the smallest possible wavelength.
+
+        maximum_number_peaks_y : float, optional
+            Maximum number of peaks in y-direction. If None, then it
+            will be the same as `maximum_number_peaks`.
+
+        wave_bounds_proportion : 2-tuple
+            The wave may be placed only at a rectangular area of the
+            image controlled by this parameters. The values should be
+            proportional to `axis_length_y` and `axis_length_x`,
+            respectively, i.e, the values should be > 0. and < 1. Then,
+            you may control center and rotation of the figure.
+
+        axis_length_x, axis_length_y : float, default: 2.0
+            Length of the size of the image.
+
+        resolution : 2-tuple
+            Image resolution, in y and x directions, i.e., (NY, NX).
+            *Either this argument or relative_permittivity_map or
+            conductivity_map must be given!*
+
+        background_relative_permittivity : float, default: 1.0
+
+        background_conductivity : float, default: 0.0
+
+        rel_permittivity_amplitude : float, default: 1.0
+            Maximum amplitude of relative permittivity variation
+
+        conductivity_amplitude : float, default: 1.0
+            Maximum amplitude of conductivity variation
+
+        conductivity_valley : None or float
+            Valley value of conductivity. If None, then peak value
+            is assumed.
+
+        center : list, default: [0.0, 0.0]
+            Center of the object in the image. The center of the image
+            corresponds to the origin of the coordinates.
+
+        relative_permittivity_map : :class:`numpy.ndarray`, default:None
+            A predefined image in which the object will be drawn.
+
+        conductivity_map : :class:`numpy.ndarray`, default: None
+            A predefined image in which the object will be drawn.
+
+        rotate : float, default: 0.0 degrees
+            Rotation of the object around its center. In degrees.
+
+        smooth_cells : float, default: 0.03
+            Percentage of cells used for application of boundary
+            conditions.
+    """
+    # Check input requirements
+    if resolution is None and (relative_permittivity_map is None
+                               or conductivity_map is None):
+        raise error.MissingInputError('draw_wave', 'resolution or relative'
+                                      + '_permittivity_map or '
+                                      + 'conductivity_map')
+
+    # Make variable names more simple
+    Lx, Ly = axis_length_x, axis_length_y
+    epsilon_rb = background_relative_permittivity
+    sigma_b = background_conductivity
+
+    # Set map variables
+    if relative_permittivity_map is None:
+        epsilon_r = epsilon_rb*np.ones(resolution)
+    else:
+        epsilon_r = relative_permittivity_map
+    if conductivity_map is None:
+        sigma = sigma_b*np.ones(resolution)
+    else:
+        sigma = conductivity_map
+
+    # Set discretization variables
+    if resolution is None:
+        resolution = epsilon_r.shape
+    NY, NX = resolution
+    dx, dy = Lx/NX, Ly/NY
+
+    # Get meshgrid
+    x, y = np.meshgrid(np.arange(-Lx/2+dx/2, Lx/2, dx) + center[1],
+                       np.arange(-Ly/2+dy/2, Ly/2, dy) + center[0])
+    theta = np.deg2rad(rotate)
+    xp = x*np.cos(theta) + y*np.sin(theta)
+    yp = -x*np.sin(theta) + y*np.cos(theta)
+
+    # Wave area
+    ly, lx = wave_bounds_proportion[0]*Ly, wave_bounds_proportion[1]*Lx
+    wave = np.logical_and(xp >= -lx/2,
+                          np.logical_and(xp <= lx/2,
+                                         np.logical_and(yp >= -ly/2,
+                                                        yp <= ly/2)))
+
+    # Wave parameters
+    max_number_peaks_x = maximum_number_peaks
+    if maximum_number_peaks_y is None:
+        max_number_peaks_y = maximum_number_peaks
+    m = np.round((max_number_peaks_x-1)*rnd.random(number_waves)) + 1
+    n = np.round((max_number_peaks_y-1)*rnd.random(number_waves)) + 1
+    lam_x = lx/m
+    lam_y = ly/n
+    phi = 2*pi*rnd.rand(2, number_waves)
+    peaks = rnd.rand(number_waves)
+
+    # Smooth boundary
+    bd = np.ones(xp.shape)
+    nx, ny = np.round(smooth_cells*NX), np.round(smooth_cells*NY), 
+    left_bd = np.logical_and(xp >= -lx/2, xp <= -lx/2+nx*dx)
+    right_bd = np.logical_and(xp >= lx/2-nx*dx, xp <= lx/2)
+    lower_bd = np.logical_and(yp >= -ly/2, yp <= -ly/2+ny*dy)
+    upper_bd = np.logical_and(yp >= ly/2-ny*dy, yp <= ly/2)
+    edge1 = np.logical_and(left_bd, lower_bd)
+    edge2 = np.logical_and(left_bd, upper_bd)
+    edge3 = np.logical_and(upper_bd, right_bd)
+    edge4 = np.logical_and(right_bd, lower_bd)
+    f_left = (2/nx/dx)*(xp+lx/2) - (1/nx**2/dx**2)*(xp + lx/2)**2
+    f_right = ((2/nx/dx)*(xp-(lx/2-2*nx*dx)) 
+               - (1/nx**2/dx**2)*(xp-(lx/2-2*nx*dx))**2)
+    f_lower = (2/ny/dy)*(yp+ly/2) - (1/ny**2/dy**2)*(yp + ly/2)**2
+    f_upper = (((2/ny/dy)*(yp-(ly/2-2*ny*dy))
+                - (1/ny**2/dy**2)*(yp-(ly/2-2*nx*dy))**2))
+    bd[left_bd] = f_left[left_bd]
+    bd[right_bd] = f_right[right_bd]
+    bd[lower_bd] = f_lower[lower_bd]
+    bd[upper_bd] = f_upper[upper_bd]
+    bd[edge1] = f_left[edge1]*f_lower[edge1]
+    bd[edge2] = f_left[edge2]*f_upper[edge2]
+    bd[edge3] = f_upper[edge3]*f_right[edge3]
+    bd[edge4] = f_right[edge4]*f_lower[edge4]
+    bd[np.logical_not(wave)] = 1.
+
+    # Relative permittivity
+    for i in range(number_waves):
+        epsilon_r[wave] = (epsilon_r[wave]
+                           + peaks[i]*np.cos(2*np.pi/(lam_x[i])*xp[wave]
+                                             - phi[0, i])
+                           * np.cos(2*np.pi/(lam_y[i])*yp[wave] - phi[1, i]))
+    epsilon_r[wave] = (rel_permittivity_amplitude*epsilon_r[wave]
+                       / np.amax(epsilon_r[wave]))
+    epsilon_r[wave] = epsilon_r[wave] + epsilon_rb
+    epsilon_r = epsilon_r*bd
+    epsilon_r[np.logical_and(wave, epsilon_r < 1.)] = 1.
+
+    # Conductivity
+    for i in range(number_waves):
+        sigma[wave] = (sigma[wave]
+                       + peaks[i]*np.cos(2*np.pi/(lam_x[i])*xp[wave]
+                                         - phi[0, i])
+                       * np.cos(2*np.pi/(lam_y[i])*yp[wave] - phi[1, i]))
+    sigma[wave] = (conductivity_amplitude*sigma[wave]
+                       / np.amax(sigma[wave]))
+    sigma[wave] = sigma[wave] + sigma_b
+    sigma = sigma*bd
+    sigma[np.logical_and(wave, sigma < 0.)] = 0.
+
+    return epsilon_r, sigma
