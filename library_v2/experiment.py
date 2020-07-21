@@ -6,13 +6,15 @@ Explain the module.
 # Standard libraries
 import numpy as np
 from numpy import random as rnd
+from numpy import pi
+from numpy import logical_and
 
 # Developed libraries
-import library_v2.error as error
-import library_v2.configuration as cfg
-import library_v2.inputdata as ipt
-import library_v2.solver as slv
-import library_v2.results as rst
+import error
+import configuration as cfg
+import inputdata as ipt
+import solver as slv
+import results as rst
 
 # Constants
 STANDARD_SYNTHETIZATION_RESOLUTION = 30
@@ -87,7 +89,7 @@ class Experiment:
                     if self.scenarios.resolution is not None:
                         self.recover_resolution = self.scenarios.resolution
 
-            if self.recover_resolution is None:         
+            if self.recover_resolution is None:
                 if isinstance(self.configurations, list):
                     self.recover_resolution = list()
                     for i in range(len(self.configurations)):
@@ -113,6 +115,7 @@ def compute_resolution(wavelength, length_y, length_x,
     NX = int(np.ceil(length_x/dx))
     NY = int(np.ceil(length_y/dy))
     return NY, NX
+
 
 def draw_square(side_length, axis_length_x=2., axis_length_y=2.,
                 resolution=None, background_relative_permittivity=1.,
@@ -195,11 +198,10 @@ def draw_square(side_length, axis_length_x=2., axis_length_y=2.,
     yp = -x*np.sin(theta) + y*np.cos(theta)
 
     # Set object
-    epsilon_r[np.logical_and(np.logical_and(yp >= -L/2, yp <= L/2),
-                             np.logical_and(xp >= -L/2,
-                                            xp <= L/2))] = epsilon_ro
-    sigma[np.logical_and(np.logical_and(yp >= -L/2, yp <= L/2),
-                         np.logical_and(xp >= -L/2, xp <= L/2))] = sigma_o
+    epsilon_r[logical_and(logical_and(yp >= -L/2, yp <= L/2),
+                          logical_and(xp >= -L/2, xp <= L/2))] = epsilon_ro
+    sigma[logical_and(logical_and(yp >= -L/2, yp <= L/2),
+                      logical_and(xp >= -L/2, xp <= L/2))] = sigma_o
 
     return epsilon_r, sigma
 
@@ -285,10 +287,10 @@ def draw_triangle(side_length, axis_length_x=2., axis_length_y=2.,
     yp = -x*np.sin(theta) + y*np.cos(theta)
 
     # Set object
-    epsilon_r[np.logical_and(np.logical_and(yp >= -L/2, yp <= 2*xp + L/2),
-                             yp <= -2*xp + L/2)] = epsilon_ro
-    sigma[np.logical_and(np.logical_and(yp >= -L/2, yp <= 2*xp - L/2),
-                         yp <= -2*xp + L/2)] = sigma_o
+    epsilon_r[logical_and(logical_and(yp >= -L/2, yp <= 2*xp + L/2),
+                          yp <= -2*xp + L/2)] = epsilon_ro
+    sigma[logical_and(logical_and(yp >= -L/2, yp <= 2*xp - L/2),
+                      yp <= -2*xp + L/2)] = sigma_o
 
     return epsilon_r, sigma
 
@@ -374,15 +376,15 @@ def draw_6star(side_length, axis_length_x=2., axis_length_y=2.,
     yp = -x*np.sin(theta) + y*np.cos(theta)
 
     # Set object
-    epsilon_r[np.logical_and(np.logical_and(yp >= -L/4, yp <= 3/2*xp + L/2),
-                             yp <= -3/2*xp + L/2)] = epsilon_ro
-    sigma[np.logical_and(np.logical_and(yp >= -L/4, yp <= 3/2*xp + L/2),
-                         yp <= -3/2*xp + L/2)] = sigma_o
+    epsilon_r[logical_and(logical_and(yp >= -L/4, yp <= 3/2*xp + L/2),
+                          yp <= -3/2*xp + L/2)] = epsilon_ro
+    sigma[logical_and(logical_and(yp >= -L/4, yp <= 3/2*xp + L/2),
+                      yp <= -3/2*xp + L/2)] = sigma_o
 
-    epsilon_r[np.logical_and(np.logical_and(yp <= L/4, yp >= 3/2*xp - L/2),
-                             yp >= -3/2*xp - L/2)] = epsilon_ro
-    sigma[np.logical_and(np.logical_and(y <= L/4, yp >= 3/2*xp - L/2),
-                         yp >= -3/2*xp-L/2)] = sigma_o
+    epsilon_r[logical_and(logical_and(yp <= L/4, yp >= 3/2*xp - L/2),
+                          yp >= -3/2*xp - L/2)] = epsilon_ro
+    sigma[logical_and(logical_and(y <= L/4, yp >= 3/2*xp - L/2),
+                      yp >= -3/2*xp-L/2)] = sigma_o
 
     return epsilon_r, sigma
 
@@ -461,10 +463,10 @@ def draw_ring(inner_radius, outer_radius, axis_length_x=2., axis_length_y=2.,
                        np.arange(-Ly/2+dy/2, Ly/2, dy) - center[0])
 
     # Set object
-    epsilon_r[np.logical_and(x**2 + y**2 <= rb**2,
-                             x**2 + y**2 >= ra**2)] = epsilon_ro
-    sigma[np.logical_and(x**2 + y**2 <= rb**2,
-                         x**2 + y**2 >= ra**2)] = sigma_o
+    epsilon_r[logical_and(x**2 + y**2 <= rb**2,
+                          x**2 + y**2 >= ra**2)] = epsilon_ro
+    sigma[logical_and(x**2 + y**2 <= rb**2,
+                      x**2 + y**2 >= ra**2)] = sigma_o
 
     return epsilon_r, sigma
 
@@ -717,16 +719,16 @@ def draw_cross(height, width, thickness, axis_length_x=2., axis_length_y=2.,
 
     # Set object
     horizontal_bar = (
-        np.logical_and(xp >= -width/2,
-                       np.logical_and(xp <= width/2,
-                                      np.logical_and(yp >= -thickness/2,
-                                                     yp <= thickness/2)))
+        logical_and(xp >= -width/2,
+                    logical_and(xp <= width/2,
+                                logical_and(yp >= -thickness/2,
+                                            yp <= thickness/2)))
     )
     vertical_bar = (
-        np.logical_and(y >= -height/2,
-                       np.logical_and(y <= height/2,
-                                      np.logical_and(x >= -thickness/2,
-                                                     x <= thickness/2)))
+        logical_and(y >= -height/2,
+                    logical_and(y <= height/2,
+                                logical_and(x >= -thickness/2,
+                                            x <= thickness/2)))
     )
     epsilon_r[np.logical_or(horizontal_bar, vertical_bar)] = epsilon_ro
     sigma[np.logical_or(horizontal_bar, vertical_bar)] = sigma_o
@@ -814,10 +816,10 @@ def draw_line(length, thickness, axis_length_x=2., axis_length_y=2.,
     yp = -x*np.sin(theta) + y*np.cos(theta)
 
     # Set object
-    line = (np.logical_and(xp >= -length/2,
-                           np.logical_and(xp <= length/2,
-                                          np.logical_and(yp >= -thickness/2,
-                                                         yp <= thickness/2))))
+    line = (logical_and(xp >= -length/2,
+                        logical_and(xp <= length/2,
+                                    logical_and(yp >= -thickness/2,
+                                                yp <= thickness/2))))
     epsilon_r[line] = epsilon_ro
     sigma[line] = sigma_o
 
@@ -907,7 +909,7 @@ def draw_polygon(number_sides, radius, axis_length_x=2., axis_length_y=2.,
     yp = -x*np.sin(theta) + y*np.cos(theta)
 
     # Set object
-    dphi = 2*np.pi/number_sides
+    dphi = 2*pi/number_sides
     phi = np.arange(0, number_sides*dphi, dphi)
     xp = radius*np.cos(phi)
     yp = radius*np.sin(phi)
@@ -916,7 +918,7 @@ def draw_polygon(number_sides, radius, axis_length_x=2., axis_length_y=2.,
         a = -(yp[i]-yp[i-1])
         b = xp[i]-xp[i-1]
         c = (xp[i]-xp[i-1])*yp[i-1] - (yp[i]-yp[i-1])*xp[i-1]
-        polygon = np.logical_and(polygon, a*xp + b*yp >= c)
+        polygon = logical_and(polygon, a*xp + b*yp >= c)
     epsilon_r[polygon] = epsilon_ro
     sigma[polygon] = sigma_o
 
@@ -1091,12 +1093,12 @@ def draw_random(number_sides, maximum_radius, axis_length_x=2.,
                        np.arange(-Ly/2+dy/2, Ly/2, dy) - center[0])
 
     # Create vertices
-    # phi = np.sort(2*np.pi*rnd.rand(number_sides))
-    phi = rnd.normal(loc=np.linspace(0, 2*np.pi, number_sides, endpoint=False),
+    # phi = np.sort(2*pi*rnd.rand(number_sides))
+    phi = rnd.normal(loc=np.linspace(0, 2*pi, number_sides, endpoint=False),
                      scale=0.5)
-    phi[phi >= 2*np.pi] = phi[phi >= 2*np.pi] - np.floor(phi[phi >= 2*np.pi]
-                                                   / (2*np.pi))*2*np.pi
-    phi[phi < 0] = -((np.floor(phi[phi < 0]/(2*np.pi)))*2*np.pi - phi[phi < 0])
+    phi[phi >= 2*pi] = phi[phi >= 2*pi] - np.floor(phi[phi >= 2*pi]
+                                                   / (2*pi))*2*pi
+    phi[phi < 0] = -((np.floor(phi[phi < 0]/(2*pi)))*2*pi - phi[phi < 0])
     phi = np.sort(phi)
     radius = maximum_radius*rnd.rand(number_sides)
     xv = radius*np.cos(phi)
@@ -1193,18 +1195,17 @@ def draw_rhombus(length, axis_length_x=2., axis_length_y=2., resolution=None,
 
     # Set object
     a = length/np.sqrt(2)
-    rhombus = np.logical_and(-a*xp - a*yp >= -a**2,
-                             np.logical_and(a*xp - a*yp >= -a**2,
-                                            np.logical_and(a*xp+a*yp >= -a**2,
-                                                           -a*xp+a*yp >= -a**2)
-                                            ))
+    rhombus = logical_and(-a*xp - a*yp >= -a**2,
+                          logical_and(a*xp - a*yp >= -a**2,
+                                      logical_and(a*xp+a*yp >= -a**2,
+                                                  -a*xp+a*yp >= -a**2)))
     epsilon_r[rhombus] = epsilon_ro
     sigma[rhombus] = sigma_o
 
     return epsilon_r, sigma
 
 
-def draw_trapezoid(upper_length, lower_length, height, axis_length_x=2., 
+def draw_trapezoid(upper_length, lower_length, height, axis_length_x=2.,
                    axis_length_y=2., resolution=None,
                    background_relative_permittivity=1.,
                    background_conductivity=0., object_relative_permittivity=1.,
@@ -1250,7 +1251,8 @@ def draw_trapezoid(upper_length, lower_length, height, axis_length_x=2.,
     # Check input requirements
     if resolution is None and (relative_permittivity_map is None
                                or conductivity_map is None):
-        raise error.MissingInputError('draw_trapezoid', 'resolution or relative'
+        raise error.MissingInputError('draw_trapezoid',
+                                      'resolution or relative'
                                       + '_permittivity_map or '
                                       + 'conductivity_map')
 
@@ -1288,10 +1290,10 @@ def draw_trapezoid(upper_length, lower_length, height, axis_length_x=2.,
     ll, lu, h = lower_length, upper_length, height
     a1, b1, c1 = -h, (lu-ll)/2, -(lu-ll)*h/4 - h*ll/2
     a2, b2, c2 = h, (lu-ll)/2, (lu-ll)*h/4 - h*lu/2
-    trapezoid = np.logical_and(a1*xp + b1*yp >= c1,
-                               np.logical_and(a2*xp + b2*yp >= c2,
-                                              np.logical_and(yp <= height/2,
-                                                             yp >= -height/2)))
+    trapezoid = logical_and(a1*xp + b1*yp >= c1,
+                            logical_and(a2*xp + b2*yp >= c2,
+                                        logical_and(yp <= height/2,
+                                                    yp >= -height/2)))
 
     epsilon_r[trapezoid] = epsilon_ro
     sigma[trapezoid] = sigma_o
@@ -1299,7 +1301,7 @@ def draw_trapezoid(upper_length, lower_length, height, axis_length_x=2.,
     return epsilon_r, sigma
 
 
-def draw_parallelogram(length, height, inclination, axis_length_x=2., 
+def draw_parallelogram(length, height, inclination, axis_length_x=2.,
                        axis_length_y=2., resolution=None,
                        background_relative_permittivity=1.,
                        background_conductivity=0.,
@@ -1384,12 +1386,11 @@ def draw_parallelogram(length, height, inclination, axis_length_x=2.,
     yp = -x*np.sin(theta) + y*np.cos(theta)
 
     # Set object
-    l, h, a = length, height, height/2/np.tan(np.deg2rad(90-angle)) 
-    parallelogram = np.logical_and(-h*xp + 2*a*yp >= 2*a*(l/2-a)-h*(l/2-a),
-                                   np.logical_and(h*xp-2*a*yp >= h*(a-l/2)-a*h,
-                                                  np.logical_and(yp <= height/2,
-                                                                 yp >= 
-                                                                 -height/2)))
+    l, h, a = length, height, height/2/np.tan(np.deg2rad(90-inclination))
+    parallelogram = logical_and(-h*xp + 2*a*yp >= 2*a*(l/2-a)-h*(l/2-a),
+                                logical_and(h*xp-2*a*yp >= h*(a-l/2)-a*h,
+                                            logical_and(yp <= height/2,
+                                                        yp >= -height/2)))
 
     epsilon_r[parallelogram] = epsilon_ro
     sigma[parallelogram] = sigma_o
@@ -1574,16 +1575,14 @@ def draw_4star(radius, axis_length_x=2., axis_length_y=2., resolution=None,
 
     # Set object
     a, b = radius, .5*radius
-    rhombus1 = np.logical_and(-a*xp - b*yp >= -a*b,
-                              np.logical_and(a*xp - b*yp >= -a*b,
-                                             np.logical_and(a*xp+b*yp >= -a*b,
-                                                            -a*xp+b*yp >= -a*b)
-                                             ))
-    rhombus2 = np.logical_and(-b*xp - a*yp >= -a*b,
-                              np.logical_and(b*xp - a*yp >= -a*b,
-                                             np.logical_and(b*xp+a*yp >= -a*b,
-                                                            -b*xp+a*yp >= -a*b)
-                                             ))
+    rhombus1 = logical_and(-a*xp - b*yp >= -a*b,
+                           logical_and(a*xp - b*yp >= -a*b,
+                                       logical_and(a*xp+b*yp >= -a*b,
+                                                   -a*xp+b*yp >= -a*b)))
+    rhombus2 = logical_and(-b*xp - a*yp >= -a*b,
+                           logical_and(b*xp - a*yp >= -a*b,
+                                       logical_and(b*xp+a*yp >= -a*b,
+                                                   -b*xp+a*yp >= -a*b)))
     epsilon_r[np.logical_or(rhombus1, rhombus2)] = epsilon_ro
     sigma[np.logical_or(rhombus1, rhombus2)] = sigma_o
 
@@ -1591,12 +1590,13 @@ def draw_4star(radius, axis_length_x=2., axis_length_y=2., resolution=None,
 
 
 def draw_wave(number_peaks, rel_permittivity_peak=1., conductivity_peak=0.,
-              rel_permittivity_valley=None, conductivity_valley=None, resolution=None,
-              number_peaks_y=None, axis_length_x=2., axis_length_y=2.,
-              background_relative_permittivity=1., background_conductivity=0.,
-              object_relative_permittivity=1., object_conductivity=0.,
-              relative_permittivity_map=None, conductivity_map=None,
-              wave_bounds_proportion=(1., 1.), center=[0., 0.], rotate=0.):
+              rel_permittivity_valley=None, conductivity_valley=None,
+              resolution=None, number_peaks_y=None, axis_length_x=2.,
+              axis_length_y=2., background_relative_permittivity=1.,
+              background_conductivity=0., object_relative_permittivity=1.,
+              object_conductivity=0., relative_permittivity_map=None,
+              conductivity_map=None, wave_bounds_proportion=(1., 1.),
+              center=[0., 0.], rotate=0.):
     """Draw waves.
 
     Parameters
@@ -1691,10 +1691,9 @@ def draw_wave(number_peaks, rel_permittivity_peak=1., conductivity_peak=0.,
 
     # Wave area
     ly, lx = wave_bounds_proportion[0]*Ly, wave_bounds_proportion[1]*Lx
-    wave = np.logical_and(xp >= -lx/2,
-                          np.logical_and(xp <= lx/2,
-                                         np.logical_and(yp >= -ly/2,
-                                                        yp <= ly/2)))
+    wave = logical_and(xp >= -lx/2,
+                       logical_and(xp <= lx/2,
+                                   logical_and(yp >= -ly/2, yp <= ly/2)))
 
     # Wave parameters
     number_peaks_x = number_peaks
@@ -1716,28 +1715,28 @@ def draw_wave(number_peaks, rel_permittivity_peak=1., conductivity_peak=0.,
         conductivity_valley = conductivity_peak
 
     # Relative permittivity
-    epsilon_r[wave] = (np.cos(2*np.pi/(2*lx/Kx)*xp[wave])
-                       * np.cos(2*np.pi/(2*ly/Ky)*yp[wave]))
-    epsilon_r[np.logical_and(wave, epsilon_r >= 0)] = (
-        rel_permittivity_peak*epsilon_r[np.logical_and(wave, epsilon_r >= 0)]
+    epsilon_r[wave] = (np.cos(2*pi/(2*lx/Kx)*xp[wave])
+                       * np.cos(2*pi/(2*ly/Ky)*yp[wave]))
+    epsilon_r[logical_and(wave, epsilon_r >= 0)] = (
+        rel_permittivity_peak*epsilon_r[logical_and(wave, epsilon_r >= 0)]
     )
-    epsilon_r[np.logical_and(wave, epsilon_r < 0)] = (
-        rel_permittivity_valley*epsilon_r[np.logical_and(wave, epsilon_r < 0)]
+    epsilon_r[logical_and(wave, epsilon_r < 0)] = (
+        rel_permittivity_valley*epsilon_r[logical_and(wave, epsilon_r < 0)]
     )
     epsilon_r[wave] = epsilon_r[wave] + epsilon_rb
-    epsilon_r[np.logical_and(wave, epsilon_r < 1.)] = 1.
+    epsilon_r[logical_and(wave, epsilon_r < 1.)] = 1.
 
     # Conductivity
-    sigma[wave] = (np.cos(2*np.pi/(2*lx/Kx)*xp[wave])
-                   * np.cos(2*np.pi/(2*ly/Ky)*yp[wave]))
-    sigma[np.logical_and(wave, epsilon_r >= 0)] = (
-        conductivity_peak*sigma[np.logical_and(wave, sigma >= 0)]
+    sigma[wave] = (np.cos(2*pi/(2*lx/Kx)*xp[wave])
+                   * np.cos(2*pi/(2*ly/Ky)*yp[wave]))
+    sigma[logical_and(wave, epsilon_r >= 0)] = (
+        conductivity_peak*sigma[logical_and(wave, sigma >= 0)]
     )
-    sigma[np.logical_and(wave, sigma < 0)] = (
-        conductivity_valley*sigma[np.logical_and(wave, sigma < 0)]
+    sigma[logical_and(wave, sigma < 0)] = (
+        conductivity_valley*sigma[logical_and(wave, sigma < 0)]
     )
     sigma[wave] = sigma[wave] + sigma_b
-    sigma[np.logical_and(wave, sigma < 0.)] = 0.
+    sigma[logical_and(wave, sigma < 0.)] = 0.
 
     return epsilon_r, sigma
 
@@ -1748,10 +1747,9 @@ def draw_random_waves(number_waves, maximum_number_peaks,
                       number_peaks_y=None, axis_length_x=2., axis_length_y=2.,
                       background_relative_permittivity=1.,
                       background_conductivity=0.,
-                      object_relative_permittivity=1., object_conductivity=0.,
                       relative_permittivity_map=None, conductivity_map=None,
                       wave_bounds_proportion=(1., 1.), center=[0., 0.],
-                      rotate=0., smooth_cells=0.03):
+                      rotate=0., edge_smoothing=0.03):
     """Draw random waves.
 
     Parameters
@@ -1766,6 +1764,193 @@ def draw_random_waves(number_waves, maximum_number_peaks,
         maximum_number_peaks_y : float, optional
             Maximum number of peaks in y-direction. If None, then it
             will be the same as `maximum_number_peaks`.
+
+        wave_bounds_proportion : 2-tuple
+            The wave may be placed only at a rectangular area of the
+            image controlled by this parameter. The values should be
+            proportional to `axis_length_y` and `axis_length_x`,
+            respectively, i.e, the values should be > 0. and < 1. Then,
+            you may control center and rotation of the figure.
+
+        axis_length_x, axis_length_y : float, default: 2.0
+            Length of the size of the image.
+
+        resolution : 2-tuple
+            Image resolution, in y and x directions, i.e., (NY, NX).
+            *Either this argument or relative_permittivity_map or
+            conductivity_map must be given!*
+
+        background_relative_permittivity : float, default: 1.0
+
+        background_conductivity : float, default: 0.0
+
+        rel_permittivity_amplitude : float, default: 1.0
+            Maximum amplitude of relative permittivity variation
+
+        conductivity_amplitude : float, default: 1.0
+            Maximum amplitude of conductivity variation
+
+        conductivity_valley : None or float
+            Valley value of conductivity. If None, then peak value
+            is assumed.
+
+        center : list, default: [0.0, 0.0]
+            Center of the object in the image. The center of the image
+            corresponds to the origin of the coordinates.
+
+        relative_permittivity_map : :class:`numpy.ndarray`, default:None
+            A predefined image in which the object will be drawn.
+
+        conductivity_map : :class:`numpy.ndarray`, default: None
+            A predefined image in which the object will be drawn.
+
+        rotate : float, default: 0.0 degrees
+            Rotation of the object around its center. In degrees.
+
+        edge_smoothing : float, default: 0.03
+            Percentage of cells at the boundary of the wave area which
+            will be smoothed.
+    """
+    # Check input requirements
+    if resolution is None and (relative_permittivity_map is None
+                               or conductivity_map is None):
+        raise error.MissingInputError('draw_random_waves',
+                                      'resolution or relative'
+                                      + '_permittivity_map or '
+                                      + 'conductivity_map')
+
+    # Make variable names more simple
+    Lx, Ly = axis_length_x, axis_length_y
+    epsilon_rb = background_relative_permittivity
+    sigma_b = background_conductivity
+
+    # Set map variables
+    if relative_permittivity_map is None:
+        epsilon_r = epsilon_rb*np.ones(resolution)
+    else:
+        epsilon_r = relative_permittivity_map
+    if conductivity_map is None:
+        sigma = sigma_b*np.ones(resolution)
+    else:
+        sigma = conductivity_map
+
+    # Set discretization variables
+    if resolution is None:
+        resolution = epsilon_r.shape
+    NY, NX = resolution
+    dx, dy = Lx/NX, Ly/NY
+
+    # Get meshgrid
+    x, y = np.meshgrid(np.arange(-Lx/2+dx/2, Lx/2, dx) + center[1],
+                       np.arange(-Ly/2+dy/2, Ly/2, dy) + center[0])
+    theta = np.deg2rad(rotate)
+    xp = x*np.cos(theta) + y*np.sin(theta)
+    yp = -x*np.sin(theta) + y*np.cos(theta)
+
+    # Wave area
+    ly, lx = wave_bounds_proportion[0]*Ly, wave_bounds_proportion[1]*Lx
+    wave = logical_and(xp >= -lx/2,
+                       logical_and(xp <= lx/2,
+                                   logical_and(yp >= -ly/2, yp <= ly/2)))
+
+    # Wave parameters
+    max_number_peaks_x = maximum_number_peaks
+    if maximum_number_peaks_y is None:
+        max_number_peaks_y = maximum_number_peaks
+    m = np.round((max_number_peaks_x-1)*rnd.random(number_waves)) + 1
+    n = np.round((max_number_peaks_y-1)*rnd.random(number_waves)) + 1
+    lam_x = lx/m
+    lam_y = ly/n
+    phi = 2*pi*rnd.rand(2, number_waves)
+    peaks = rnd.rand(number_waves)
+
+    # Boundary smoothing
+    bd = np.ones(xp.shape)
+    nx, ny = np.round(edge_smoothing*NX), np.round(edge_smoothing*NY)
+    left_bd = logical_and(xp >= -lx/2, xp <= -lx/2+nx*dx)
+    right_bd = logical_and(xp >= lx/2-nx*dx, xp <= lx/2)
+    lower_bd = logical_and(yp >= -ly/2, yp <= -ly/2+ny*dy)
+    upper_bd = logical_and(yp >= ly/2-ny*dy, yp <= ly/2)
+    edge1 = logical_and(left_bd, lower_bd)
+    edge2 = logical_and(left_bd, upper_bd)
+    edge3 = logical_and(upper_bd, right_bd)
+    edge4 = logical_and(right_bd, lower_bd)
+    f_left = (2/nx/dx)*(xp+lx/2) - (1/nx**2/dx**2)*(xp + lx/2)**2
+    f_right = ((2/nx/dx)*(xp-(lx/2-2*nx*dx))
+               - (1/nx**2/dx**2)*(xp-(lx/2-2*nx*dx))**2)
+    f_lower = (2/ny/dy)*(yp+ly/2) - (1/ny**2/dy**2)*(yp + ly/2)**2
+    f_upper = (((2/ny/dy)*(yp-(ly/2-2*ny*dy))
+                - (1/ny**2/dy**2)*(yp-(ly/2-2*nx*dy))**2))
+    bd[left_bd] = f_left[left_bd]
+    bd[right_bd] = f_right[right_bd]
+    bd[lower_bd] = f_lower[lower_bd]
+    bd[upper_bd] = f_upper[upper_bd]
+    bd[edge1] = f_left[edge1]*f_lower[edge1]
+    bd[edge2] = f_left[edge2]*f_upper[edge2]
+    bd[edge3] = f_upper[edge3]*f_right[edge3]
+    bd[edge4] = f_right[edge4]*f_lower[edge4]
+    bd[np.logical_not(wave)] = 1.
+
+    # Relative permittivity
+    for i in range(number_waves):
+        epsilon_r[wave] = (epsilon_r[wave]
+                           + peaks[i]*np.cos(2*pi/(lam_x[i])*xp[wave]
+                                             - phi[0, i])
+                           * np.cos(2*pi/(lam_y[i])*yp[wave] - phi[1, i]))
+    epsilon_r[wave] = (rel_permittivity_amplitude*epsilon_r[wave]
+                       / np.amax(epsilon_r[wave]))
+    epsilon_r[wave] = epsilon_r[wave] + epsilon_rb
+    epsilon_r = epsilon_r*bd
+    epsilon_r[logical_and(wave, epsilon_r < 1.)] = 1.
+
+    # Conductivity
+    for i in range(number_waves):
+        sigma[wave] = (sigma[wave]
+                       + peaks[i]*np.cos(2*pi/(lam_x[i])*xp[wave]
+                                         - phi[0, i])
+                       * np.cos(2*pi/(lam_y[i])*yp[wave] - phi[1, i]))
+    sigma[wave] = (conductivity_amplitude*sigma[wave]
+                   / np.amax(sigma[wave]))
+    sigma[wave] = sigma[wave] + sigma_b
+    sigma = sigma*bd
+    sigma[logical_and(wave, sigma < 0.)] = 0.
+
+    return epsilon_r, sigma
+
+
+def draw_random_gaussians(number_distributions, maximum_spread=.8,
+                          minimum_spread=.5, distance_from_border=.1,
+                          resolution=None, surface_area=(1., 1.),
+                          rel_permittivity_amplitude=0.,
+                          conductivity_amplitude=0., axis_length_x=2.,
+                          axis_length_y=2., background_conductivity=0.,
+                          background_relative_permittivity=1.,
+                          relative_permittivity_map=None, center=[0., 0.],
+                          conductivity_map=None, rotate=0.,
+                          edge_smoothing=0.03):
+    """Draw random gaussians.
+
+    Parameters
+    ----------
+        number_distributions : int
+            Number of distributions.
+
+        minimum_spread, maximum_spread : float, default: .5 and .8
+            Control the spread of the gaussian function, proportional to
+            the length of the gaussian area. This means that these
+            parameters should be > 0 and < 1. 1 means that :math:`sigma
+            = L_x/6`.
+
+        distance_from_border : float, default: .1
+            Control the bounds of the center of the distribution. It is
+            proportional to the length of the area.
+
+        surface_area : 2-tuple, default: (1., 1.)
+            The distribution may be placed only at a rectangular area of
+            the image controlled by this parameter. The values should be
+            proportional to `axis_length_y` and `axis_length_x`,
+            respectively, i.e, the values should be > 0. and < 1. Then,
+            you may control center and rotation of the figure.
 
         wave_bounds_proportion : 2-tuple
             The wave may be placed only at a rectangular area of the
@@ -1809,14 +1994,15 @@ def draw_random_waves(number_waves, maximum_number_peaks,
         rotate : float, default: 0.0 degrees
             Rotation of the object around its center. In degrees.
 
-        smooth_cells : float, default: 0.03
-            Percentage of cells used for application of boundary
-            conditions.
+        edge_smoothing : float, default: 0.03
+            Percentage of cells at the boundary of the image area which
+            will be smoothed.
     """
     # Check input requirements
     if resolution is None and (relative_permittivity_map is None
                                or conductivity_map is None):
-        raise error.MissingInputError('draw_wave', 'resolution or relative'
+        raise error.MissingInputError('draw_random_gaussians',
+                                      'resolution or relative'
                                       + '_permittivity_map or '
                                       + 'conductivity_map')
 
@@ -1849,36 +2035,24 @@ def draw_random_waves(number_waves, maximum_number_peaks,
     yp = -x*np.sin(theta) + y*np.cos(theta)
 
     # Wave area
-    ly, lx = wave_bounds_proportion[0]*Ly, wave_bounds_proportion[1]*Lx
-    wave = np.logical_and(xp >= -lx/2,
-                          np.logical_and(xp <= lx/2,
-                                         np.logical_and(yp >= -ly/2,
-                                                        yp <= ly/2)))
+    ly, lx = surface_area[0]*Ly, surface_area[1]*Lx
+    area = logical_and(xp >= -lx/2,
+                       logical_and(xp <= lx/2,
+                                   logical_and(yp >= -ly/2, yp <= ly/2)))
 
-    # Wave parameters
-    max_number_peaks_x = maximum_number_peaks
-    if maximum_number_peaks_y is None:
-        max_number_peaks_y = maximum_number_peaks
-    m = np.round((max_number_peaks_x-1)*rnd.random(number_waves)) + 1
-    n = np.round((max_number_peaks_y-1)*rnd.random(number_waves)) + 1
-    lam_x = lx/m
-    lam_y = ly/n
-    phi = 2*pi*rnd.rand(2, number_waves)
-    peaks = rnd.rand(number_waves)
-
-    # Smooth boundary
+    # Boundary smoothing
     bd = np.ones(xp.shape)
-    nx, ny = np.round(smooth_cells*NX), np.round(smooth_cells*NY), 
-    left_bd = np.logical_and(xp >= -lx/2, xp <= -lx/2+nx*dx)
-    right_bd = np.logical_and(xp >= lx/2-nx*dx, xp <= lx/2)
-    lower_bd = np.logical_and(yp >= -ly/2, yp <= -ly/2+ny*dy)
-    upper_bd = np.logical_and(yp >= ly/2-ny*dy, yp <= ly/2)
-    edge1 = np.logical_and(left_bd, lower_bd)
-    edge2 = np.logical_and(left_bd, upper_bd)
-    edge3 = np.logical_and(upper_bd, right_bd)
-    edge4 = np.logical_and(right_bd, lower_bd)
+    nx, ny = np.round(edge_smoothing*NX), np.round(edge_smoothing*NY)
+    left_bd = logical_and(xp >= -lx/2, xp <= -lx/2+nx*dx)
+    right_bd = logical_and(xp >= lx/2-nx*dx, xp <= lx/2)
+    lower_bd = logical_and(yp >= -ly/2, yp <= -ly/2+ny*dy)
+    upper_bd = logical_and(yp >= ly/2-ny*dy, yp <= ly/2)
+    edge1 = logical_and(left_bd, lower_bd)
+    edge2 = logical_and(left_bd, upper_bd)
+    edge3 = logical_and(upper_bd, right_bd)
+    edge4 = logical_and(right_bd, lower_bd)
     f_left = (2/nx/dx)*(xp+lx/2) - (1/nx**2/dx**2)*(xp + lx/2)**2
-    f_right = ((2/nx/dx)*(xp-(lx/2-2*nx*dx)) 
+    f_right = ((2/nx/dx)*(xp-(lx/2-2*nx*dx))
                - (1/nx**2/dx**2)*(xp-(lx/2-2*nx*dx))**2)
     f_lower = (2/ny/dy)*(yp+ly/2) - (1/ny**2/dy**2)*(yp + ly/2)**2
     f_upper = (((2/ny/dy)*(yp-(ly/2-2*ny*dy))
@@ -1891,30 +2065,55 @@ def draw_random_waves(number_waves, maximum_number_peaks,
     bd[edge2] = f_left[edge2]*f_upper[edge2]
     bd[edge3] = f_upper[edge3]*f_right[edge3]
     bd[edge4] = f_right[edge4]*f_lower[edge4]
-    bd[np.logical_not(wave)] = 1.
+    bd[np.logical_not(area)] = 1.
+
+    # General parameters
+    s = np.zeros((2, number_distributions))
+    xmin, xmax = -lx/2+distance_from_border*lx, lx/2-distance_from_border*lx
+    ymin, ymax = -ly/2+distance_from_border*ly, ly/2-distance_from_border*ly
 
     # Relative permittivity
-    for i in range(number_waves):
-        epsilon_r[wave] = (epsilon_r[wave]
-                           + peaks[i]*np.cos(2*np.pi/(lam_x[i])*xp[wave]
-                                             - phi[0, i])
-                           * np.cos(2*np.pi/(lam_y[i])*yp[wave] - phi[1, i]))
-    epsilon_r[wave] = (rel_permittivity_amplitude*epsilon_r[wave]
-                       / np.amax(epsilon_r[wave]))
-    epsilon_r[wave] = epsilon_r[wave] + epsilon_rb
+    y0 = ymin + rnd.rand(number_distributions)*(ymax-ymin)
+    x0 = xmin + rnd.rand(number_distributions)*(xmax-xmin)
+    s[0, :] = (minimum_spread + (maximum_spread-minimum_spread)
+               * rnd.rand(number_distributions))*ly/6
+    s[1, :] = (minimum_spread + (maximum_spread-minimum_spread)
+               * rnd.rand(number_distributions))*lx/6
+    phi = 2*pi*rnd.rand(number_distributions)
+    A = rnd.rand(number_distributions)
+    for i in range(number_distributions):
+        sy, sx = s[0, i], s[1, i]
+        x = np.cos(phi[i])*xp[area] + np.sin(phi[i])*yp[area]
+        y = -np.sin(phi[i])*xp[area] + np.cos(phi[i])*yp[area]
+        epsilon_r[area] = epsilon_r[area] + A[i]*np.exp(-((x-x0[i])**2
+                                                          / (2*sx**2)
+                                                          + (y-y0[i])**2
+                                                          / (2*sy**2)))
+    epsilon_r[area] = epsilon_r[area] - np.amin(epsilon_r[area])
+    epsilon_r[area] = (rel_permittivity_amplitude*epsilon_r[area]
+                       / np.amax(epsilon_r[area]))
     epsilon_r = epsilon_r*bd
-    epsilon_r[np.logical_and(wave, epsilon_r < 1.)] = 1.
+    epsilon_r[area] = epsilon_r[area] + epsilon_rb
 
     # Conductivity
-    for i in range(number_waves):
-        sigma[wave] = (sigma[wave]
-                       + peaks[i]*np.cos(2*np.pi/(lam_x[i])*xp[wave]
-                                         - phi[0, i])
-                       * np.cos(2*np.pi/(lam_y[i])*yp[wave] - phi[1, i]))
-    sigma[wave] = (conductivity_amplitude*sigma[wave]
-                       / np.amax(sigma[wave]))
-    sigma[wave] = sigma[wave] + sigma_b
+    y0 = ymin + rnd.rand(number_distributions)*(ymax-ymin)
+    x0 = xmin + rnd.rand(number_distributions)*(xmax-xmin)
+    s[0, :] = (minimum_spread + (maximum_spread-minimum_spread)
+               * rnd.rand(number_distributions))*ly/6
+    s[1, :] = (minimum_spread + (maximum_spread-minimum_spread)
+               * rnd.rand(number_distributions))*lx/6
+    phi = 2*pi*rnd.rand(number_distributions)
+    A = rnd.rand(number_distributions)
+    for i in range(number_distributions):
+        sy, sx = s[0, i], s[1, i]
+        x = np.cos(phi[i])*xp[area] + np.sin(phi[i])*yp[area]
+        y = -np.sin(phi[i])*xp[area] + np.cos(phi[i])*yp[area]
+        sigma[area] = sigma[area] + A[i]*np.exp(-((x-x0[i])**2/(2*sx**2)
+                                                  + (y-y0[i])**2/(2*sy**2)))
+    sigma[area] = sigma[area] - np.amin(sigma[area])
+    sigma[area] = (conductivity_amplitude*sigma[area]
+                   / np.amax(sigma[area]))
     sigma = sigma*bd
-    sigma[np.logical_and(wave, sigma < 0.)] = 0.
+    sigma[area] = sigma[area] + sigma_b
 
     return epsilon_r, sigma
