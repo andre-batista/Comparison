@@ -1857,8 +1857,8 @@ def draw_random_waves(number_waves, maximum_number_peaks,
     max_number_peaks_x = maximum_number_peaks
     if maximum_number_peaks_y is None:
         max_number_peaks_y = maximum_number_peaks
-    m = np.round((max_number_peaks_x-1)*rnd.random(number_waves)) + 1
-    n = np.round((max_number_peaks_y-1)*rnd.random(number_waves)) + 1
+    m = np.round((max_number_peaks_x-1)*rnd.rand(number_waves)) + 1
+    n = np.round((max_number_peaks_y-1)*rnd.rand(number_waves)) + 1
     lam_x = lx/m
     lam_y = ly/n
     phi = 2*pi*rnd.rand(2, number_waves)

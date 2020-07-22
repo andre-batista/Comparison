@@ -633,64 +633,43 @@ def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
         frequency : float
             Linear frequency of operation [Hz].
     """
-    return ((epsilon_r - 1j*sigma/omega/ct.epsilon_0)
-            / (epsilon_rb - 1j*sigma_b/omega/ct.epsilon_0) - 1)
+    return (epsilon_r/epsilon_rb - 1 
+            - 1j*(sigma-sigma_b)/(omega*epsilon_rb*ct.epsilon_0))
 
 
-def get_greenfunction(xm, ym, x, y, kb):
-    r"""Compute the Green function matrix for pulse basis discre.
-
-    The routine computes the Green function based on a discretization of
-    the integral equation using pulse basis functions [1]_.
+def get_relative_permittivity(chi, epsilon_rb):
+    """Compute the relative permittivity for a given contrast value.
 
     Parameters
     ----------
-        xm : `numpy.ndarray`
-            A 1-d array with the x-coordinates of measumerent points in
-            the S-domain [m].
+        chi : float or :class:`numpy.ndarray`
+            Contrast value or array.
 
-        ym : `numpy.ndarray`
-            A 1-d array with the y-coordinates of measumerent points in
-            the S-domain [m].
+        epsilon_rb : float
+            Background relative permittivity
 
-        x : `numpy.ndarray`
-            A meshgrid matrix of x-coordinates in the D-domain [m].
-
-        y : `numpy.ndarray`
-            A meshgrid matrix of y-coordinates in the D-domain [m].
-
-        kb : float or complex
-            Wavenumber of background medium [1/m].
-
-    Returns
-    -------
-        G : `numpy.ndarray`, complex
-            A matrix with the evaluation of Green function at D-domain
-            for each measument point, considering pulse basis
-            discretization. The shape of the matrix is NM x (Nx.Ny),
-            where NM is the number of measurements (size of xm, ym) and
-            Nx and Ny are the number of points in each axis of the
-            discretized D-domain (shape of x, y).
-
-    References
-    ----------
-    .. [1] Pastorino, Matteo. Microwave imaging. Vol. 208. John Wiley
-       & Sons, 2010.
     """
-    Ny, Nx = x.shape
-    M = xm.size
-    dx, dy = x[0, 1]-x[0, 0], y[1, 0]-y[0, 0]
-    an = np.sqrt(dx*dy/np.pi)  # radius of the equivalent circle
+    return epsilon_rb*(np.real(chi)+1)
 
-    xg = np.tile(xm.reshape((-1, 1)), (1, Nx*Ny))
-    yg = np.tile(ym.reshape((-1, 1)), (1, Nx*Ny))
-    R = np.sqrt((xg-np.tile(np.reshape(x, (Nx*Ny, 1)).T, (M, 1)))**2
-                + (yg-np.tile(np.reshape(y, (Nx*Ny, 1)).T, (M, 1)))**2)
 
-    G = (-1j*kb*np.pi*an/2*spc.jv(1, kb*an) * spc.hankel2(0, kb*R))
-    G[R == 0] = 1j/2*(np.pi*kb*an*spc.hankel2(1, kb*an)-2j)
+def get_conductivity(chi, omega, epsilon_rb, sigma_b):
+    """Compute the conductvity for a given contrast value.
 
-    return G
+    Parameters
+    ----------
+        chi : float or :class:`numpy.ndarray`
+            Contrast value or array.
+
+        omega : float
+            Angular frequency [rad/s].
+
+        epsilon_rb : float
+            Background relative permittivity
+
+        sigma_b : float
+            Background conductivity
+    """
+    return sigma_b-np.imag(chi)*omega*epsilon_rb*ct.epsilon_0
 
 
 @jit(nopython=True)

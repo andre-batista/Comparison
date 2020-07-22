@@ -23,6 +23,7 @@ References
 
 import numpy as np
 from scipy import constants as ct
+from scipy.special import hankel2, jv
 from numba import jit
 
 import library_v2.weightedresiduals as wrm
@@ -84,6 +85,27 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
                                 * inputdata.resolution[1])
         return A
 
+    def _compute_green_function(self, resolution):
+        """Summarize method."""
+        NM = self.configuration.NM
+        NY, NX = resolution
+        N = NX*NY
+        epsilon_b = self.configuration.epsilon_rb*ct.epsilon_0
+        omega = 2*np.pi*self.configuration.f
+        kb = self.configuration.kb
+        xm, ym = cfg.get_coordinates_sdomain(self.configuration.Ro, NM)
+        x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
+                                           resolution=resolution)
+        dx, dy = x[0, 1]-x[0, 0], y[1, 0]-y[0, 0]
+        xm = np.tile(xm.reshape((-1, 1)), (1, N))
+        ym = np.tile(ym.reshape((-1, 1)), (1, N))
+        R = np.sqrt((xm-np.tile(np.reshape(x, (N, 1)).T, (NM, 1)))**2
+                    + (ym-np.tile(np.reshape(y, (N, 1)).T, (NM, 1)))**2)
+        an = np.sqrt(dx*dy/np.pi)
+        self._GS = -omega*epsilon_b*np.pi*kb*an/2*jv(1, kb*an)*hankel2(0, kb*R)
+        self._GS[R == 0] = (1j*omega*epsilon_b)*1j/2*(np.pi*kb*an
+                                                      * hankel2(1, kb*an)-2j)
+
     def _compute_beta(self, inputdata):
         """Compute the right-hand-side array.
 
@@ -119,17 +141,18 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
         """
         if (self.configuration.perfect_dielectric
                 or not self.configuration.good_conductor):
-            inputdata.epsilon_r = np.reshape(self.configuration.epsilon_rb
-                                             * (np.real(alpha)+1),
-                                             inputdata.resolution)
+            inputdata.epsilon_r = cfg.get_relative_permittivity(
+                alpha, self.configuration.epsilon_rb
+            )
             inputdata.epsilon_r[inputdata.epsilon_r < 1] = 1
 
         if (self.configuration.good_conductor
                 or not self.configuration.perfect_dielectric):
             omega = 2*np.pi*self.configuration.f
-            inputdata.sigma = np.reshape(self.configuration.sigma_b
-                                         - np.imag(alpha)*omega*ct.epsilon_0,
-                                         inputdata.resolution)
+            inputdata.sigma = cfg.get_conductivity(
+                alpha, omega, self.configuration.epsilon_rb,
+                self.configuration.sigma_b
+            )
             inputdata.sigma[inputdata.sigma < 0] = 0
 
     def __str__(self):

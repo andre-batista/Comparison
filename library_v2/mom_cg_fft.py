@@ -163,7 +163,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                            ymin=ymin, ymax=ymax)
         ei = self.incident_field(scenario.resolution)
         scenario.ei = np.copy(ei)
-        GS = cfg.get_greenfunction(xm, ym, x, y, kb)
+        GS = get_greenfunction(xm, ym, x, y, kb)
 
         if isinstance(f, float):
             MONO_FREQUENCY = True
@@ -173,7 +173,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
 
         deltasn = dx*dy  # area of the cell
         an = np.sqrt(deltasn/np.pi)  # radius of the equivalent circle
-        Xr = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega)
+        Xr = get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega)
 
         # Using circular convolution [extended domain (2N-1)x(2N-1)]
         [xe, ye] = np.meshgrid(np.arange(xmin-(NX/2-1)*dx, xmax+NY/2*dx, dx),
@@ -398,3 +398,83 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         message = message + "Number of iterations: %d, " % self.MAX_IT
         message = message + "Tolerance level: %.3e" % self.TOL
         return message
+
+
+def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
+    """Compute the contrast function for a given image.
+
+    Parameters
+    ----------
+        epsilon_r : `:class:numpy.ndarray`
+            A matrix with the relative permittivity map.
+
+        sigma : `:class:numpy.ndarray`
+            A matrix with the conductivity map [S/m].
+
+        epsilon_rb : float
+            Background relative permittivity of the medium.
+
+        sigma_b : float
+            Background conductivity of the medium [S/m].
+
+        frequency : float
+            Linear frequency of operation [Hz].
+    """
+    return ((epsilon_r - 1j*sigma/omega/ct.epsilon_0)
+            / (epsilon_rb - 1j*sigma_b/omega/ct.epsilon_0) - 1)
+
+
+def get_greenfunction(xm, ym, x, y, kb):
+    r"""Compute the Green function matrix for pulse basis discre.
+
+    The routine computes the Green function based on a discretization of
+    the integral equation using pulse basis functions [1]_.
+
+    Parameters
+    ----------
+        xm : `numpy.ndarray`
+            A 1-d array with the x-coordinates of measumerent points in
+            the S-domain [m].
+
+        ym : `numpy.ndarray`
+            A 1-d array with the y-coordinates of measumerent points in
+            the S-domain [m].
+
+        x : `numpy.ndarray`
+            A meshgrid matrix of x-coordinates in the D-domain [m].
+
+        y : `numpy.ndarray`
+            A meshgrid matrix of y-coordinates in the D-domain [m].
+
+        kb : float or complex
+            Wavenumber of background medium [1/m].
+
+    Returns
+    -------
+        G : `numpy.ndarray`, complex
+            A matrix with the evaluation of Green function at D-domain
+            for each measument point, considering pulse basis
+            discretization. The shape of the matrix is NM x (Nx.Ny),
+            where NM is the number of measurements (size of xm, ym) and
+            Nx and Ny are the number of points in each axis of the
+            discretized D-domain (shape of x, y).
+
+    References
+    ----------
+    .. [1] Pastorino, Matteo. Microwave imaging. Vol. 208. John Wiley
+       & Sons, 2010.
+    """
+    Ny, Nx = x.shape
+    M = xm.size
+    dx, dy = x[0, 1]-x[0, 0], y[1, 0]-y[0, 0]
+    an = np.sqrt(dx*dy/np.pi)  # radius of the equivalent circle
+
+    xg = np.tile(xm.reshape((-1, 1)), (1, Nx*Ny))
+    yg = np.tile(ym.reshape((-1, 1)), (1, Nx*Ny))
+    R = np.sqrt((xg-np.tile(np.reshape(x, (Nx*Ny, 1)).T, (M, 1)))**2
+                + (yg-np.tile(np.reshape(y, (Nx*Ny, 1)).T, (M, 1)))**2)
+
+    G = (-1j*kb*np.pi*an/2*spc.jv(1, kb*an) * spc.hankel2(0, kb*R))
+    G[R == 0] = 1j/2*(np.pi*kb*an*spc.hankel2(1, kb*an)-2j)
+
+    return G
