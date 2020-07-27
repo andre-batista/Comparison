@@ -74,6 +74,7 @@ CONJUGATED_GRADIENT_METHOD = 'cg'
 LEAST_SQUARES_METHOD = 'lstsq'
 MOZOROV_CHOICE = 'mozorov'
 LAVARELLO_CHOICE = 'lavarello'
+EXHAUSTIVE_CHOICE = 'exhaustive'
 FIXED_CHOICE = 'fixed'
 
 
@@ -196,8 +197,10 @@ class MethodOfWeightedResiduals(inv.Inverse):
             self.linsolver = linear_solver
             if isinstance(parameter, str):
                 if (parameter == MOZOROV_CHOICE
-                        or parameter == LAVARELLO_CHOICE):
+                        or parameter == LAVARELLO_CHOICE
+                        or parameter == EXHAUSTIVE_CHOICE):
                     self._choice_strategy = parameter
+                    self.parameter = None
                 elif parameter == FIXED_CHOICE:
                     raise error.MissingInputError(
                         'MethodOfWeightedResiduals.__init__',
@@ -226,7 +229,8 @@ class MethodOfWeightedResiduals(inv.Inverse):
                             type(parameter[1])
                         )
                 elif (parameter[0] == LAVARELLO_CHOICE
-                        or parameter[0] == MOZOROV_CHOICE):
+                        or parameter[0] == MOZOROV_CHOICE
+                        or parameter[0] == EXHAUSTIVE_CHOICE):
                     self._choice_strategy = parameter[0]
                     self.parameter = parameter[1]
                 else:
@@ -690,3 +694,124 @@ def mozorov_choice(K, y, delta):
            Media, 2011.
     """
     return delta*lag.norm(K)**2/(lag.norm(y)-delta)
+
+
+@jit(nopython=True)
+def exhaustive_choice(A, b, bounds=(-25, 5)):
+    r"""Determine the Tikhonov parameter through exhaustive search.
+
+    The routine estimates regularization parameter of Tikhonov method
+    through one-dimensional optimization (Golden Section Algorithm).
+
+    Parameters
+    ----------
+        A : 2-d :class:`numpy.ndarray`
+            Coefficient matrix of the linear system.
+
+        b : 1-d :class:`numpy.ndarray`
+            Right-hand-side of the linear system.
+
+        bounds : 2-tuple
+            Minimum and maximum value of the exponential form of the
+            regularization parameter.
+    """
+    # Auxiliar variables
+    AsA = np.conj(A.T)@A
+    Asb = np.conj(A.T)@b
+    eye = np.eye(A.shape[1])
+
+    # Initial guess of frequency interval
+    xmin, xmax = bounds
+
+    # Error of the initial guess
+    fa = lag.norm(b - A@lag.solve(AsA + 10**xmin*eye, Asb))
+    fb = lag.norm(b - A@lag.solve(AsA + 10**xmax*eye, Asb))
+
+    x_hist.append(xmin)
+    f_hist.append(fa)
+    x_hist.append(xmax)
+    f_hist.append(fb)
+
+    # Find interval
+    evals = 2
+    while fb < fa:
+        xmin = xmax
+        fa = fb
+        xmax = 2*xmax
+        fb = lag.norm(b - A@lag.solve(AsA + 10**xmax*eye, Asb))
+
+        x_hist.append(xmax)
+        f_hist.append(fb)
+
+        evals += 1
+    if evals <= 3:
+        xmin = bounds[0]
+    else:
+        xmin = xmin/2
+
+    # Solve the frequency
+    xa = xmax - .618*(xmax-xmin)
+    xb = xmin + .618*(xmax-xmin)
+    fa = lag.norm(b - A@lag.solve(AsA + 10**xa*eye, Asb))
+    fb = lag.norm(b - A@lag.solve(AsA + 10**xb*eye, Asb))
+
+    while (xmax-xmin) > 1e-3:
+        if fa > fb:
+            xmin = xa
+            xa = xb
+            xb = xmin + 0.618*(xmax-xmin)
+            fa = fb
+            fb = lag.norm(b - A@lag.solve(AsA + 10**xb*eye, Asb))
+
+            x_hist.append(xb)
+            f_hist.append(fb)
+
+        else:
+            xmax = xb
+            xb = xa
+            xa = xmax - 0.618*(xmax-xmin)
+            fb = fa
+            fa = lag.norm(b - A@lag.solve(AsA + 10**xa*eye, Asb))
+
+            x_hist.append(xa)
+            f_hist.append(fa)
+
+    return 10**((xmin+xmax)/2)
+
+
+@jit(nopython=True)
+def lcurve_choice(A, b, bounds=(-20, 0), number_terms=21):
+    """Determine the regularization parameter through L-curve.
+
+    The regularization parameter is determined according to the L-curve.
+    The L-curve is the graph between error and solution norms. The
+    values are normalized and the chosen point is the one in which its
+    distance from (0, 0) is minimum.
+
+    Parameters
+    ----------
+        A : 2-d :class:`numpy.ndarray`
+            Coefficient matrix of the linear system.
+
+        b : 1-d :class:`numpy.ndarray`
+            Right-hand-side of the linear system.
+
+        bounds : 2-tuple
+            Minimum and maximum value of the exponential form of the
+            regularization parameter.
+
+        number_terms : int
+            Number of samples at the L-curve.
+    """
+    f1, f2 = np.zeros(number_terms), np.zeros(number_terms)
+    AsA = np.conj(A.T)@A
+    Asb = np.conj(A.T)@b
+    eye = np.eye(A.shape[1])
+    alpha = 10**np.linspace(bounds[0], bounds[1], number_terms)
+    for i in range(number_terms):
+        x = lag.solve(AsA + alpha[i]*eye, Asb)
+        f1[i] = lag.norm(b-A@x)
+        f2[i] = lag.norm(x)
+    f1, f2 = f1/np.amax(f1), f2/np.amax(f2)
+    knee = np.argmin(np.sqrt(f1**2 + f2**2))
+    return alpha[knee]

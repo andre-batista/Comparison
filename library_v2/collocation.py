@@ -216,20 +216,23 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
         """
         NY, NX = inputdata.resolution
         chi = np.zeros((NY, NX), dtype=complex)
-        omega = 2*np.pi*self.configuration.f
+
         for i in range(NX):
             for j in range(NY):
                 chi[j, i] = np.sum(alpha*self._fij[:, j*NX+i])
 
         if (self.configuration.perfect_dielectric
                 or not self.configuration.good_conductor):
-            inputdata.epsilon_r = (np.imag(chi)/ct.epsilon_0/omega
-                                   + self.configuration.epsilon_rb)
+            epsilon_rb = self.configuration.epsilon_rb
+            inputdata.epsilon_r = epsilon_rb*(np.real(chi)+1)
             inputdata.epsilon_r[inputdata.epsilon_r < 1] = 1
 
         if (self.configuration.good_conductor
                 or not self.configuration.perfect_dielectric):
-            inputdata.sigma = np.real(chi) + self.configuration.sigma_b
+            sigma_b = self.configuration.sigma_b
+            omega = 2*np.pi*self.configuration.f
+            epsilon_b = ct.epsilon_0*self.configuration.epsilon_rb
+            inputdata.sigma = sigma_b - np.imag(chi)*omega*epsilon_b
             inputdata.sigma[inputdata.sigma < 0] = 0
 
     def _set_meshes(self, inputdata):
@@ -290,12 +293,10 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
         NM, NS = self.configuration.NM, self.configuration.NS
         NY, NX = resolution
         K = np.zeros((NM*NS, NX*NY), dtype=complex)
-        mub = ct.mu_0
-        omega = 2*np.pi*self.configuration.f
+        kb = self.configuration.kb
         s = 0
         for i in range(NM*NS):
-            K[i, :] = (1j*omega*mub*et[:, s]*1j/4
-                       * hankel2(0, self.configuration.kb*self._R[i, :]))
+            K[i, :] = -kb**2*1j/4*hankel2(0, kb*self._R[i, :])*et[:, s]
             # Matching the s-domain indexation
             if s == NS-1:
                 s = 0
@@ -316,14 +317,12 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
         """
         N = self._u.size
         Q, P = self.discretization
-        omega = 2*np.pi*self.configuration.f
-        mub = ct.mu_0
+        kb = self.configuration.kb
         Kpq = np.zeros((P*Q, N), dtype=complex)
         s = 0
         for i in range(P*Q):
             R = np.sqrt((self._xpq[i]-self._u)**2+(self._ypq[i]-self._v)**2)
-            Kpq[i, :] = (1j*omega*mub*et[:, s]*1j/4
-                         * hankel2(0, self.configuration.kb*R))
+            Kpq[i, :] = -kb**2*1j/4*hankel2(0, kb*R)*et[:, s]
             if s == self.configuration.NS-1:
                 s = 0
             else:
@@ -336,7 +335,7 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
         message = (message + 'Discretization: '
                    + self.discretization_method_name + ', size: %d'
                    % self.discretization[0] + 'x%d' % self.discretization[1]
-                   + '\Trial function: ' + self.trial_function + '\n')
+                   + 'Trial function: ' + self.trial_function + '\n')
         return message
 
 

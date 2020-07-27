@@ -228,21 +228,23 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
                 Solution of `A*alpha=beta`.
         """
         NY, NX = inputdata.resolution
-        omega = 2*np.pi*self.configuration.f
-        fa = np.zeros((NY, NX), dtype=complex)
+        chi = np.zeros((NY, NX), dtype=complex)
         for i in range(NX):
             for j in range(NY):
-                fa[j, i] = np.sum(alpha*self._fij[:, j*NX+i])
+                chi[j, i] = np.sum(alpha*self._fij[:, j*NX+i])
 
         if (self.configuration.perfect_dielectric
                 or not self.configuration.good_conductor):
-            inputdata.epsilon_r = (np.imag(fa)/ct.epsilon_0/omega
-                                   + self.configuration.epsilon_rb)
+            epsilon_rb = self.configuration.epsilon_rb
+            inputdata.epsilon_r = epsilon_rb*(np.real(chi)+1)
             inputdata.epsilon_r[inputdata.epsilon_r < 1] = 1
 
         if (self.configuration.good_conductor
                 or not self.configuration.perfect_dielectric):
-            inputdata.sigma = np.real(fa) + self.configuration.sigma_b
+            sigma_b = self.configuration.sigma_b
+            omega = 2*np.pi*self.configuration.f
+            epsilon_b = ct.epsilon_0*self.configuration.epsilon_rb
+            inputdata.sigma = sigma_b - np.imag(chi)*omega*epsilon_b
             inputdata.sigma[inputdata.sigma < 0] = 0
 
     def __str__(self):
@@ -359,8 +361,7 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
                 respectively.
         """
         NS = self.configuration.NS
-        mub = ct.mu_0
-        omega = 2*np.pi*self.configuration.f
+        kb = self.configuration.kb
         K = np.zeros(self._R.shape, dtype=complex)
         if self._FLAG_INTERPOLATION:
             L = self.constant_iterpolation*NS
@@ -368,8 +369,7 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
             L = NS
         s = 0
         for i in range(K.shape[0]):
-            K[i, :] = (1j*omega*mub*et[:, s]*1j/4
-                       * hankel2(0, self.configuration.kb*self._R[i, :]))
+            K[i, :] = -kb**2*1j/4*hankel2(0, kb*self._R[i, :])*et[:, s]
             # Matching the measurement-source indexation
             if s == L-1:
                 s = 0
@@ -541,7 +541,7 @@ def computebeta(es, gij, dtheta, dphi):
     -----
         Each element of the right-hand-side array corresponds to:
         .. math:: \beta_{wz,pq} = \int_0^{2\pi}\int_0^{2\pi}
-           E^s_z(\theta, \phi) g_{wz}(\theta, \phi) d\phi d\theta
+        E^s_z(\theta, \phi) g_{wz}(\theta, \phi) d\phi d\theta
     """
     beta = 1j*np.zeros(gij.shape[0])
     for i in range(gij.shape[0]):
