@@ -4,6 +4,7 @@ Explain the module.
 """
 
 # Standard libraries
+import copy as cp
 import numpy as np
 from numpy import random as rnd
 from numpy import pi
@@ -19,25 +20,116 @@ import results as rst
 # Constants
 STANDARD_SYNTHETIZATION_RESOLUTION = 30
 STANDARD_RECOVER_RESOLUTION = 20
-GEOMETRIC_SHAPES = 'geometric'
-SURFACES_SHAPES = 'surfaces'
+GEOMETRIC_PATTERN = 'geometric'
+SURFACES_PATTERN = 'surfaces'
 
 
 class Experiment:
     """Give a title to the class."""
 
     name = str
-    maximum_contrast = list(complex)
-    maximum_object_size = list(float)
-    maximum_average_contrast = list(complex)
+    maximum_contrast = list([complex])
+    maximum_object_size = list([float])
+    maximum_average_contrast = list([complex])
     map_pattern = str
     sample_size = int
     synthetization_resolution = (int, int)
     recover_resolution = (int, int)
-    configurations = list
-    scenarios = list
-    methods = list
-    results = list
+    configurations = list()
+    scenarios = list()
+    methods = list()
+    results = list()
+
+    @property
+    def configurations(self):
+        return cp.deepcopy(self._configurations)
+
+    @configurations.setter
+    def configurations(self, configuration):
+        if type(configurations) is cfg.Configuration:
+            self._configurations = [cp.deepcopy(configurations)]
+        elif type(configurations) is list:
+            self._configurations = cp.deepcopy(configurations)
+        else:
+            self._configurations = None
+
+    @property
+    def scenarios(self):
+        return cp.deepcopy(self._scenarios)
+
+    @scenarios.setter
+    def scenarios(self, scenarios):
+        if type(scenarios) is ipt.InputData:
+            self._scenarios = [cp.deepcopy(scenarios)]
+        elif type(scenarios) is list:
+            self._scenarios = cp.deepcopy(scenarios)
+        else:
+            self._scenerios = None
+
+    @property
+    def methods(self):
+        return cp.deepcopy(self._methods)
+
+    @methods.setter
+    def methods(self, methods):
+        if type(methods) is slv.Solver:
+            self._methods = [cp.deepcopy(methods)]
+        elif type(scenarios) is list:
+            self._methods = cp.deepcopy(methods)
+        else:
+            self._methods = None
+
+    @property
+    def maximum_contrast(self):
+        return self._maximum_contrast
+
+    @maximum_contrast.setter
+    def maximum_contrast(self, maximum_contrast):
+        if type(maximum_contrast) is float:
+            self._maximum_contrast = [maximum_contrast + 0j]
+        elif type(maximum_contrast) is complex:
+            self._maximum_contrast = [maximum_contrast]
+        elif type(maximum_contrast) is list:
+            self._maximum_contrast = list.copy(maximum_contrast)
+
+    @property
+    def maximum_object_size(self):
+        return self._maximum_object_size
+
+    @maximum_object_size.setter
+    def maximum_object_size(self, maximum_object_size):
+        if type(maximum_object_size) is float:
+            self._maximum_object_size = [maximum_object_size]
+        elif type(maximum_object_size) is list:
+            self._maximum_object_size = list.copy(maximum_object_size)
+
+    @property
+    def maximum_average_contrast(self):
+        return self._maximum_average_contrast
+
+    @maximum_average_contrast.setter
+    def maximum_average_contrast(self, maximum_average_contrast):
+        if type(maximum_average_contrast) is float:
+            self._maximum_average_contrast = [maximum_average_contrast + 0j]
+        elif type(maximum_average_contrast) is complex:
+            self._maximum_average_contrast = [maximum_average_contrast]
+        elif type(maximum_average_contrast) is list:
+            self._maximum_average_contrast = list.copy(
+                maximum_average_contrast
+            )
+
+    @property
+    def map_pattern(self):
+        return self._map_pattern
+
+    @map_pattern.setter
+    def map_pattern(self, map_pattern):
+        if map_pattern == GEOMETRIC_PATTERN or map_pattern == SURFACES_PATTERN:
+            self._map_pattern = map_pattern
+        else:
+            raise error.WrongValueInput('Experiment', 'map_pattern',
+                                        GEOMETRIC_PATTERN + ' or '
+                                        + SURFACES_PATTERN, map_pattern)
 
     def __init__(self, name, maximum_contrast, maximum_object_size,
                  maximum_average_contrast, map_pattern, sample_size=None,
@@ -45,31 +137,19 @@ class Experiment:
                  configurations=None, scenarios=None, methods=None):
         """Summarize the method."""
         self.name = name
+        self.maximum_contrast = maximum_contrast
+        self.maximum_object_size = maximum_object_size
+        self.maximum_average_contrast = maximum_average_contrast
         self.map_pattern = map_pattern
         self.sample_size = sample_size
         self.synthetization_resolution = synthetization_resolution
         self.recover_resolution = recover_resolution
+        self.configurations = configurations
         self.scenarios = scenarios
         self.methods = methods
         self.results = None
 
-        if type(configurations) is not list:
-            self.configurations = list(configurations)
-        else:
-            self.configurations = configurations
-        if isinstance(maximum_contrast, complex):
-            self.maximum_contrast = list(maximum_contrast)
-        elif isinstance(maximum_contrast, list):
-            self.maximum_contrast = maximum_contrast
-        if isinstance(maximum_object_size, float):
-            self.maximum_object_size = list(maximum_object_size)
-        elif isinstance(maximum_object_size, list):
-            self.maximum_object_size = maximum_object_size
-        if isinstance(maximum_average_contrast, complex):
-            self.maximum_average_contrast = list(maximum_average_contrast)
-        elif isinstance(maximum_average_contrast, list):
-            self.maximum_average_contrast = maximum_average_contrast
-
+        # Enforcing that all experimentation parameters are of same length
         if (len(self.maximum_contrast) == len(self.maximum_object_size)
                 and len(self.maximum_object_size)
                 == len(self.maximum_average_contrast)):
@@ -111,9 +191,7 @@ class Experiment:
             raise error.MissingInputError('Experiment.run', 'methods')
         elif methods is not None:
             self.methods = methods
-        if scenarios is not None and type(scenarios) is not list:
-            self.scenarios = list(scenarios)
-        elif scenarios is not None:
+        if scenarios is not None:
             self.scenarios = scenarios
 
         if self.synthetization_resolution is None:
@@ -127,126 +205,132 @@ class Experiment:
                 self.synthetization_resolution.append(resolution)
 
         if self.recover_resolution is None:
-            if self.scenarios is not None:
-                self.recover_resolution = list()
-                for i in range(len(self.scenarios)):
-                    if self.scenarios[0].resolution is not None:
-                        self.recover_resolution = self.scenarios[0].resolution
-                else:
-                    if self.scenarios.resolution is not None:
-                        self.recover_resolution = self.scenarios.resolution
-
-            if self.recover_resolution is None:
-                if isinstance(self.configurations, list):
-                    self.recover_resolution = list()
-                    for i in range(len(self.configurations)):
-                        resolution = compute_resolution(
-                            self.configurations[i].lambda_b,
-                            self.configurations[i].Ly,
-                            self.configurations[i].Lx,
-                            STANDARD_RECOVER_RESOLUTION
-                        )
-                        self.recover_resolution.append(resolution)
-                else:
-                    self.recover_resolution = compute_resolution(
-                        self.configurations[i].lambda_b,
-                        self.configurations[i].Ly, self.configurations[i].Lx,
-                        STANDARD_RECOVER_RESOLUTION
-                    )
+            self.recover_resolution = list()
+            for i in range(len(self.configurations)):
+                resolution = compute_resolution(
+                    self.configurations[i].lambda_b,
+                    self.configurations[i].Ly, self.configurations[i].Lx,
+                    STANDARD_RECOVER_RESOLUTION
+                )
+                self.recover_resolution.append(resolution)
 
         if self.scenarios is None:
-            self.scenarios = list()
+            self.scenarios = []
             for i in range(len(self.maximum_contrast)):
                 self.scenarios.append(list())
                 for j in range(len(self.configurations)):
                     self.scenarios[i].append(list())
-                    
-                
+                    for k in range(len(self.sample_size)):
+                        new_scenario = create_scenario(
+                            self.configurations[j],
+                            self.synthetization_resolution[j],
+                            self.map_pattern,
+                            self.maximum_contrast[i],
+                            self.maximum_average_contrast[i],
+                            self._maximum_object_size[i]
+                        )
+                        self.scenarios[i][j].append(cp.deepcopy(new_scenario))
 
-            if self.map_pattern == GEOMETRIC_SHAPES:
-if isinstance(self.maximum_contrast, float):
-                NS = int(np.round(10*rnd.rand()))  # Number of sides
-                R = self.maximum_object_size
-                if len(self.configurations) == 1:
-                    omega = 2*pi*self.configurations.f
-                    if not self.configurations.good_conductor:
-                        max_epsilon_r = cfg.get_relative_permittivity(
-                            self.maximum_contrast,
-                            self.configurations.epsilon_rb
-                        )
-                    else:
-                        max_epsilon_r = 1.
-                    if not self.configurations.perfect_dielectric:
-                        max_sigma = cfg.get_conductivity(
-                            self.maximum_contrast, omega,
-                            self.configurations.epsilon_rb,
-                            self.configurations.sigma_b
-                        )
-                    else:
-                        max_sigma = 0.
-                    for i in range(self.sample_size):
-                        epsilon_ro = 1 + (max_epsilon_r-1)*rnd.rand()
-                        sigma_o = max_sigma*rnd.rand()
-                        Lx = self.configurations.Lx
-                        Ly = self.configurations.Ly
-                        xmin, xmax = cfg.get_bounds(Lx)
-                        ymin, ymax = cfg.get_bounds(Ly)
-                        center = [xmin+R+(xmax-R-(xmin+R))*rnd.rand(),
-                                  ymin+R+(ymax-R-(ymin+R))*rnd.rand()]
-                        epsilon_r, sigma = draw_random(
-                            NS, R, axis_length_x=self.configurations.Lx,
-                            axis_length_y=self.configurations.Ly,
-                            resolution=self.synthetization_resolution,
-                            background_relative_permittivity=(
-                                self.configurations.epsilon_rb
-                            ), background_conductivity=(
-                                self.configurations.sigma_b
-                            ), object_relative_permittivity=epsilon_ro,
-                            object_conductivity=sigma_o, center=center
-                        )
-                        if self.configurations.perfect_dielectric:
-                            self.scenarios.append(ipt.InputData(
-                                name=self.name + '_' + str(i),
-                                resolution=self.synthetization_resolution,
-                                relative_permittivity_map=epsilon_r,
-                                noise=self.configurations.noise,
-                                compute_map_error=True
-                            ))
-                        elif self.configurations.good_conductor:
-                            self.scenarios.append(ipt.InputData(
-                                name=self.name + '_' + str(i),
-                                resolution=self.synthetization_resolution,
-                                conductivity_map=sigma,
-                                noise=self.configurations.noise,
-                                compute_map_error=True
-                            ))
-                        else:
-                            self.scenarios.append(ipt.InputData(
-                                name=self.name + '_' + str(i),
-                                resolution=self.synthetization_resolution,
-                                relative_permittivity_map=epsilon_r,
-                                conductivity_map=sigma,
-                                noise=self.configurations.noise,
-                                compute_map_error=True
-                            ))
-                else:
-                    for i in range(len(self.configurations)):
-                        omega = 2*pi*self.configurations[i].f
-                        if not self.configurations[i].good_conductor:
-                            max_epsilon_r = cfg.get_relative_permittivity(
-                                self.maximum_contrast,
-                                self.configurations[i].epsilon_rb
-                            )
-                        else:
-                            max_epsilon_r = 1.
-                        if not self.configurations[i].perfect_dielectric:
-                            max_sigma = cfg.get_conductivity(
-                                self.maximum_contrast, omega,
-                                self.configurations[i].epsilon_rb,
-                                self.configurations[i].sigma_b
-                            )
-                        else:
-                            max_sigma = 0.
+
+def create_scenario(name, configuration, resolution, map_pattern,
+                    maximum_contrast, maximum_average_contrast,
+                    maximum_object_size=None):
+    """Summarize this method."""
+    Lx = configuration.Lx/configuration.lambda_b
+    Ly = configuration.Ly/configuration.lambda_b
+    epsilon_rb = configuration.epsilon_rb
+    sigma_b = configuration.sigma_b
+    omega = 2*pi*configuration.f
+
+    if configuration.perfect_dielectric:
+        min_sigma = max_sigma = sigma_b
+    else:
+        min_sigma = 0.
+        max_sigma = cfg.get_conductivity(maximum_contrast, omega, epsilon_rb,
+                                         sigma_b)
+
+    if configuration.good_conductor:
+        min_epsilon_r = max_epsilon_r = epsilon_rb
+    else:
+        min_epsilon_r = 1.
+        max_epsilon_r = cfg.get_relative_permittivity(maximum_contrast,
+                                                      epsilon_rb)
+
+    if map_pattern == GEOMETRIC_PATTERN:
+        if maximum_object_size is None:
+            maximum_object_size = .4*min([Lx, Ly])/2
+        dx, dy = Lx/resolution[0], Ly/resolution[1]
+        minimum_object_size = 8*max([dx, dy])
+        xmin, xmax = cfg.get_bounds(Lx)
+        ymin, ymax = cfg.get_bounds(Ly)
+        epsilon_r = epsilon_rb*np.ones(resolution)
+        sigma = sigma_b*np.ones(resolution)
+        chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
+                                   omega)
+        while contrast_density(chi) <= .8*maximum_average_contrast:
+            radius = minimum_object_size + (maximum_object_size
+                                            - minimum_object_size)*rnd.rand()
+            epsilon_ro = min_epsilon_r + (max_epsilon_r
+                                          - min_epsilon_r)*rnd.rand()
+            sigma_o = min_sigma + (max_sigma-min_sigma)*rnd.rand()
+            center = [xmin+radius + (xmax-radius-(xmin+radius))*rnd.rand(),
+                      ymin+radius + (ymax-radius-(ymin+radius))*rnd.rand()]
+            epsilon_r, sigma = draw_random(
+                int(np.ceil(15*rnd.rand())), radius, axis_length_x=Lx,
+                axis_length_y=Ly, background_relative_permittivity=epsilon_rb,
+                background_conductivity=sigma_b,
+                object_relative_permittivity=epsilon_ro,
+                object_conductivity=sigma_o, center=center,
+                relative_permittivity_map=epsilon_r, conductivity_map=sigma
+            )
+            chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
+                                       omega)
+
+    elif map_pattern == SURFACES_PATTERN:
+        if rnd.rand() < .5:
+            epsilon_r, sigma = draw_random_waves(
+                int(np.ceil(15*rnd.rand())), 10, resolution=resolution,
+                rel_permittivity_amplitude=max_epsilon_r-epsilon_rb,
+                conductivity_amplitude=max_sigma-sigma_b, axis_length_x=Lx,
+                axis_length_y=Ly, background_relative_permittivity=epsilon_rb,
+                conductivity_map=sigma_b
+            )
+        else:
+            if maximum_object_size is None:
+                maximum_object_size = .4*min([Lx, Ly])/2
+            dx, dy = Lx/resolution[0], Ly/resolution[1]
+            minimum_object_size = 8*max([dx, dy])
+            epsilon_r = epsilon_rb*np.ones(resolution)
+            sigma = sigma_b*np.ones(resolution)
+            chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
+                                       omega)
+            while contrast_density(chi) <= .8*maximum_average_contrast:
+                epsilon_r, sigma = draw_random_gaussians(
+                    1, maximum_spread=maximum_object_size,
+                    minimum_spread=minimum_object_size,
+                    rel_permittivity_amplitude=max_epsilon_r,
+                    conductivity_amplitude=max_sigma, axis_length_x=Lx,
+                    axis_length_y=Ly, background_conductivity=sigma_b,
+                    background_relative_permittivity=epsilon_rb,
+                    relative_permittivity_map=epsilon_r,
+                    conductivity_map=sigma
+                )
+
+    scenario = ipt.InputData(name=name,
+                             configuration_filename=configuration.name,
+                             resolution=resolution)
+
+    if not configuration.good_conductor:
+        scenario.epsilon_r = epsilon_r
+    if not configuration.perfect_dielectric:
+        scenario.sigma = sigma
+
+    return scenario
+
+
+def contrast_density(contrast_map):
+    """Summarize the method."""
+    return np.mean(np.abs(contrast_map))
 
 
 def compute_resolution(wavelength, length_y, length_x,
@@ -1885,7 +1969,7 @@ def draw_wave(number_peaks, rel_permittivity_peak=1., conductivity_peak=0.,
 def draw_random_waves(number_waves, maximum_number_peaks,
                       maximum_number_peaks_y=None, resolution=None,
                       rel_permittivity_amplitude=0., conductivity_amplitude=0.,
-                      number_peaks_y=None, axis_length_x=2., axis_length_y=2.,
+                      axis_length_x=2., axis_length_y=2.,
                       background_relative_permittivity=1.,
                       background_conductivity=0.,
                       relative_permittivity_map=None, conductivity_map=None,

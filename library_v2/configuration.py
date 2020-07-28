@@ -51,12 +51,11 @@ The following routines are defined
 
 import pickle
 import numpy as np
-import scipy.constants as ct
-import scipy.special as spc
+from scipy import constants as ct
 import matplotlib.pyplot as plt
 from numba import jit
-import library_v2.error as error
-import library_v2.results as rst
+import error
+import results as rst
 
 # Constants for easy access of saved pickle file
 NAME = 'name'
@@ -127,7 +126,6 @@ class Configuration:
 
         E0
             Magnitude of incident field [V/m].
-
     """
 
     name = ''
@@ -494,7 +492,7 @@ def compute_wavenumber(frequency, epsilon_r=1., mu_r=1., sigma=0.):
         wavenumber : float
             In [1/m].
     """
-    omega, mu, epsilon = 2*np.pi*frequency
+    omega = 2*np.pi*frequency
     mu, epsilon = mu_r*ct.mu_0, epsilon_r*ct.epsilon_0
     return np.sqrt(-1j*omega*mu*sigma + omega**2*mu*epsilon)
 

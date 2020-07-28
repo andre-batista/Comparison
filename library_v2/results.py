@@ -14,9 +14,9 @@ The list of routines...
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import library_v2.error as error
-import library_v2.configuration as cfg
-import library_v2.inputdata as ipt
+import error
+import configuration as cfg
+import inputdata as ipt
 
 # Strings for easier implementation of plots
 XLABEL_STANDARD = r'x [$\lambda_b$]'

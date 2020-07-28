@@ -11,10 +11,10 @@ import numpy as np
 import copy as cp
 
 # Developed libraries
-import library_v2.error as error
-import library_v2.configuration as cfg
-import library_v2.inputdata as ipt
-import library_v2.results as rst
+import error
+import configuration as cfg
+import inputdata as ipt
+import results as rst
 
 
 class Solver(ABC):

@@ -75,6 +75,7 @@ LEAST_SQUARES_METHOD = 'lstsq'
 MOZOROV_CHOICE = 'mozorov'
 LAVARELLO_CHOICE = 'lavarello'
 EXHAUSTIVE_CHOICE = 'exhaustive'
+LCURVE_CHOICE = 'lcurve'
 FIXED_CHOICE = 'fixed'
 
 
@@ -159,6 +160,10 @@ class MethodOfWeightedResiduals(inv.Inverse):
                   principle for defining the regularization parameter of
                   Tikhonov regularization [2]_. In this case,
                   `parameter='mozorov'`.
+                * Exhaustive Search: search the best parameter value
+                  through unidimensional optimization.
+                * L-curve: the parameter value is chosen according to
+                  the curve which relates error and solution norm.
 
             * `linear_solver='landweber'`: the method depend on two
               parameters: the regularization coefficient and the number
@@ -198,9 +203,17 @@ class MethodOfWeightedResiduals(inv.Inverse):
             if isinstance(parameter, str):
                 if (parameter == MOZOROV_CHOICE
                         or parameter == LAVARELLO_CHOICE
-                        or parameter == EXHAUSTIVE_CHOICE):
+                        or parameter == EXHAUSTIVE_CHOICE
+                        or parameter == LCURVE_CHOICE):
                     self._choice_strategy = parameter
                     self.parameter = None
+                elif parameter == EXHAUSTIVE_CHOICE:
+                    self._choice_strategy = parameter
+                    self._bounds = None
+                elif parameter == LCURVE_CHOICE:
+                    self._choice_strategy = parameter
+                    self._bounds = None
+                    self._number_terms = None
                 elif parameter == FIXED_CHOICE:
                     raise error.MissingInputError(
                         'MethodOfWeightedResiduals.__init__',
@@ -229,16 +242,49 @@ class MethodOfWeightedResiduals(inv.Inverse):
                             type(parameter[1])
                         )
                 elif (parameter[0] == LAVARELLO_CHOICE
-                        or parameter[0] == MOZOROV_CHOICE
-                        or parameter[0] == EXHAUSTIVE_CHOICE):
+                        or parameter[0] == MOZOROV_CHOICE):
                     self._choice_strategy = parameter[0]
                     self.parameter = parameter[1]
+                elif parameter[0] == EXHAUSTIVE_CHOICE:
+                    self._choice_strategy = parameter[0]
+                    if len(parameter) == 3:
+                        self._bounds = (parameter[1], parameter[2])
+                        self.parameter = None
+                    elif len(parameter) == 2:
+                        self._bounds = (parameter[1], 0)
+                        self.parameter = None
+                    else:
+                        raise error.WrongValueInput(
+                            'MethodOfWeightedResiduals', 'parameter',
+                            "'exhaustive' or ('exhaustive', lower_bound) " +
+                            "or ('exaustive', lower_bound, upper_bound)",
+                            "len(parameter) > 3"
+                        )
+                elif parameter[0] == LCURVE_CHOICE:
+                    self._choice_strategy = parameter[0]
+                    if len(parameter) == 2:
+                        self._number_terms = parameter[1]
+                        self._bounds = None
+                    elif len(parameter) == 3:
+                        self._number_terms = parameter[1]
+                        self._bounds = (parameter[2], 0)
+                    elif len(parameter) == 4:
+                        self._number_terms = parameter[1]
+                        self._bounds = (parameter[2], parameter[3])
+                    else:
+                        raise error.WrongValueInput(
+                            'MethodOfWeightedResiduals', 'parameter',
+                            "'lcurve' or ('lcurve', number_terms) " +
+                            "or ('lcurve', number_terms, lower_bound) " +
+                            "or ('lcurve', number_terms, lower_bound, " +
+                            " upper_bound)", "len(parameter) > 4"
+                        )
                 else:
                     raise error.WrongValueInput(
                         'MethodOfWeightedResiduals.__init__',
                         '(choice_strategy,...)',
-                        "{'mozorov', 'lavarello', 'fixed'}",
-                        parameter[0]
+                        "{'mozorov', 'lavarello', 'fixed', 'exhaustive'," +
+                        " 'lcurve'}", parameter[0]
                     )
             if self._choice_strategy == LAVARELLO_CHOICE:
                 self._beta_approximation = None
@@ -302,7 +348,7 @@ class MethodOfWeightedResiduals(inv.Inverse):
         if self.linsolver == TIKHONOV_METHOD:
             if self._choice_strategy == MOZOROV_CHOICE:
                 self.parameter = mozorov_choice(A, beta, inputdata.noise)
-            if self._choice_strategy == LAVARELLO_CHOICE:
+            elif self._choice_strategy == LAVARELLO_CHOICE:
                 if self._beta_approximation is None:
                     alpha0 = quick_guess(A, beta)
                     self.parameter = lavarello_choice(
@@ -314,6 +360,21 @@ class MethodOfWeightedResiduals(inv.Inverse):
                         A, inputdata.es, np.reshape(self._beta_approximation,
                                                     inputdata.es.shape)
                     )
+            elif self._choice_strategy == EXHAUSTIVE_CHOICE:
+                if self._bounds is None:
+                    self.parameter = exhaustive_choice(A, beta)
+                else:
+                    self.parameter = exhaustive_choice(A, beta, self._bounds)
+            elif self._choice_strategy == LCURVE_CHOICE:
+                if self._bounds is None and self._number_terms is None:
+                    self.parameter = lcurve_choice(A, beta)
+                elif self._bounds is None and self._number_terms is not None:
+                    self.parameter = lcurve_choice(
+                        A, beta, number_terms=self._number_terms
+                    )
+                else:
+                    self.parameter = lcurve_choice(A, beta, self._bounds,
+                                                   self._number_terms)
             alpha = tikhonov(A, beta, self.parameter)
             if self._choice_strategy == LAVARELLO_CHOICE:
                 self._beta_approximation = A@alpha
@@ -727,11 +788,6 @@ def exhaustive_choice(A, b, bounds=(-25, 5)):
     fa = lag.norm(b - A@lag.solve(AsA + 10**xmin*eye, Asb))
     fb = lag.norm(b - A@lag.solve(AsA + 10**xmax*eye, Asb))
 
-    x_hist.append(xmin)
-    f_hist.append(fa)
-    x_hist.append(xmax)
-    f_hist.append(fb)
-
     # Find interval
     evals = 2
     while fb < fa:
@@ -739,10 +795,6 @@ def exhaustive_choice(A, b, bounds=(-25, 5)):
         fa = fb
         xmax = 2*xmax
         fb = lag.norm(b - A@lag.solve(AsA + 10**xmax*eye, Asb))
-
-        x_hist.append(xmax)
-        f_hist.append(fb)
-
         evals += 1
     if evals <= 3:
         xmin = bounds[0]
@@ -763,18 +815,12 @@ def exhaustive_choice(A, b, bounds=(-25, 5)):
             fa = fb
             fb = lag.norm(b - A@lag.solve(AsA + 10**xb*eye, Asb))
 
-            x_hist.append(xb)
-            f_hist.append(fb)
-
         else:
             xmax = xb
             xb = xa
             xa = xmax - 0.618*(xmax-xmin)
             fb = fa
             fa = lag.norm(b - A@lag.solve(AsA + 10**xa*eye, Asb))
-
-            x_hist.append(xa)
-            f_hist.append(fa)
 
     return 10**((xmin+xmax)/2)
 
@@ -803,15 +849,23 @@ def lcurve_choice(A, b, bounds=(-20, 0), number_terms=21):
         number_terms : int
             Number of samples at the L-curve.
     """
-    f1, f2 = np.zeros(number_terms), np.zeros(number_terms)
+    # Auxiliar variables
     AsA = np.conj(A.T)@A
     Asb = np.conj(A.T)@b
     eye = np.eye(A.shape[1])
+
+    f1, f2 = np.zeros(number_terms), np.zeros(number_terms)
     alpha = 10**np.linspace(bounds[0], bounds[1], number_terms)
+
+    # Compute objective-functions
     for i in range(number_terms):
         x = lag.solve(AsA + alpha[i]*eye, Asb)
         f1[i] = lag.norm(b-A@x)
         f2[i] = lag.norm(x)
+
+    # Normalization
     f1, f2 = f1/np.amax(f1), f2/np.amax(f2)
+
+    # Best solution (Closest solution to the utopic one)
     knee = np.argmin(np.sqrt(f1**2 + f2**2))
     return alpha[knee]
