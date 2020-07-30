@@ -1,6 +1,46 @@
-"""Give a title to the module.
+"""Experiments Module
 
-Explain the module.
+This module is intended to provide tools to analyse the perfomance of
+solvers. According to the definition of some parameters, simulations may
+be carried out and there are tools for statistical studies.
+
+This module provides:
+
+    :class:`Experiment`
+        A container for joining methods, inputs and configurations for
+        statistical analysis of performance.
+    :func:`create_scenario`
+        A routine to create random scenarios for experiments.
+    :func:`contrast_density`
+        Evaluate the contrast density of a given map.
+    :func:`isleft`
+        Determine if a point is on the left of a line.
+    :func:`winding_number`
+        Determine if a point is inside a polygon.
+        
+A set of routines for drawing geometric figures is provided:
+
+    :func:`draw_triangle`
+    :func:`draw_square`
+    :func:`draw_rhombus`
+    :func:`draw_trapezoid`
+    :func:`draw_parallelogram`
+    :func:`draw_4star`
+    :func:`draw_5star`
+    :func:`draw_6star`
+    :func:`draw_circle`
+    :func:`draw_ring`
+    :func:`draw_ellipse`
+    :func:`draw_cross`
+    :func:`draw_line`
+    :func:`draw_polygon`
+    :func:`draw_random`
+
+A set of routines for defining surfaces is also provided:
+
+    :func:`draw_wave`
+    :func:`draw_random_waves`
+    :func:`draw_random_gaussians`
 """
 
 # Standard libraries
@@ -16,6 +56,8 @@ import configuration as cfg
 import inputdata as ipt
 import solver as slv
 import results as rst
+import forward as frw
+import mom_cg_fft as mom
 
 # Constants
 STANDARD_SYNTHETIZATION_RESOLUTION = 30
@@ -25,12 +67,52 @@ SURFACES_PATTERN = 'surfaces'
 
 
 class Experiment:
-    """Give a title to the class."""
+    """Experiments container.
+
+    Define and execute an experiment with methods as well as analyses
+    its results.
+
+    An experiment has three parameters: maximum contrast allowed,
+    maximum length allowed of objects and maximum contrast density in
+    the image. These parameters were thought as effect factors on the
+    performance of the methods. Then they need to be fixed for running
+    statistical analyses.
+
+    Attributes
+    ----------
+        name : str
+            A name for the experiment.
+        maximum_contrast : list
+            A list with maximum contrast values allowed in the
+            experiments.
+        maximum_object_size : list
+            A list with maximum values of the size of objects.
+        maximum_contrast_density : list
+            A list with the maximum value of contrast density.
+        map_pattern : {'geometric', 'surfaces'}
+            Define the kind of contrast pattern in the image.
+        sample_size : int
+            Number of scenarios for experiments.
+        synthetization_resolution : 2-tuple
+            Synthetization image resolution.
+        recover_resoluton : 2-tuple
+            Recovered image resolution.
+        configurations : list
+            List of objects of Configuration class.
+        scenarios : list
+            Instances which will be considered.
+        methods : list
+            Set of solvers.
+        results : list
+            List of outputs of executions.
+        forward_solver : :class:`forward.Forward`
+            An object of forward solver for synthetizing data.
+    """
 
     name = str
     maximum_contrast = list([complex])
     maximum_object_size = list([float])
-    maximum_average_contrast = list([complex])
+    maximum_contrast_density = list([complex])
     map_pattern = str
     sample_size = int
     synthetization_resolution = (int, int)
@@ -39,13 +121,23 @@ class Experiment:
     scenarios = list()
     methods = list()
     results = list()
+    forward_solver = None  # frw.Forward()
 
     @property
     def configurations(self):
+        """Get the configurations list."""
         return cp.deepcopy(self._configurations)
 
     @configurations.setter
-    def configurations(self, configuration):
+    def configurations(self, configurations):
+        """Set the configurations attribute.
+
+        There are three options to set this attribute:
+
+        >>> self.configurations = cfg.Configuration
+        >>> self.configurations = [cfg.Configuration, cfg.Configuration]
+        >>> self.configurations = None
+        """
         if type(configurations) is cfg.Configuration:
             self._configurations = [cp.deepcopy(configurations)]
         elif type(configurations) is list:
@@ -55,36 +147,63 @@ class Experiment:
 
     @property
     def scenarios(self):
+        """Get the scenario list."""
         return cp.deepcopy(self._scenarios)
 
     @scenarios.setter
     def scenarios(self, scenarios):
+        """Set the scenarios attribute.
+
+        There are three options to set this attribute:
+
+        >>> self.scenarios = ipt.InputData
+        >>> self.scenarios = [ipt.InputData, ipt.InputData]
+        >>> self.scenarios = None
+        """
         if type(scenarios) is ipt.InputData:
             self._scenarios = [cp.deepcopy(scenarios)]
         elif type(scenarios) is list:
             self._scenarios = cp.deepcopy(scenarios)
         else:
-            self._scenerios = None
+            self._scenarios = None
 
     @property
     def methods(self):
+        """Get the list of methods."""
         return cp.deepcopy(self._methods)
 
     @methods.setter
     def methods(self, methods):
+        """Set the methods attribute.
+
+        There are three options to set this attribute:
+
+        >>> self.methods = slv.Solver
+        >>> self.methods = [slv.Solver, slv.Solver]
+        >>> self.methods = None
+        """
         if type(methods) is slv.Solver:
             self._methods = [cp.deepcopy(methods)]
-        elif type(scenarios) is list:
+        elif type(methods) is list:
             self._methods = cp.deepcopy(methods)
         else:
             self._methods = None
 
     @property
     def maximum_contrast(self):
+        """Get the list of maximum contrast values."""
         return self._maximum_contrast
 
     @maximum_contrast.setter
     def maximum_contrast(self, maximum_contrast):
+        """Set the maximum contrast attribute.
+
+        There are three options to set this attribute:
+
+        >>> self.maximum_contrast = float()
+        >>> self.maximum_contrast = complex()
+        >>> self.maximum_contrast = [complex(), complex()]
+        """
         if type(maximum_contrast) is float:
             self._maximum_contrast = [maximum_contrast + 0j]
         elif type(maximum_contrast) is complex:
@@ -94,36 +213,55 @@ class Experiment:
 
     @property
     def maximum_object_size(self):
+        """Get the list of maximum value of objects sizes."""
         return self._maximum_object_size
 
     @maximum_object_size.setter
     def maximum_object_size(self, maximum_object_size):
+        """Set the maximum value of objects sizes.
+
+        There are two options to set this attribute:
+
+        >>> self.maximum_contrast = float()
+        >>> self.maximum_contrast = [float(), float()]
+        """
         if type(maximum_object_size) is float:
             self._maximum_object_size = [maximum_object_size]
         elif type(maximum_object_size) is list:
             self._maximum_object_size = list.copy(maximum_object_size)
 
     @property
-    def maximum_average_contrast(self):
+    def maximum_contrast_density(self):
+        """Get the list of maximum values of contrast density."""
         return self._maximum_average_contrast
 
-    @maximum_average_contrast.setter
-    def maximum_average_contrast(self, maximum_average_contrast):
-        if type(maximum_average_contrast) is float:
-            self._maximum_average_contrast = [maximum_average_contrast + 0j]
-        elif type(maximum_average_contrast) is complex:
-            self._maximum_average_contrast = [maximum_average_contrast]
-        elif type(maximum_average_contrast) is list:
+    @maximum_contrast_density.setter
+    def maximum_contrast_density(self, maximum_contrast_density):
+        """Set the maximum value of contrast density.
+
+        There are three options to set this attribute:
+
+        >>> self.maximum_contrast = float()
+        >>> self.maximum_contrast = complex()
+        >>> self.maximum_contrast = [complex(), complex()]
+        """
+        if type(maximum_contrast_density) is float:
+            self._maximum_average_contrast = [maximum_contrast_density + 0j]
+        elif type(maximum_contrast_density) is complex:
+            self._maximum_average_contrast = [maximum_contrast_density]
+        elif type(maximum_contrast_density) is list:
             self._maximum_average_contrast = list.copy(
-                maximum_average_contrast
+                maximum_contrast_density
             )
 
     @property
     def map_pattern(self):
+        """Get the map pattern."""
         return self._map_pattern
 
     @map_pattern.setter
     def map_pattern(self, map_pattern):
+        """Set the map pattern."""
         if map_pattern == GEOMETRIC_PATTERN or map_pattern == SURFACES_PATTERN:
             self._map_pattern = map_pattern
         else:
@@ -132,14 +270,29 @@ class Experiment:
                                         + SURFACES_PATTERN, map_pattern)
 
     def __init__(self, name, maximum_contrast, maximum_object_size,
-                 maximum_average_contrast, map_pattern, sample_size=None,
+                 maximum_contrast_density, map_pattern, sample_size=None,
                  synthetization_resolution=None, recover_resolution=None,
-                 configurations=None, scenarios=None, methods=None):
-        """Summarize the method."""
+                 configurations=None, scenarios=None, methods=None,
+                 forward_solver=None):
+        """Create the experiment object.
+
+        The object should be defined with one of the following
+        possibilities of combination of parameters (maximum_contrast,
+        maximum_object_size, maximum_contrast_density): (i) all are
+        single values; (ii) one is list and the others are single
+        values; and (iii) all are list of same size.
+
+        Parameters
+        ----------
+            name : str
+                The name of the experiment.
+            maximum_contrast : float or complex of list
+                The 
+        """
         self.name = name
         self.maximum_contrast = maximum_contrast
         self.maximum_object_size = maximum_object_size
-        self.maximum_average_contrast = maximum_average_contrast
+        self.maximum_contrast_density = maximum_contrast_density
         self.map_pattern = map_pattern
         self.sample_size = sample_size
         self.synthetization_resolution = synthetization_resolution
@@ -147,36 +300,37 @@ class Experiment:
         self.configurations = configurations
         self.scenarios = scenarios
         self.methods = methods
+        self.forward_solver = forward_solver
         self.results = None
 
         # Enforcing that all experimentation parameters are of same length
         if (len(self.maximum_contrast) == len(self.maximum_object_size)
                 and len(self.maximum_object_size)
-                == len(self.maximum_average_contrast)):
+                == len(self.maximum_contrast_density)):
             pass
         elif (len(self.maximum_contrast) > 1
                 and len(self.maximum_object_size) == 1
-                and len(self.maximum_average_contrast) == 1):
+                and len(self.maximum_contrast_density) == 1):
             N = len(self.maximum_contrast)
             self.maximum_object_size = N * self.maximum_object_size
-            self.maximum_average_contrast = N * self.maximum_average_contrast
+            self.maximum_contrast_density = N * self.maximum_contrast_density
         elif (len(self.maximum_contrast) == 1
                 and len(self.maximum_object_size) > 1
-                and len(self.maximum_average_contrast) == 1):
+                and len(self.maximum_contrast_density) == 1):
             N = len(self.maximum_object_size)
             self.maximum_contrast = N * self.maximum_contrast
-            self.maximum_average_contrast = N * self.maximum_average_contrast
+            self.maximum_contrast_density = N * self.maximum_contrast_density
         elif (len(self.maximum_contrast) == 1
                 and len(self.maximum_object_size) == 1
-                and len(self.maximum_average_contrast) > 1):
-            N = len(self.maximum_average_contrast)
+                and len(self.maximum_contrast_density) > 1):
+            N = len(self.maximum_contrast_density)
             self.maximum_contrast = N*self.maximum_contrast
             self.maximum_object_size = N*self.maximum_object_size
         else:
             raise error.WrongValueInput('Experiment.__init__',
                                         'maximum_contrast and ' +
                                         'maximum_object_size and ' +
-                                        'maximum_average_contrast',
+                                        'maximum_contrast_density',
                                         'all float/complex or ' +
                                         'one list and float/complex',
                                         'More than one are list')
@@ -220,20 +374,45 @@ class Experiment:
                 self.scenarios.append(list())
                 for j in range(len(self.configurations)):
                     self.scenarios[i].append(list())
-                    for k in range(len(self.sample_size)):
+                    for k in range(self.sample_size):
                         new_scenario = create_scenario(
                             self.configurations[j],
                             self.synthetization_resolution[j],
                             self.map_pattern,
                             self.maximum_contrast[i],
-                            self.maximum_average_contrast[i],
+                            self.maximum_contrast_density[i],
                             self._maximum_object_size[i]
                         )
                         self.scenarios[i][j].append(cp.deepcopy(new_scenario))
 
+        if self.forward_solver is None:
+            self.forward_solver = mom.MoM_CG_FFT(self.configurations[0])
+
+        for i in range(len(self.maximum_contrast)):
+            for j in range(len(self.configurations)):
+                for k in range(self.sample_size):
+                    self.forward_solver(self.scenarios[i][j][k],
+                                        COMPUTE_INTERN_FIELD=False)
+
+        self.results = []
+        for i in range(len(self.maximum_contrast)):
+            self.results.append(list())
+            for j in range(len(self.configurations)):
+                self.results[i].append()
+                for m in range(len(self.methods)):
+                    self.methods[m].configuration = (
+                        self.configurations[j]
+                    )
+                for k in range(self.sample_size):
+                    self.results[i][j].append(list())
+                    for m in range(len(self.methods)):
+                        self.results[i][j][k].append(
+                            self.methods[m].solve(self.scenarios[i][j][k])
+                        )
+
 
 def create_scenario(name, configuration, resolution, map_pattern,
-                    maximum_contrast, maximum_average_contrast,
+                    maximum_contrast, maximum_contrast_density,
                     maximum_object_size=None):
     """Summarize this method."""
     Lx = configuration.Lx/configuration.lambda_b
@@ -267,7 +446,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
         sigma = sigma_b*np.ones(resolution)
         chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                    omega)
-        while contrast_density(chi) <= .8*maximum_average_contrast:
+        while contrast_density(chi) <= .8*maximum_contrast_density:
             radius = minimum_object_size + (maximum_object_size
                                             - minimum_object_size)*rnd.rand()
             epsilon_ro = min_epsilon_r + (max_epsilon_r
@@ -304,7 +483,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
             sigma = sigma_b*np.ones(resolution)
             chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                        omega)
-            while contrast_density(chi) <= .8*maximum_average_contrast:
+            while contrast_density(chi) <= .8*maximum_contrast_density:
                 epsilon_r, sigma = draw_random_gaussians(
                     1, maximum_spread=maximum_object_size,
                     minimum_spread=minimum_object_size,

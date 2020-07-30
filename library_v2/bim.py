@@ -172,3 +172,5 @@ class BornIterativeMethod(slv.Solver):
         result.epsilon_r = solution.epsilon_r
         result.sigma = solution.sigma
         result.execution_time = self.execution_time
+
+        return result
