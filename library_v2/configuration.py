@@ -220,16 +220,20 @@ class Configuration:
             elif wavelength is not None and frequency is not None:
                 raise error.ExcessiveInputsError('Configuration.__init__()',
                                                  ['frequency', 'wavelength'])
+            if perfect_dielectric and good_conductor:
+                raise error.ExcessiveInputsError('Configuration.__init__()',
+                                                 ['perfect_dielectric',
+                                                  'good_conductor'])
 
             self.name = name
             self.NM = number_measurements
             self.NS = number_sources
-            self.Ro = observation_radius
             self.epsilon_rb = background_permittivity
             self.sigma_b = background_conductivity
             self.perfect_dielectric = perfect_dielectric
             self.good_conductor = good_conductor
             self.E0 = magnitude
+            self.path = None
 
             if frequency is not None:
                 self.f = frequency
@@ -245,6 +249,17 @@ class Configuration:
             if wavelength_unit:
                 self.Lx = image_size[0]*self.lambda_b
                 self.Ly = image_size[1]*self.lambda_b
+            else:
+                self.Lx = image_size[0]
+                self.Ly = image_size[1]
+
+            if observation_radius is None:
+                self.Ro = 1.1*np.sqrt(2)*max([self.Lx, self.Ly])
+            else:
+                if wavelength_unit:
+                    self.Ro = observation_radius*self.lambda_b
+                else:
+                    self.Ro = observation_radius
 
     def save(self, file_path=''):
         """Save the problem configuration within a pickle file.
@@ -313,14 +328,15 @@ class Configuration:
             Ny, Nx = sig.shape
 
         dx, dy = self.Lx/Nx, self.Ly/Ny
-        min_radius = np.sqrt((self.Lx/2)**2+(self.Ly/2)**2)
+        xmin, xmax = get_bounds(self.Lx)
+        ymin, ymax = get_bounds(self.Ly)
+        min_radius = np.sqrt(((xmax-xmin)/2)**2+((ymax-ymin)/2)**2)
 
         if self.Ro > min_radius:
-            xmin, xmax = -1.05*self.Ro, 1.05*self.Ro
-            ymin, ymax = -1.05*self.Ro, 1.05*self.Ro
-        else:
-            xmin, xmax = -self.Lx/2, self.Lx/2
-            ymin, ymax = -self.Ly/2, self.Ly/2
+            NXG = int((self.Ro-(xmax-xmin)/2)/dx)  # Cells in the gap
+            NYG = int((self.Ro-(ymax-ymin)/2)/dy)  # Cells in the gap
+            xmin, xmax = xmin-(NXG+5)*dx, xmax+(NXG+5)*dx
+            ymin, ymax = ymin-(NYG+5)*dy, ymax+(NYG+5)*dy
 
         xm, ym = get_coordinates_sdomain(self.Ro, self.NM)
         xl, yl = get_coordinates_sdomain(self.Ro, self.NS)
@@ -328,6 +344,8 @@ class Configuration:
                                        ymin=ymin, ymax=ymax)
         bounds = (xmin/self.lambda_b, xmax/self.lambda_b, ymin/self.lambda_b,
                   ymax/self.lambda_b)
+        map_bounds = [-self.Lx/2/self.lambda_b, self.Lx/2/self.lambda_b,
+                      -self.Ly/2/self.lambda_b, self.Ly/2/self.lambda_b]
 
         epsilon_r = self.epsilon_rb*np.ones(x.shape)
         sigma = self.sigma_b*np.ones(x.shape)
@@ -356,7 +374,7 @@ class Configuration:
                 rst.add_image(axes, sigma,
                               TITLE_PROBLEM_CONFIGURATION,
                               rst.COLORBAR_CONDUCTIVITY, bounds=bounds)
-            plot_ddomain_limits(axes, self.Lx, self.Ly, self.lambda_b)
+            plot_ddomain_limits(axes, map_bounds)
             lg_m = plot_antennas(axes, xm, ym, self.lambda_b, 'r', 'Probe')
             lg_l = plot_antennas(axes, xl, yl, self.lambda_b, 'g', 'Source')
             plt.legend(handles=[lg_m, lg_l], loc='upper right')
@@ -369,7 +387,7 @@ class Configuration:
             rst.add_image(axes, epsilon_r,
                           rst.TITLE_RELATIVE_PERMITTIVITY,
                           rst.COLORBAR_RELATIVE_PERMITTIVITY, bounds=bounds)
-            plot_ddomain_limits(axes, self.Lx, self.Ly, self.lambda_b)
+            plot_ddomain_limits(axes, map_bounds)
             lg_m = plot_antennas(axes, xm, ym, self.lambda_b, 'r', 'Probe')
             lg_l = plot_antennas(axes, xl, yl, self.lambda_b, 'g', 'Source')
             plt.legend(handles=[lg_m, lg_l], loc='upper right')
@@ -378,7 +396,7 @@ class Configuration:
             rst.add_image(axes, sigma,
                           rst.TITLE_CONDUCTIVITY,
                           rst.COLORBAR_CONDUCTIVITY, bounds=bounds)
-            plot_ddomain_limits(axes, self.Lx, self.Ly, self.lambda_b)
+            plot_ddomain_limits(axes, map_bounds)
             lg_m = plot_antennas(axes, xm, ym, self.lambda_b, 'r', 'Probe')
             lg_l = plot_antennas(axes, xl, yl, self.lambda_b, 'g', 'Source')
             plt.legend(handles=[lg_m, lg_l], loc='upper right')
@@ -406,6 +424,30 @@ class Configuration:
         self.kb = data[BACKGROUND_WAVENUMBER]
         self.perfect_dielectric = data[PERFECT_DIELECTRIC_FLAG]
         self.good_conductor = data[GOOD_CONDUCTOR_FLAG]
+
+    def __str__(self):
+        """Print object information."""
+        message = 'Configuration name: ' + self.name
+        if self.path is not None:
+            message = message + '\nFilepath = ' + self.path
+        message = message + '\nNumber of measurements: %d' % self.NM
+        message = message + '\nNumber of sources: %d' % self.NS
+        message = message + '\nObservation radius: %.3e [m]' % self.Ro
+        message = (message + '\nImage domain size: %.3e x ' % self.Lx
+                   + '%.3e [m]' % self.Ly)
+        message = (message + '\nBackground relative permittivity: %.1f'
+                   % self.epsilon_rb)
+        message = (message + '\nBackground conductivity: %.3e [S/m]'
+                   % self.sigma_b)
+        message = message + '\nFrequency: %.3e [Hz]' % self.f
+        message = message + '\nBackground wavelength: %.3e [m]' % self.lambda_b
+        message = (message
+                   + '\nBackground wavenumber: {:.3e} [1/m]'.format(self.kb))
+        if self.perfect_dielectric:
+            message = message + '\nAssumption: perfect dielectrics only'
+        elif self.good_conductor:
+            message = message + '\nAssumption: good conductors only'
+        return message
 
 
 def import_dict(file_name, file_path=''):
@@ -753,7 +795,7 @@ def solve_frequency(lambda_b, mu_r, epsilon_r, sigma):
     return (a+b)/2
 
 
-def plot_ddomain_limits(axes, xlength, ylength, wavelength):
+def plot_ddomain_limits(axes, bounds):
     """Plot lines of D-domain limits.
 
     Parameters
@@ -761,20 +803,13 @@ def plot_ddomain_limits(axes, xlength, ylength, wavelength):
         axes : :class:`matplotlib.pyplot.Figure.axes.Axes`
             Axes object.
 
-        xlength : float
-            Length of x-axis.
-
-        ylength : float
-            Length of y-axis.
-
-        wavelength : float
+        bounds : 4-tuple
+            x and y axis bounds.
     """
-    axes.plot(np.array([-xlength/2/wavelength, -xlength/2/wavelength,
-                        xlength/2/wavelength, xlength/2/wavelength,
-                        -xlength/2/wavelength]),
-              np.array([-xlength/2/wavelength, xlength/2/wavelength,
-                        xlength/2/wavelength, -xlength/2/wavelength,
-                        -xlength/2/wavelength]), 'k--')
+    axes.plot(np.array([bounds[0], bounds[0], bounds[1], bounds[1],
+                        bounds[0]]),
+              np.array([bounds[2], bounds[3], bounds[3], bounds[2],
+                        bounds[2]]), 'k--')
 
 
 def plot_antennas(axes, x, y, wavelength, color, label):

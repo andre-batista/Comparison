@@ -465,13 +465,17 @@ def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
             The label of the y-axis.
 
     """
+    NY, NX = image.shape
+    dx, dy = (bounds[1]-bounds[0])/NX, (bounds[3]-bounds[2])/NY
     if image.dtype == complex:
         im = axes.imshow(np.abs(image),
-                         extent=[bounds[0], bounds[1], bounds[2], bounds[3]],
+                         extent=[bounds[0]+dx/2, bounds[1]+dx/2,
+                                 bounds[2]+dy/2, bounds[3]+dy/2],
                          origin=origin)
     else:
         im = axes.imshow(image,
-                         extent=[bounds[0], bounds[1], bounds[2], bounds[3]],
+                         extent=[bounds[0], bounds[1],
+                                 bounds[2], bounds[3]],
                          origin=origin)
     axes.set_xlabel(xlabel)
     axes.set_ylabel(ylabel)
