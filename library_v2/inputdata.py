@@ -307,6 +307,10 @@ class InputData:
             fig = plt.figure(figsize=(10, 4))
             fig.subplots_adjust(left=.125, bottom=.1, right=.9, top=.9,
                                 wspace=.5, hspace=.2)
+            if type(figure_title) is str:
+                fig.suptitle(figure_title, fontsize=16)
+            elif figure_title is None:
+                fig.suptitle(self.name, fontsize=16)
             ax = fig.add_subplot(1, 2, 1)
             im1 = ax.imshow(self.epsilon_r, origin='lower')
             ax.set_xlabel('x [Pixels]')
@@ -334,3 +338,37 @@ class InputData:
                 plt.savefig(file_path + self.name + '.' + file_format,
                             format=file_format)
                 plt.close()
+
+    def __str__(self):
+        """Print information."""
+        message = 'Input name: ' + self.name
+        message = (message + '\nConfiguration file: '
+                   + self.configuration_filename)
+        message = (message + '\nResolution: %dx' % self.resolution[0]
+                   + '%d' % self.resolution[1])
+        if self.es is not None:
+            message = (message + '\nScattered field - measurement samples: %d'
+                       % self.es.shape[0]
+                       + '\nScattered field - source samples: %d'
+                       % self.es.shape[1])
+        if self.et is not None:
+            message = (message + '\nTotal field - measurement samples: %d'
+                       % self.et.shape[0]
+                       + '\nTotal field - source samples: %d'
+                       % self.et.shape[1])
+        if self.ei is not None:
+            message = (message + '\nIncident field - measurement samples: %d'
+                       % self.ei.shape[0]
+                       + '\nIncident field - source samples: %d'
+                       % self.ei.shape[1])
+        if self.noise is not None:
+            message = message + '\nNoise level: %.3e' % self.noise
+        if self.epsilon_r is not None:
+            message = (message + '\nRelative Permit. map shape: %dx'
+                       % self.epsilon_r.shape[0] + '%d'
+                       % self.epsilon_r.shape[1])
+        if self.sigma is not None:
+            message = (message + '\nConductivity map shape: %dx'
+                       % self.sigma.shape[0] + '%d'
+                       % self.sigma.shape[1])
+        return message

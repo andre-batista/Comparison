@@ -115,6 +115,11 @@ class Results:
         You may provide here the value of all attributes. But only name
         is required.
         """
+        if name is None:
+            raise error.MissingInputError('Results.__init__()', 'name')
+        if configuration_filename is None:
+            raise error.MissingInputError('Results.__init__()',
+                                          'configuration_filename')
         self.name = name
         self.method_name = method_name
         self.configuration_filename = configuration_filename
@@ -426,6 +431,40 @@ class Results:
             message = (message
                        + 'To. Field Phase PAD: %.3e' % self.zeta_tfppad[-1])
 
+        return message
+
+    def __str__(self):
+        """Print object information."""
+        message = 'Results name: ' + self.name
+        message = (message + '\nConfiguration filename: '
+                   + self.configuration_filename)
+        if self.configuration_filepath is not None:
+            message = (message + '\nConfiguration file path: '
+                       + self.configuration_filepath)
+        if self.inputdata_filename is not None:
+            message = (message + '\nInput file name: '
+                       + self.inputdata_filename)
+        if self.inputdata_filepath is not None:
+            message = (message + '\nInput file path: '
+                       + self.inputdata_filepath)
+        if self.es is not None:
+            message = (message + '\nScattered field - measurement samples: %d'
+                       % self.es.shape[0]
+                       + '\nScattered field - source samples: %d'
+                       % self.es.shape[1])
+        if self.et is not None:
+            message = (message + '\nTotal field - measurement samples: %d'
+                       % self.et.shape[0]
+                       + '\nTotal field - source samples: %d'
+                       % self.et.shape[1])
+        if self.epsilon_r is not None:
+            message = (message + '\nRelative Permit. map resolution: %dx'
+                       % self.epsilon_r.shape[0] + '%d'
+                       % self.epsilon_r.shape[1])
+        if self.sigma is not None:
+            message = (message + '\nConductivity map resolution: %dx'
+                       % self.sigma.shape[0] + '%d'
+                       % self.sigma.shape[1])
         return message
 
 

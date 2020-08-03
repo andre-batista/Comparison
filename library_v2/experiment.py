@@ -110,16 +110,10 @@ class Experiment:
     """
 
     name = str
-    maximum_contrast = list([complex])
-    maximum_object_size = list([float])
-    maximum_contrast_density = list([complex])
     map_pattern = str
     sample_size = int
     synthetization_resolution = (int, int)
     recover_resolution = (int, int)
-    configurations = list()
-    scenarios = list()
-    methods = list()
     results = list()
     forward_solver = None  # frw.Forward()
 
@@ -420,6 +414,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
     epsilon_rb = configuration.epsilon_rb
     sigma_b = configuration.sigma_b
     omega = 2*pi*configuration.f
+    homogeneous_objects = False
 
     if configuration.perfect_dielectric:
         min_sigma = max_sigma = sigma_b
@@ -436,6 +431,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                                                       epsilon_rb)
 
     if map_pattern == GEOMETRIC_PATTERN:
+        homogeneous_objects = True
         if maximum_object_size is None:
             maximum_object_size = .4*min([Lx, Ly])/2
         dx, dy = Lx/resolution[0], Ly/resolution[1]
@@ -497,7 +493,8 @@ def create_scenario(name, configuration, resolution, map_pattern,
 
     scenario = ipt.InputData(name=name,
                              configuration_filename=configuration.name,
-                             resolution=resolution)
+                             resolution=resolution,
+                             homogeneous_objects=homogeneous_objects)
 
     if not configuration.good_conductor:
         scenario.epsilon_r = epsilon_r
