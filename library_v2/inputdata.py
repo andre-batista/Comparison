@@ -33,6 +33,9 @@ INCIDENT_FIELD = 'incident_field'
 RELATIVE_PERMITTIVITY_MAP = 'epsilon_r'
 CONDUCTIVITY_MAP = 'sigma'
 NOISE = 'noise'
+COMPUTE_RESIDUAL_ERROR = 'residual_error'
+COMPUTE_MAP_ERROR = 'map_error'
+COMPUTE_TOTALFIELD_ERROR = 'totalfield_error'
 
 
 class InputData:
@@ -199,6 +202,9 @@ class InputData:
             self.configuration_filename = configuration_filename
             self.resolution = resolution
             self.homogeneous_objects = homogeneous_objects
+            self.compute_residual_error = compute_residual_error
+            self.compute_map_error = compute_map_error
+            self.compute_totalfield_error = compute_totalfield_error
 
             if scattered_field is not None:
                 self.es = np.copy(scattered_field)
@@ -241,7 +247,10 @@ class InputData:
             INCIDENT_FIELD: self.ei,
             NOISE: self.noise,
             RELATIVE_PERMITTIVITY_MAP: self.epsilon_r,
-            CONDUCTIVITY_MAP: self.sigma
+            CONDUCTIVITY_MAP: self.sigma,
+            COMPUTE_RESIDUAL_ERROR: self.compute_residual_error,
+            COMPUTE_MAP_ERROR: self.compute_map_error,
+            COMPUTE_TOTALFIELD_ERROR: self.compute_totalfield_error
         }
 
         with open(file_path + self.name, 'wb') as datafile:
@@ -260,6 +269,9 @@ class InputData:
         self.epsilon_r = data[RELATIVE_PERMITTIVITY_MAP]
         self.sigma = data[CONDUCTIVITY_MAP]
         self.noise = data[NOISE]
+        self.compute_residual_error = data[COMPUTE_RESIDUAL_ERROR]
+        self.compute_map_error = data[COMPUTE_MAP_ERROR]
+        self.compute_totalfield_error = data[COMPUTE_TOTALFIELD_ERROR]
 
     def draw(self, figure_title=None, file_path='', file_format='eps',
              show=False):
@@ -371,4 +383,10 @@ class InputData:
             message = (message + '\nConductivity map shape: %dx'
                        % self.sigma.shape[0] + '%d'
                        % self.sigma.shape[1])
+        message = (message + '\nCompute residual error: '
+                   + str(self.compute_residual_error))
+        message = (message + '\nCompute map error: '
+                   + str(self.compute_map_error))
+        message = (message + '\nCompute total field error: '
+                   + str(self.compute_totalfield_error))
         return message

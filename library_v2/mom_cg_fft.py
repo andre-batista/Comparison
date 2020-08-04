@@ -21,9 +21,9 @@ from numpy import linalg as lag
 import scipy.special as spc
 from joblib import Parallel, delayed
 import multiprocessing
-import library_v2.forward as fwr
-import library_v2.inputdata as ipt
-import library_v2.configuration as cfg
+import forward as fwr
+import inputdata as ipt
+import configuration as cfg
 
 # Predefined constants
 MEMORY_LIMIT = 16e9  # [GB]

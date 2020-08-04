@@ -1312,13 +1312,13 @@ def draw_polygon(number_sides, radius, axis_length_x=2., axis_length_y=2.,
     # Set object
     dphi = 2*pi/number_sides
     phi = np.arange(0, number_sides*dphi, dphi)
-    xp = radius*np.cos(phi)
-    yp = radius*np.sin(phi)
+    xa = radius*np.cos(phi)
+    ya = radius*np.sin(phi)
     polygon = np.ones(x.shape, dtype=bool)
     for i in range(number_sides):
-        a = -(yp[i]-yp[i-1])
-        b = xp[i]-xp[i-1]
-        c = (xp[i]-xp[i-1])*yp[i-1] - (yp[i]-yp[i-1])*xp[i-1]
+        a = -(ya[i]-ya[i-1])
+        b = xa[i]-xa[i-1]
+        c = (xa[i]-xa[i-1])*ya[i-1] - (ya[i]-ya[i-1])*xa[i-1]
         polygon = logical_and(polygon, a*xp + b*yp >= c)
     epsilon_r[polygon] = epsilon_ro
     sigma[polygon] = sigma_o

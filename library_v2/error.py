@@ -89,7 +89,7 @@ class MissingAttributesError(Error):
 
 
 class WrongTypeInput(Error):
-    """Exeception raised when some argument is passed in wrong type.
+    """Exception raised when some argument is passed in wrong type.
 
     Attributes
     ----------
@@ -113,7 +113,7 @@ class WrongTypeInput(Error):
 
 
 class WrongValueInput(Error):
-    """Execption raised when some argument is given with wrong value.
+    """Exception raised when some argument is given with wrong value.
 
     Attributes
     ----------
@@ -138,3 +138,20 @@ class WrongValueInput(Error):
                         + given_value + ', you should give according to: '
                         + expect_values)
         super().__init__(self.message)
+
+
+class EmptyAttribute(Error):
+    """Exception for empty class atribute.""
+
+    Attributes
+    ----------
+        class_name : str
+        attribute_name : str
+    """
+
+    def __init__(self, class_name, attribute_name):
+        """Store exception information."""
+        self.class_name = class_name
+        self.attribute_name = attribute_name
+        self.message = ('Empty attribute ' + attribute_name + ' of class '
+                        + class_name + '!')

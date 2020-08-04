@@ -21,19 +21,43 @@ import inputdata as ipt
 # Strings for easier implementation of plots
 XLABEL_STANDARD = r'x [$\lambda_b$]'
 YLABEL_STANDARD = r'y [$\lambda_b$]'
-COLORBAR_RELATIVE_PERMITTIVITY = r'$\epsilon_r$'
+COLORBAR_REL_PERMITTIVITY = r'$\epsilon_r$'
 COLORBAR_CONDUCTIVITY = r'$\sigma$ [S/m]'
-TITLE_RELATIVE_PERMITTIVITY = 'Relative Permittivity'
+TITLE_REL_PERMITTIVITY = 'Relative Permittivity'
 TITLE_CONDUCTIVITY = 'Conductivity'
-TITLE_RECOVERED_RELATIVE_PERMITTIVITY = ('Recovered '
-                                         + TITLE_RELATIVE_PERMITTIVITY)
+TITLE_RECOVERED_REL_PERMITTIVITY = ('Recovered '
+                                         + TITLE_REL_PERMITTIVITY)
 TITLE_RECOVERED_CONDUCTIVITY = 'Recovered ' + TITLE_CONDUCTIVITY
-TITLE_ORIGINAL_RELATIVE_PERMITTIVITY = ('Original '
-                                        + TITLE_RELATIVE_PERMITTIVITY)
+TITLE_ORIGINAL_REL_PERMITTIVITY = ('Original '
+                                        + TITLE_REL_PERMITTIVITY)
 TITLE_ORIGINAL_CONDUCTIVITY = 'Original ' + TITLE_CONDUCTIVITY
 IMAGE_SIZE_SINGLE = (6., 5.)
 IMAGE_SIZE_1x2 = (9., 5.)
 IMAGE_SIZE_2X2 = (9., 9.)
+
+# Constant string for easier access of dictionary fields
+NAME = 'name'
+CONFIGURATION_FILENAME = 'configuration_filename'
+CONFIGURATION_FILEPATH = 'configuration_filepath'
+INPUT_FILENAME = 'input_filename'
+INPUT_FILEPATH = 'input_filepath'
+METHOD_NAME = 'method_name'
+TOTAL_FIELD = 'et'
+SCATTERED_FIELD = 'es'
+RELATIVE_PERMITTIVITY_MAP = 'epsilon_r'
+CONDUCTIVITY_MAP = 'sigma'
+EXECUTION_TIME = 'execution_time'
+RESIDUAL_NORM_ERROR = 'zeta_rn'
+RESIDUAL_PAD_ERROR = 'zeta_pad'
+REL_PERMITTIVITY_PAD_ERROR = 'zeta_epad'
+CONDUCTIVITY_AD_ERROR = 'zeta_sad'
+BOUNDARY_ERROR = 'zeta_be'
+REL_PERMITTIVITY_BACKGROUND_ERROR = 'zeta_ebe'
+REL_PERMITTIVITY_OBJECT_ERROR = 'zeta_eoe'
+CONDUCTIVITY_BACKGROUND_ERROR = 'zeta_sbe'
+CONDUCTIVITY_OBJECT_ERROR = 'zeta_soe'
+TOTALFIELD_MAGNITUDE_PAD = 'zeta_tfmpad'
+TOTALFIELD_PHASE_PAD = 'zeta_tfppad'
 
 
 class Results:
@@ -61,11 +85,11 @@ class Results:
             A string containing the path to the file which stores the
             configuration info.
 
-        inputdata_filename
+        input_filename
             A string containing the file name in which instance info is
             stored.
 
-        inputdata_filepath
+        input_filepath
             A string containing the path to the file which stores the
             instance info.
 
@@ -86,50 +110,111 @@ class Results:
             map estimation. Unit: [S/m]
 
         execution_time
-            The amount of time of for running the method.
-
+            The amount of time for running the method.
     """
 
     name = str()
     method_name = str()
     configuration_filename, configuration_filepath = str(), str()
-    inputdata_filename, inputdata_filepath = str(), str()
+    input_filename, input_filepath = str(), str()
     et = np.array([])
     es = np.array([])
     epsilon_r, sigma = np.array([]), np.array([])
     execution_time = float
     zeta_rn, zeta_rpad = list(), list()
-    zeta_epad, zeta_spad = list(), list()
+    zeta_epad, zeta_sad = list(), list()
     zeta_be = list()
     zeta_ebe, zeta_sbe = list(), list()
     zeta_eoe, zeta_soe = list(), list()
     zeta_tfmpad, zeta_tfppad = list(), list()
 
-    def __init__(self, name, method_name=None, configuration_filename=None,
-                 configuration_filepath='', inputdata_filename=None,
-                 inputdata_filepath='', scattered_field=None,
+    def __init__(self, name=None, method_name=None,
+                 configuration_filename=None, configuration_filepath='',
+                 input_filename=None, input_filepath='', scattered_field=None,
                  total_field=None, relative_permittivity_map=None,
-                 conductivity_map=None):
+                 conductivity_map=None, execution_time=None,
+                 import_filename=None, import_filepath=''):
         """Build the object.
 
         You may provide here the value of all attributes. But only name
         is required.
         """
-        if name is None:
-            raise error.MissingInputError('Results.__init__()', 'name')
-        if configuration_filename is None:
-            raise error.MissingInputError('Results.__init__()',
-                                          'configuration_filename')
-        self.name = name
-        self.method_name = method_name
-        self.configuration_filename = configuration_filename
-        self.configuration_filepath = configuration_filepath
-        self.inputdata_filename = inputdata_filename
-        self.inputdata_filepath = inputdata_filepath
-        self.et = total_field
-        self.es = scattered_field
-        self.epsilon_r = relative_permittivity_map
-        self.sigma = conductivity_map
+        if import_filename is not None:
+            self.importdata(import_filename, import_filepath)
+        else:
+            if name is None:
+                raise error.MissingInputError('Results.__init__()', 'name')
+            if configuration_filename is None:
+                raise error.MissingInputError('Results.__init__()',
+                                              'configuration_filename')
+            self.name = name
+            self.method_name = method_name
+            self.configuration_filename = configuration_filename
+            self.configuration_filepath = configuration_filepath
+            self.input_filename = input_filename
+            self.input_filepath = input_filepath
+            self.et = total_field
+            self.es = scattered_field
+            self.epsilon_r = relative_permittivity_map
+            self.sigma = conductivity_map
+            self.execution_time = execution_time
+
+    def save(self, file_path=''):
+        """Save object information."""
+        data = {
+            NAME: self.name,
+            CONFIGURATION_FILENAME: self.configuration_filename,
+            CONFIGURATION_FILEPATH: self.configuration_filepath,
+            INPUT_FILENAME: self.input_filename,
+            INPUT_FILEPATH: self.input_filepath,
+            METHOD_NAME: self.method_name,
+            TOTAL_FIELD: self.et,
+            SCATTERED_FIELD: self.es,
+            RELATIVE_PERMITTIVITY_MAP: self.epsilon_r,
+            CONDUCTIVITY_MAP: self.sigma,
+            EXECUTION_TIME: self.execution_time,
+            RESIDUAL_NORM_ERROR: self.zeta_rn,
+            RESIDUAL_PAD_ERROR: self.zeta_rpad,
+            REL_PERMITTIVITY_PAD_ERROR: self.zeta_epad,
+            REL_PERMITTIVITY_BACKGROUND_ERROR: self.zeta_ebe,
+            REL_PERMITTIVITY_OBJECT_ERROR: self.zeta_eoe,
+            CONDUCTIVITY_AD_ERROR: self.zeta_sad,
+            CONDUCTIVITY_BACKGROUND_ERROR: self.zeta_sbe,
+            CONDUCTIVITY_OBJECT_ERROR: self.zeta_soe,
+            BOUNDARY_ERROR: self.zeta_be,
+            TOTALFIELD_MAGNITUDE_PAD: self.zeta_tfmpad,
+            TOTALFIELD_PHASE_PAD: self.zeta_tfppad
+        }
+
+        with open(file_path + self.name, 'wb') as datafile:
+            pickle.dump(data, datafile)
+
+    def importdata(self, file_name, file_path=''):
+        """Import data from a saved object."""
+        with open(file_path + file_name, 'rb') as datafile:
+            data = pickle.load(datafile)
+        self.name = data[NAME]
+        self.configuration_filename = data[CONFIGURATION_FILENAME]
+        self.configuration_filepath = data[CONFIGURATION_FILEPATH]
+        self.input_filename = data[INPUT_FILENAME]
+        self.input_filepath = data[INPUT_FILEPATH]
+        self.method_name = data[METHOD_NAME]
+        self.et = data[TOTAL_FIELD]
+        self.es = data[SCATTERED_FIELD]
+        self.epsilon_r = data[RELATIVE_PERMITTIVITY_MAP]
+        self.sigma = data[CONDUCTIVITY_MAP]
+        self.execution_time = data[EXECUTION_TIME]
+        self.zeta_rn = data[RESIDUAL_NORM_ERROR]
+        self.zeta_rpad = data[RESIDUAL_PAD_ERROR]
+        self.zeta_epad = data[REL_PERMITTIVITY_PAD_ERROR]
+        self.zeta_ebe = data[REL_PERMITTIVITY_BACKGROUND_ERROR]
+        self.zeta_eoe = data[REL_PERMITTIVITY_OBJECT_ERROR]
+        self.zeta_sad = data[CONDUCTIVITY_AD_ERROR]
+        self.zeta_sbe = data[CONDUCTIVITY_BACKGROUND_ERROR]
+        self.zeta_soe = data[CONDUCTIVITY_OBJECT_ERROR]
+        self.zeta_be = data[BOUNDARY_ERROR]
+        self.zeta_tfmpad = data[TOTALFIELD_MAGNITUDE_PAD]
+        self.zeta_tfppad = data[TOTALFIELD_PHASE_PAD]
 
     def plot_map(self, show=False, file_path='', file_format='eps'):
         """Plot map results.
@@ -170,7 +255,7 @@ class Results:
         ymin, ymax = cfg.get_bounds(Ly)
         bounds = (xmin/lambda_b, xmax/lambda_b, ymin/lambda_b, ymax/lambda_b)
 
-        if self.inputdata_filename is None:
+        if self.input_filename is None:
 
             if data[cfg.PERFECT_DIELECTRIC_FLAG]:
                 if self.epsilon_r is None:
@@ -180,8 +265,8 @@ class Results:
                 figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
                 axes = get_single_figure_axes(figure)
                 add_image(axes, self.epsilon_r,
-                          TITLE_RELATIVE_PERMITTIVITY,
-                          COLORBAR_RELATIVE_PERMITTIVITY, bounds=bounds)
+                          TITLE_REL_PERMITTIVITY,
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
 
             elif data[cfg.GOOD_CONDUCTOR_FLAG]:
                 if self.sigma is None:
@@ -198,8 +283,8 @@ class Results:
                 set_subplot_size(figure)
 
                 axes = figure.add_subplot(1, 2, 1)
-                add_image(axes, self.epsilon_r, TITLE_RELATIVE_PERMITTIVITY,
-                          COLORBAR_RELATIVE_PERMITTIVITY, bounds=bounds)
+                add_image(axes, self.epsilon_r, TITLE_REL_PERMITTIVITY,
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
 
                 axes = figure.add_subplot(1, 2, 2)
                 add_image(axes, self.sigma, TITLE_CONDUCTIVITY,
@@ -207,8 +292,8 @@ class Results:
 
         else:
 
-            with open(self.inputdata_filepath
-                      + self.inputdata_filename, 'rb') as datafile:
+            with open(self.input_filepath
+                      + self.input_filename, 'rb') as datafile:
                 inputdata = pickle.load(datafile)
 
             if data[cfg.PERFECT_DIELECTRIC_FLAG]:
@@ -222,13 +307,13 @@ class Results:
 
                 axes = figure.add_subplot(1, 2, 1)
                 add_image(axes, inputdata[ipt.RELATIVE_PERMITTIVITY_MAP],
-                          TITLE_ORIGINAL_RELATIVE_PERMITTIVITY,
-                          COLORBAR_RELATIVE_PERMITTIVITY, bounds=bounds)
+                          TITLE_ORIGINAL_REL_PERMITTIVITY,
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
 
                 axes = figure.add_subplot(1, 2, 2)
                 add_image(axes, self.epsilon_r,
-                          TITLE_RECOVERED_RELATIVE_PERMITTIVITY,
-                          COLORBAR_RELATIVE_PERMITTIVITY, bounds=bounds)
+                          TITLE_RECOVERED_REL_PERMITTIVITY,
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
 
             elif data[cfg.GOOD_CONDUCTOR_FLAG]:
                 if self.sigma is None:
@@ -245,7 +330,7 @@ class Results:
 
                 axes = figure.add_subplot(1, 2, 2)
                 add_image(axes, self.sigma,
-                          TITLE_ORIGINAL_CONDUCTIVITY, COLORBAR_CONDUCTIVITY,
+                          TITLE_RECOVERED_CONDUCTIVITY, COLORBAR_CONDUCTIVITY,
                           bounds=bounds)
 
             else:
@@ -262,8 +347,8 @@ class Results:
 
                 axes = figure.add_subplot(2, 2, 1)
                 add_image(axes, inputdata[ipt.RELATIVE_PERMITTIVITY_MAP],
-                          TITLE_ORIGINAL_RELATIVE_PERMITTIVITY,
-                          COLORBAR_RELATIVE_PERMITTIVITY, bounds=bounds)
+                          TITLE_ORIGINAL_REL_PERMITTIVITY,
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
 
                 axes = figure.add_subplot(2, 2, 2)
                 add_image(axes, inputdata[ipt.CONDUCTIVITY_MAP],
@@ -272,12 +357,12 @@ class Results:
 
                 axes = figure.add_subplot(2, 2, 3)
                 add_image(axes, self.epsilon_r,
-                          TITLE_RECOVERED_RELATIVE_PERMITTIVITY,
-                          COLORBAR_RELATIVE_PERMITTIVITY, bounds=bounds)
+                          TITLE_RECOVERED_REL_PERMITTIVITY,
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
 
                 axes = figure.add_subplot(2, 2, 4)
                 add_image(axes, self.sigma,
-                          TITLE_ORIGINAL_CONDUCTIVITY, COLORBAR_CONDUCTIVITY,
+                          TITLE_RECOVERED_CONDUCTIVITY, COLORBAR_CONDUCTIVITY,
                           bounds=bounds)
 
         if show:
@@ -285,6 +370,7 @@ class Results:
         else:
             plt.savefig(file_path + self.name + '.' + file_format,
                         format=file_format)
+            plt.close()
 
     def update_error(self, inputdata, scattered_field=None, total_field=None,
                      relative_permittivity_map=None, conductivity_map=None):
@@ -342,8 +428,8 @@ class Results:
 
         if (inputdata.compute_map_error and inputdata.sigma is not None
                 and conductivity_map is not None):
-            self.zeta_spad.append(compute_zeta_spad(inputdata.sigma,
-                                                    conductivity_map))
+            self.zeta_sad.append(compute_zeta_sad(inputdata.sigma,
+                                                  conductivity_map))
 
         if inputdata.compute_map_error and inputdata.homogeneous_objects:
             if inputdata.epsilon_r is not None:
@@ -397,29 +483,33 @@ class Results:
                                                      omega), x, y)
             )
 
-    def last_error_message(self, inputdata, pre_message=''):
+    def last_error_message(self, inputdata, pre_message=None):
         """Summarize the method."""
-        message = pre_message + ''
+        if pre_message is not None:
+            message = pre_message + '\n'
+        else:
+            message = ''
 
         if inputdata.compute_residual_error:
             message = message + 'Residual norm: %.3e, ' % self.zeta_rn[-1]
-            message = message + 'PAD: %.3e' % self.zeta_rpad[-1]
+            message = message + 'PAD: %.3e%%' % self.zeta_rpad[-1]
 
         if inputdata.compute_map_error:
             if inputdata.compute_residual_error:
                 message = message + ' - '
             if len(self.zeta_epad) != 0:
-                message = message + 'Rel. Per. PAD: %.3%' % self.zeta_epad[-1]
+                message = (message
+                           + 'Rel. Per. PAD: %.3e%%' % self.zeta_epad[-1])
                 if inputdata.homogeneous_objects:
-                    message = message + ', Back.: %.3e, ' % self.zeta_ebe[-1]
-                    message = message + 'Ob.: %.3e' % self.zeta_eoe[-1]
-            if len(self.zeta_spad) != 0:
+                    message = message + ', Back.: %.3e%%, ' % self.zeta_ebe[-1]
+                    message = message + 'Ob.: %.3e%%' % self.zeta_eoe[-1]
+            if len(self.zeta_sad) != 0:
                 if len(self.zeta_epad) != 0:
                     message = message + ' - '
-                message = message + 'Con. PAD: %.3e' % self.zeta_spad[-1]
+                message = message + 'Con. PAD: %.3e%%' % self.zeta_sad[-1]
                 if inputdata.homogeneous_objects:
-                    message = message + ' Back.: %.3e,' % self.zeta_sbe[-1]
-                    message = message + 'Ob.: %.3e' % self.zeta_soe[-1]
+                    message = message + ' Back.: %.3e%%,' % self.zeta_sbe[-1]
+                    message = message + 'Ob.: %.3e%%' % self.zeta_soe[-1]
             if inputdata.homogeneous_objects:
                 message = message + ' - Bound.: %.3e' % self.zeta_be[-1]
 
@@ -427,11 +517,36 @@ class Results:
             if inputdata.compute_residual_error or inputdata.compute_map_error:
                 message = message + ' - '
             message = (message
-                       + 'To. Field Mag. PAD: %.3e' % self.zeta_tfmpad[-1])
+                       + 'To. Field Mag. PAD: %.3e%%' % self.zeta_tfmpad[-1])
             message = (message
-                       + 'To. Field Phase PAD: %.3e' % self.zeta_tfppad[-1])
+                       + 'To. Field Phase PAD: %.3e%%' % self.zeta_tfppad[-1])
 
         return message
+
+    def plot_residual_norm(self, show=False, file_path='', file_format='eps',
+                           axes=None):
+        """Summarize the method."""
+        if len(self.zeta_rn) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_rn')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_rn, title='Residual Norm Error',
+                 ylabel=r'$\zeta_{RN}$')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_rn.' + file_format,
+                            format=file_format)
+                plt.close()
+        else:
+            return axes
 
     def __str__(self):
         """Print object information."""
@@ -441,12 +556,12 @@ class Results:
         if self.configuration_filepath is not None:
             message = (message + '\nConfiguration file path: '
                        + self.configuration_filepath)
-        if self.inputdata_filename is not None:
+        if self.input_filename is not None:
             message = (message + '\nInput file name: '
-                       + self.inputdata_filename)
-        if self.inputdata_filepath is not None:
+                       + self.input_filename)
+        if self.input_filepath is not None:
             message = (message + '\nInput file path: '
-                       + self.inputdata_filepath)
+                       + self.input_filepath)
         if self.es is not None:
             message = (message + '\nScattered field - measurement samples: %d'
                        % self.es.shape[0]
@@ -465,6 +580,89 @@ class Results:
             message = (message + '\nConductivity map resolution: %dx'
                        % self.sigma.shape[0] + '%d'
                        % self.sigma.shape[1])
+        if self.execution_time is not None:
+            print('Execution time: %.2f [sec]' % self.execution_time)
+        if len(self.zeta_rn) > 0:
+            if len(self.zeta_rn) == 1:
+                info = '%.3e' % self.zeta_rn[0]
+            else:
+                info = '[' + str(', '.join('{:.3e}'.format(i)
+                                           for i in self.zeta_rn) + ']')
+            message = message + '\nResidual norm error: ' + info
+        if len(self.zeta_rpad) > 0:
+            if len(self.zeta_rpad) == 1:
+                info = '%.2f%%' % self.zeta_rpad[0]
+            else:
+                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                                           for i in self.zeta_rpad) + ']')
+            message = message + '\nPercent. Aver. Devi. of Residuals: ' + info
+        if len(self.zeta_epad) > 0:
+            if len(self.zeta_epad) == 1:
+                info = '%.2f%%' % self.zeta_epad[0]
+            else:
+                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                                           for i in self.zeta_epad) + ']')
+            message = (message + '\nPercent. Aver. Devi. of Rel. Permittivity:'
+                       + ' ' + info)
+        if len(self.zeta_sad) > 0:
+            if len(self.zeta_sad) == 1:
+                info = '%.3e' % self.zeta_sad[0]
+            else:
+                info = '[' + str(', '.join('{:.3e%}'.format(i)
+                                           for i in self.zeta_sad) + ']')
+            message = (message + '\nAver. Devi. of Conductivity: '
+                       + info)
+        if len(self.zeta_be) > 0:
+            if len(self.zeta_be) == 1:
+                info = '%.3e' % self.zeta_be[0]
+            else:
+                info = '[' + str(', '.join('{:.3e}'.format(i)
+                                           for i in self.zeta_be) + ']')
+            message = message + '\nBackground error: ' + info
+        if len(self.zeta_ebe) > 0:
+            if len(self.zeta_ebe) == 1:
+                info = '%.2f%%' % self.zeta_ebe[0]
+            else:
+                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                                           for i in self.zeta_ebe) + ']')
+            message = message + '\nBackground Rel. Permit. error: ' + info
+        if len(self.zeta_sbe) > 0:
+            if len(self.zeta_sbe) == 1:
+                info = '%.3e' % self.zeta_sbe[0]
+            else:
+                info = '[' + str(', '.join('{:.3e}'.format(i)
+                                           for i in self.zeta_sbe) + ']')
+            message = message + '\nBackground Conductivity error: ' + info
+        if len(self.zeta_eoe) > 0:
+            if len(self.zeta_eoe) == 1:
+                info = '%.2f%%' % self.zeta_eoe[0]
+            else:
+                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                                           for i in self.zeta_eoe) + ']')
+            message = message + '\nObject Rel. Permit. error: ' + info
+        if len(self.zeta_soe) > 0:
+            if len(self.zeta_soe) == 1:
+                info = '%.3e' % self.zeta_soe[0]
+            else:
+                info = '[' + str(', '.join('{:.3e}'.format(i)
+                                           for i in self.zeta_soe) + ']')
+            message = message + '\nObject Conduc. error: ' + info
+        if len(self.zeta_tfmpad) > 0:
+            if len(self.zeta_tfmpad) == 1:
+                info = '%.2f%%' % self.zeta_tfmpad[0]
+            else:
+                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                                           for i in self.zeta_tfmpad) + ']')
+            message = (message + '\nTotal Field Mag. Per. Aver. Devi. error: '
+                       + info)
+        if len(self.zeta_tfppad) > 0:
+            if len(self.zeta_tfppad) == 1:
+                info = '%.2f%%' % self.zeta_tfppad[0]
+            else:
+                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                                           for i in self.zeta_tfppad) + ']')
+            message = (message + '\nTotal Field Phase Per. Aver. Devi. error:'
+                       + ' ' + info)
         return message
 
 
@@ -508,8 +706,8 @@ def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
     dx, dy = (bounds[1]-bounds[0])/NX, (bounds[3]-bounds[2])/NY
     if image.dtype == complex:
         im = axes.imshow(np.abs(image),
-                         extent=[bounds[0]+dx/2, bounds[1]+dx/2,
-                                 bounds[2]+dy/2, bounds[3]+dy/2],
+                         extent=[bounds[0], bounds[1],
+                                 bounds[2], bounds[3]],
                          origin=origin)
     else:
         im = axes.imshow(image,
@@ -521,6 +719,48 @@ def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
     axes.set_title(title)
     cbar = plt.colorbar(ax=axes, mappable=im, fraction=0.046, pad=0.04)
     cbar.set_label(colorbar_name)
+
+
+def add_plot(axes, data, x=None, title=None, xlabel='Iterations', ylabel=None,
+             style='--*'):
+    """Add a plot to the axes.
+
+    A predefined function for plotting curves. This is useful for
+    standardize plots involving convergence data.
+
+    Paramaters
+    ----------
+        axes : :class:`matplotlib.pyplot.Figure.axes.Axes`
+            The axes object.
+
+        data : :class:`numpy.ndarray`
+            The y-data.
+
+        x : :class:`numpy.ndarray`, default: None
+            The x-data.
+
+        title : string, default: None
+            The title to be displayed in the plot.
+
+        xlabel : string, default: 'Iterations'
+            The label of the x-axis.
+
+        ylabel : string, default: None
+            The label of the y-axis.
+
+        style : string, default: '--*'
+            The style of the curve (line, marker, color).
+    """
+    if x is None:
+        x = np.arange(1, data.size+1)
+
+    axes.plot(x, data, style)
+    axes.set_xlabel(xlabel)
+    if ylabel is not None:
+        axes.set_ylabel(ylabel)
+    if title is not None:
+        axes.set_title(title)
+    axes.grid()
 
 
 def set_subplot_size(figure):
@@ -574,7 +814,7 @@ def compute_zeta_rn(es_o, es_a):
     theta = cfg.get_angles(NM)
     phi = cfg.get_angles(NS)
     y = (es_o-es_a)*np.conj(es_o-es_a)
-    return np.sqrt(np.trapz(np.trapz(y, x=phi), x=theta))
+    return np.real(np.sqrt(np.trapz(np.trapz(y, x=phi), x=theta)))
 
 
 def compute_rre(es_o, es_a):
@@ -620,7 +860,7 @@ def compute_zeta_rpad(es_o, es_r):
     """
     y = np.hstack((np.real(es_o.flatten()), np.imag(es_o.flatten())))
     yd = np.hstack((np.real(es_r.flatten()), np.imag(es_r.flatten())))
-    return np.mean(np.abs((y-yd)/y))
+    return np.mean(np.abs((y-yd)/y))*100
 
 
 def compute_zeta_epad(epsilon_ro, epsilon_rr):
@@ -637,11 +877,11 @@ def compute_zeta_epad(epsilon_ro, epsilon_rr):
     """
     y = epsilon_ro.flatten()
     yd = epsilon_rr.flatten()
-    return np.mean(np.abs((y-yd)/y))
+    return np.mean(np.abs((y-yd)/y))*100
 
 
-def compute_zeta_spad(sigma_o, sigma_r):
-    """Compute the percentage average deviation of conductivity map.
+def compute_zeta_sad(sigma_o, sigma_r):
+    """Compute the average deviation of conductivity map.
 
     The zeta_epad error is the evaluation of the conductivity
     estimation error per pixel.
@@ -653,7 +893,7 @@ def compute_zeta_spad(sigma_o, sigma_r):
     """
     y = sigma_o.flatten()
     yd = sigma_r.flatten()
-    return np.mean(np.abs((y-yd)))
+    return np.mean(np.abs((y-yd)))*100
 
 
 def compute_zeta_be(chi, x, y):
@@ -699,7 +939,7 @@ def compute_zeta_ebe(epsilon_ro, epsilon_rr, epsilon_rb):
     background[epsilon_ro == epsilon_rb] = True
     y = epsilon_ro[background]
     yd = epsilon_rr[background]
-    return np.mean(np.abs(y-yd)/y)
+    return np.mean(np.abs(y-yd)/y)*100
 
 
 def compute_zeta_sbe(sigma_o, sigma_r, sigma_b):
@@ -721,7 +961,7 @@ def compute_zeta_sbe(sigma_o, sigma_r, sigma_b):
     background[sigma_o == sigma_b] = True
     y = sigma_o[background]
     yd = sigma_r[background]
-    return np.mean(np.abs(y-yd)/y)
+    return np.mean(np.abs(y-yd))
 
 
 def compute_zeta_eoe(epsilon_ro, epsilon_rr, epsilon_rb):
@@ -743,7 +983,7 @@ def compute_zeta_eoe(epsilon_ro, epsilon_rr, epsilon_rb):
     not_background[epsilon_ro != epsilon_rb] = True
     y = epsilon_ro[not_background]
     yd = epsilon_rr[not_background]
-    return np.mean(np.abs(y-yd)/y)
+    return np.mean(np.abs(y-yd)/y)*100
 
 
 def compute_zeta_soe(sigma_o, sigma_r, sigma_b):
@@ -765,7 +1005,7 @@ def compute_zeta_soe(sigma_o, sigma_r, sigma_b):
     not_background[sigma_o != sigma_b] = True
     y = sigma_o[not_background]
     yp = sigma_r[not_background]
-    return np.mean(np.abs(y-yp)/y)
+    return np.mean(np.abs(y-yp))
 
 
 def compute_zeta_tfmpad(et_o, et_r):
@@ -781,7 +1021,7 @@ def compute_zeta_tfmpad(et_o, et_r):
     """
     y = np.abs(et_o.flatten())
     yd = np.abs(et_r.flatten())
-    return np.mean(np.abs((y-yd)/yd))
+    return np.mean(np.abs((y-yd)/yd))*100
 
 
 def compute_zeta_tfppad(et_o, et_r):
@@ -797,4 +1037,4 @@ def compute_zeta_tfppad(et_o, et_r):
     """
     y = np.angle(et_o.flatten())
     yd = np.angle(et_r.flatten())
-    return np.mean(np.abs((y-yd)/yd))
+    return np.mean(np.abs((y-yd)/yd))*100

@@ -17,9 +17,9 @@ import numpy as np
 from numpy import random as rnd
 import pickle
 
-import library_v2.configuration as cfg
-import library_v2.inputdata as ipt
-import library_v2.error as error
+import configuration as cfg
+import inputdata as ipt
+import error as error
 
 # String constants for easier access dictionary from saved file
 TOTAL_FIELD = 'et'
