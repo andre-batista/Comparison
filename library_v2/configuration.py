@@ -424,6 +424,7 @@ class Configuration:
         self.kb = data[BACKGROUND_WAVENUMBER]
         self.perfect_dielectric = data[PERFECT_DIELECTRIC_FLAG]
         self.good_conductor = data[GOOD_CONDUCTOR_FLAG]
+        self.E0 = data[MAGNITUDE]
 
     def __str__(self):
         """Print object information."""
@@ -613,7 +614,7 @@ def get_coordinates_ddomain(configuration=None, resolution=None,
             Limits of the interval in x-axis.
 
         ymin, ymax : float
-            Limits of the interval in y-axis.  
+            Limits of the interval in y-axis.
 
     Notes
     -----
@@ -626,8 +627,9 @@ def get_coordinates_ddomain(configuration=None, resolution=None,
         raise error.MissingInputError(function_name, 'resolution')
     elif configuration is None and resolution is not None:
         raise error.MissingInputError(function_name, 'configuration')
-    elif (dx is None or dy is None or xmin is None or xmax is None 
-            or ymin is None or ymax is None):
+    elif configuration is None and (dx is None or dy is None or xmin is None
+                                    or xmax is None or ymin is None
+                                    or ymax is None):
         inputs = []
         if dx is None:
             inputs.append('dx')
@@ -673,7 +675,7 @@ def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
         frequency : float
             Linear frequency of operation [Hz].
     """
-    return (epsilon_r/epsilon_rb - 1 
+    return (epsilon_r/epsilon_rb - 1
             - 1j*(sigma-sigma_b)/(omega*epsilon_rb*ct.epsilon_0))
 
 

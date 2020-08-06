@@ -523,6 +523,89 @@ class Results:
 
         return message
 
+    def plot_convergence(self, show=False, file_path='', file_format='eps'):
+        """Summarize the method."""
+        number_plots = 0
+        if len(self.zeta_be) > 0:
+            number_plots += 1
+        if len(self.zeta_ebe) > 0:
+            number_plots += 1
+        if len(self.zeta_eoe) > 0:
+            number_plots += 1
+        if len(self.zeta_epad) > 0:
+            number_plots += 1
+        if len(self.zeta_rn) > 0:
+            number_plots += 1
+        if len(self.zeta_rpad) > 0:
+            number_plots += 1
+        if len(self.zeta_sad) > 0:
+            number_plots += 1
+        if len(self.zeta_sbe) > 0:
+            number_plots += 1
+        if len(self.zeta_soe) > 0:
+            number_plots += 1
+        if len(self.zeta_tfmpad) > 0:
+            number_plots += 1
+        if len(self.zeta_tfppad) > 0:
+            number_plots += 1
+        nrows = int(np.sqrt(number_plots))
+        ncols = int(np.ceil(number_plots/nrows))
+        image_size = (5.+2*ncols, 5.+1*nrows)
+        figure = plt.figure(figsize=image_size)
+        set_subplot_size(figure)
+        figure.subplots_adjust(hspace=.5, bottom=0.1)
+        i = 1
+        if len(self.zeta_be) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_boundary_error(axes=axes)
+            i += 1
+        if len(self.zeta_ebe) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_relpermittivity_be(axes=axes)
+            i += 1
+        if len(self.zeta_eoe) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_relpermittivity_oe(axes=axes)
+            i += 1
+        if len(self.zeta_epad) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_relpermittivity_pad(axes=axes)
+            i += 1
+        if len(self.zeta_rn) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_residual_norm(axes=axes)
+            i += 1
+        if len(self.zeta_rpad) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_residual_pad(axes=axes)
+            i += 1
+        if len(self.zeta_sad) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_conductivity_ad(axes=axes)
+            i += 1
+        if len(self.zeta_sbe) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_conductivity_be(axes=axes)
+            i += 1
+        if len(self.zeta_soe) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_conductivity_oe(axes=axes)
+            i += 1
+        if len(self.zeta_tfmpad) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_totalfield_mpad(axes=axes)
+            i += 1
+        if len(self.zeta_tfppad) > 0:
+            axes = figure.add_subplot(nrows, ncols, i)
+            self.plot_totalfield_ppad(axes=axes)
+            i += 1
+        if show:
+            plt.show()
+        else:
+            plt.savefig(file_path + self.name + '_convergence.' + file_format,
+                        format=file_format)
+            plt.close()
+
     def plot_residual_norm(self, show=False, file_path='', file_format='eps',
                            axes=None):
         """Summarize the method."""
@@ -544,6 +627,256 @@ class Results:
             else:
                 plt.savefig(file_path + self.name + '_zeta_rn.' + file_format,
                             format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_residual_pad(self, show=False, file_path='', file_format='eps',
+                          axes=None):
+        """Summarize the method."""
+        if len(self.zeta_rpad) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_rpad')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_rpad, title='Residual PAD Error',
+                 ylabel=r'$\zeta_{RPAD}$')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_rpad.'
+                            + file_format, format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_relpermittivity_pad(self, show=False, file_path='',
+                                 file_format='eps', axes=None):
+        """Summarize the method."""
+        if len(self.zeta_epad) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_epad')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_epad, title='Rel. Permittivity PAD Error',
+                 ylabel=r'$\zeta_{\epsilon PAD}$')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_epad.' + file_format,
+                            format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_relpermittivity_be(self, show=False, file_path='',
+                                file_format='eps', axes=None):
+        """Summarize the method."""
+        if len(self.zeta_ebe) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_ebe')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_ebe, ylabel=r'$\zeta_{\epsilon BE}$',
+                 title='Rel. Permittivity Background Error')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_ebe.' + file_format,
+                            format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_relpermittivity_oe(self, show=False, file_path='',
+                                file_format='eps', axes=None):
+        """Summarize the method."""
+        if len(self.zeta_eoe) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_eoe')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_eoe, ylabel=r'$\zeta_{\epsilon OE}$',
+                 title='Rel. Permittivity Object Error')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_eoe.' + file_format,
+                            format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_conductivity_ad(self, show=False, file_path='',
+                             file_format='eps', axes=None):
+        """Summarize the method."""
+        if len(self.zeta_sad) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_sad')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_sad, ylabel=r'$\zeta_{\sigma AD}$',
+                 title='Conductivity AD Error')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_sad.' + file_format,
+                            format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_conductivity_be(self, show=False, file_path='',
+                             file_format='eps', axes=None):
+        """Summarize the method."""
+        if len(self.zeta_sbe) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_sbe')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_sbe, ylabel=r'$\zeta_{\sigma BE}$',
+                 title='Conductivity Background Error')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_sbe.' + file_format,
+                            format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_conductivity_oe(self, show=False, file_path='',
+                             file_format='eps', axes=None):
+        """Summarize the method."""
+        if len(self.zeta_soe) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_soe')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_soe, ylabel=r'$\zeta_{\sigma OE}$',
+                 title='Conductivity Object Error')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_soe.' + file_format,
+                            format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_boundary_error(self, show=False, file_path='', file_format='eps',
+                            axes=None):
+        """Summarize the method."""
+        if len(self.zeta_be) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_be')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_be, ylabel=r'$\zeta_{BE}$',
+                 title='Boundary Error')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_be.' + file_format,
+                            format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_totalfield_mpad(self, show=False, file_path='', file_format='eps',
+                             axes=None):
+        """Summarize the method."""
+        if len(self.zeta_tfmpad) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_tfmpad')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_tfmpad, ylabel=r'$\zeta_{TFMPAD}$',
+                 title='Total Field Mag. PAD Error')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_tfmpad.'
+                            + file_format, format=file_format)
+                plt.close()
+        else:
+            return axes
+
+    def plot_totalfield_ppad(self, show=False, file_path='', file_format='eps',
+                             axes=None):
+        """Summarize the method."""
+        if len(self.zeta_tfppad) == 0:
+            raise error.EmptyAttribute('Results', 'zeta_tfppad')
+        if axes is None:
+            figure = plt.figure(figsize=IMAGE_SIZE_SINGLE)
+            axes = get_single_figure_axes(figure)
+            single_plot = True
+        else:
+            single_plot = False
+
+        add_plot(axes, self.zeta_tfppad, ylabel=r'$\zeta_{TFPPAD}$',
+                 title='Total Field Phase PAD Error')
+
+        if single_plot:
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_zeta_tfppad.'
+                            + file_format, format=file_format)
                 plt.close()
         else:
             return axes
@@ -752,7 +1085,11 @@ def add_plot(axes, data, x=None, title=None, xlabel='Iterations', ylabel=None,
             The style of the curve (line, marker, color).
     """
     if x is None:
-        x = np.arange(1, data.size+1)
+        if type(data) is list:
+            length = len(data)
+        else:
+            length = data.size
+        x = np.arange(1, length+1)
 
     axes.plot(x, data, style)
     axes.set_xlabel(xlabel)

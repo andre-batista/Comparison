@@ -194,17 +194,20 @@ class InputData:
             if configuration_filename is None:
                 raise error.MissingInputError('InputData.__init__()',
                                               'configuration_filename')
-            if resolution is None:
+            if (resolution is None and relative_permittivity_map is None
+                    and conductivity_map is None):
                 raise error.MissingInputError('InputData.__init__()',
                                               'resolution')
 
             self.name = name
             self.configuration_filename = configuration_filename
-            self.resolution = resolution
             self.homogeneous_objects = homogeneous_objects
             self.compute_residual_error = compute_residual_error
             self.compute_map_error = compute_map_error
             self.compute_totalfield_error = compute_totalfield_error
+
+            if resolution is not None:
+                self.resolution = None
 
             if scattered_field is not None:
                 self.es = np.copy(scattered_field)
@@ -223,11 +226,15 @@ class InputData:
 
             if relative_permittivity_map is not None:
                 self.epsilon_r = relative_permittivity_map
+                if resolution is None:
+                    self.resolution = relative_permittivity_map.shape
             else:
                 self.epsilon_r = None
 
             if conductivity_map is not None:
                 self.sigma = conductivity_map
+                if resolution is None:
+                    self.resolution = conductivity_map.shape
             else:
                 self.sigma = None
 

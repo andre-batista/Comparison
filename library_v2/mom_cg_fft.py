@@ -18,12 +18,15 @@ References
 import time
 import numpy as np
 from numpy import linalg as lag
+from numpy import fft
+from scipy import constants as ct
 import scipy.special as spc
 from joblib import Parallel, delayed
 import multiprocessing
 import forward as fwr
 import inputdata as ipt
 import configuration as cfg
+from matplotlib import pyplot as plt
 
 # Predefined constants
 MEMORY_LIMIT = 16e9  # [GB]
@@ -98,7 +101,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         kb = self.configuration.kb
         E0 = self.configuration.E0
 
-        if isinstance(kb, float):
+        if isinstance(kb, float) or isinstance(kb, complex):
             ei = E0*np.exp(-1j*kb*(x.reshape((-1, 1))
                                    @ np.cos(phi.reshape((1, -1)))
                                    + y.reshape((-1, 1))
@@ -236,21 +239,20 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         if COMPUTE_INTERN_FIELD:
 
             if MONO_FREQUENCY:
-                GD = cfg.get_greenfunction(x.reshape(-1), y.reshape(-1), x, y,
-                                           kb)
+                GD = get_greenfunction(x.reshape(-1), y.reshape(-1), x, y, kb)
                 et = GD@J
 
             else:
                 et = np.zeros((N, NS, NF), dtype=complex)
                 if 8*(N)**2*NF < MEMORY_LIMIT:
-                    GD = cfg.get_greenfunction(x.reshape(-1), y.reshape(-1), x,
-                                               y, kb)
+                    GD = get_greenfunction(x.reshape(-1), y.reshape(-1), x, y,
+                                           kb)
                     for nf in range(NF):
                         et[:, :, nf] = GD[:, :, nf]@J[:, :, nf]
                 else:
                     for f in range(NF):
-                        GD = cfg.get_greenfunction(x.reshape(-1),
-                                                   y.reshape(-1), x, y, kb[nf])
+                        GD = get_greenfunction(x.reshape(-1), y.reshape(-1), x,
+                                               y, kb[nf])
                         et[:, :, nf] = GD@J[:, :, nf]
 
             et = et + ei
@@ -283,7 +285,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             Z : :class:`numpy:ndarray`
                 The extent matrix.
         """
-        if isinstance(kb, float):
+        if isinstance(kb, float) or isinstance(kb, complex):
 
             # Matrix elements for off-diagonal entries (m=/n)
             Zmn = ((1j*np.pi*kb*an)/2)*spc.jv(1, kb*an)*spc.hankel2(0, kb*Rmn)
@@ -391,6 +393,33 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             go = g
 
         return J, n, error_res
+
+    def __fft_A(self, J, Z, NX, NY, NS, Xr):
+        """Compute Matrix-vector product by using two-dimensional FFT."""
+        J = np.reshape(J, (NY, NX, NS))
+        Z = np.tile(Z[:, :, np.newaxis], (1, 1, NS))
+        e = fft.ifft2(fft.fft2(Z, axes=(0, 1))
+                      * fft.fft2(J, axes=(0, 1), s=(2*NY-1, 2*NX-1)),
+                      axes=(0, 1))
+        e = e[:NY, :NX, :]
+        e = np.reshape(e, (NX*NY, NS))
+        e = np.reshape(J, (NX*NY, NS)) + np.tile(Xr.reshape((-1, 1)),
+                                                 (1, NS))*e
+
+        return e
+
+    def __fft_AH(self, J, Z, NX, NY, NS, Xr):
+        """Summarize the method."""
+        J = np.reshape(J, (NY, NX, NS))
+        Z = np.tile(Z[:, :, np.newaxis], (1, 1, NS))
+        e = fft.ifft2(fft.fft2(np.conj(Z), axes=(0, 1))
+                      * fft.fft2(J, axes=(0, 1), s=(2*NY-1, 2*NX-1)),
+                      axes=(0, 1))
+        e = e[:NY, :NX, :]
+        e = np.reshape(e, (NX*NY, NS))
+        e = (np.reshape(J, (NX*NY, NS))
+             + np.conj(np.tile(Xr.reshape((-1, 1)), (1, NS)))*e)
+        return e
 
     def __str__(self):
         """Print method parametrization."""
