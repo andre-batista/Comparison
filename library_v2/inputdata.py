@@ -21,7 +21,7 @@ The following class is defined
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import error
+import library_v2.error as error
 
 # Constants for easier access to fields of the saved pickle file
 NAME = 'name'
@@ -357,6 +357,12 @@ class InputData:
                 plt.savefig(file_path + self.name + '.' + file_format,
                             format=file_format)
                 plt.close()
+
+    def plot_scattered_field(self, figure_title=None, file_path='',
+                             file_format='eps', show=False):
+        if self.es is None:
+            raise error.EmptyAttribute('InputData', 'es')
+        
 
     def __str__(self):
         """Print information."""

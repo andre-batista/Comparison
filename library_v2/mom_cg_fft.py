@@ -503,7 +503,7 @@ def get_greenfunction(xm, ym, x, y, kb):
     R = np.sqrt((xg-np.tile(np.reshape(x, (Nx*Ny, 1)).T, (M, 1)))**2
                 + (yg-np.tile(np.reshape(y, (Nx*Ny, 1)).T, (M, 1)))**2)
 
-    G = (-1j*kb*np.pi*an/2*spc.jv(1, kb*an) * spc.hankel2(0, kb*R))
+    G = (-1j*kb*np.pi*an/2*spc.jv(1, kb*an)*spc.hankel2(0, kb*R))
     G[R == 0] = 1j/2*(np.pi*kb*an*spc.hankel2(1, kb*an)-2j)
 
     return G
