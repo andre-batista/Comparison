@@ -21,7 +21,8 @@ The following class is defined
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import library_v2.error as error
+import error as error
+import results as rst
 
 # Constants for easier access to fields of the saved pickle file
 NAME = 'name'
@@ -360,9 +361,62 @@ class InputData:
 
     def plot_scattered_field(self, figure_title=None, file_path='',
                              file_format='eps', show=False):
+        """Summarize the method."""
         if self.es is None:
             raise error.EmptyAttribute('InputData', 'es')
-        
+
+        figure = plt.figure(figsize=rst.IMAGE_SIZE_SINGLE)
+        axes = rst.get_single_figure_axes(figure)
+        if figure_title is None:
+            figure_title = 'Scattered Field Pattern - ' + self.name
+        rst.add_image(axes, self.es, figure_title, r'$E^s_z$ [V/m]',
+                      bounds=(0, 360, 0, 360), xlabel='Source angle [deg]',
+                      ylabel='Measurement angle [deg]', aspect='auto',
+                      interpolation='spline36')
+        if show:
+            plt.show()
+        else:
+            plt.savefig(file_path + self.name + '_es.' + file_format,
+                        format=file_format)
+            plt.close()
+
+    def plot_total_field(self, figure_title=None, file_path='',
+                         file_format='eps', show=False):
+        """Summarize the method."""
+        if self.et is None:
+            raise error.EmptyAttribute('InputData', 'et')
+        if self.resolution is None:
+            raise error.EmptyAttribute('InputData', 'resolution')
+        if self.resolution[0]*self.resolution[1] != self.et.shape[0]:
+            raise error.WrongValueInput('InputData.plot_total_field',
+                                        "'resolution' and 'et'",
+                                        'resolution[0]*resolution[1] == '
+                                        + 'et.shape[0]', 'resolution[0]*'
+                                        + 'resolution[1] != et.shape[0]')
+
+        NS = self.et.shape[1]
+        nrows = int(np.sqrt(NS))
+        ncols = int(np.ceil(NS/nrows))
+        image_size = (5.+3*ncols, 5.+1*nrows)
+        figure = plt.figure(figsize=image_size)
+        rst.set_subplot_size(figure)
+        figure.subplots_adjust(hspace=.5, bottom=0.1)
+        for i in range(NS):
+            axes = figure.add_subplot(nrows, ncols, i+1)
+            img = self.et[:, i].reshape(self.resolution)
+            title = 'Source %d' % (i+1)
+            rst.add_image(axes, img, title, r'$E_z$ [V/m]',
+                          bounds=(0, 1, 0, 1), xlabel=r'$L_x$',
+                          ylabel=r'$L_y$')
+        if figure_title is None:
+            figure_title = 'Total Field - ' + self.name
+        plt.suptitle(figure_title, fontsize=14)
+        if show:
+            plt.show()
+        else:
+            plt.savefig(file_path + self.name + '_et.' + file_format,
+                        format=file_format)
+            plt.close()
 
     def __str__(self):
         """Print information."""

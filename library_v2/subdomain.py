@@ -26,8 +26,8 @@ from scipy import constants as ct
 from scipy.special import hankel2, jv
 from numba import jit
 
-import library_v2.weightedresiduals as wrm
-import library_v2.configuration as cfg
+import weightedresiduals as wrm
+import configuration as cfg
 
 
 class SubdomainMethod(wrm.MethodOfWeightedResiduals):
@@ -70,14 +70,8 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
         if (self._GS is None
                 or self._GS.shape[1]
                 != inputdata.resolution[0]*inputdata.resolution[1]):
-            xm, ym = cfg.get_coordinates_sdomain(self.configuration.Ro,
-                                                 self.configuration.NM)
-            x, y = cfg.get_coordinates_ddomain(
-                configuration=self.configuration,
-                resolution=inputdata.resolution
-            )
-            self._GS = cfg.get_greenfunction(xm, ym, x, y,
-                                             self.configuration.kb)
+            self._compute_green_function(inputdata.resolution)
+
         A = get_operator_matrix(inputdata.et,
                                 self.configuration.NM,
                                 self.configuration.NS, self._GS,

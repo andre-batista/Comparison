@@ -62,10 +62,10 @@ from numba import jit
 from scipy.linalg import svdvals
 
 # Developed libraries
-import library_v2.inverse as inv
-import library_v2.inputdata as ipt
-import library_v2.error as error
-import library_v2.results as rst
+import inverse as inv
+import inputdata as ipt
+import error as error
+import results as rst
 
 # String constants
 TIKHONOV_METHOD = 'tikhonov'

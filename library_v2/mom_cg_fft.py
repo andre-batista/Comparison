@@ -50,7 +50,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
     TOL = float()
 
     def __init__(self, configuration, configuration_filepath='',
-                 tolerance=1e-6, maximum_iterations=10000):
+                 tolerance=1e-3, maximum_iterations=2000):
         """Create the object.
 
         Parameters

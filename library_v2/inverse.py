@@ -10,8 +10,8 @@ from abc import ABC, abstractmethod
 import copy as cp
 
 # Developed libraries
-import library_v2.configuration as cfg
-import library_v2.results as rst
+import configuration as cfg
+import results as rst
 
 
 class Inverse(ABC):

@@ -1000,7 +1000,8 @@ class Results:
 
 
 def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
-              origin='lower', xlabel=XLABEL_STANDARD, ylabel=YLABEL_STANDARD):
+              origin='lower', xlabel=XLABEL_STANDARD, ylabel=YLABEL_STANDARD,
+              aspect='equal', interpolation=None):
     """Add a image to the axes.
 
     A predefined function for plotting image. This is useful for
@@ -1035,18 +1036,18 @@ def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
             The label of the y-axis.
 
     """
-    NY, NX = image.shape
-    dx, dy = (bounds[1]-bounds[0])/NX, (bounds[3]-bounds[2])/NY
     if image.dtype == complex:
         im = axes.imshow(np.abs(image),
                          extent=[bounds[0], bounds[1],
                                  bounds[2], bounds[3]],
-                         origin=origin)
+                         origin=origin, aspect=aspect,
+                         interpolation=interpolation)
     else:
         im = axes.imshow(image,
                          extent=[bounds[0], bounds[1],
                                  bounds[2], bounds[3]],
-                         origin=origin)
+                         origin=origin, aspect=aspect,
+                         interpolation=interpolation)
     axes.set_xlabel(xlabel)
     axes.set_ylabel(ylabel)
     axes.set_title(title)

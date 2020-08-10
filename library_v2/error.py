@@ -141,7 +141,7 @@ class WrongValueInput(Error):
 
 
 class EmptyAttribute(Error):
-    """Exception for empty class atribute.""
+    """Exception for empty class atribute.
 
     Attributes
     ----------
