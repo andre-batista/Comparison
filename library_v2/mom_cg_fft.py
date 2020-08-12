@@ -20,6 +20,7 @@ import numpy as np
 from numpy import linalg as lag
 from numpy import fft
 from scipy import constants as ct
+from scipy import sparse as spr
 import scipy.special as spc
 from joblib import Parallel, delayed
 import multiprocessing
@@ -50,7 +51,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
     TOL = float()
 
     def __init__(self, configuration, configuration_filepath='',
-                 tolerance=1e-3, maximum_iterations=2000):
+                 tolerance=1e-3, maximum_iterations=500):
         """Create the object.
 
         Parameters
@@ -119,7 +120,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                         )
         return ei
 
-    def solve(self, scenario, PRINT_INFO=False, COMPUTE_INTERN_FIELD=True):
+    def solve(self, scenario, PRINT_INFO=False, COMPUTE_SCATTERED_FIELD=True):
         """Solve the forward problem.
 
         Parameters
@@ -166,7 +167,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                            ymin=ymin, ymax=ymax)
         ei = self.incident_field(scenario.resolution)
         scenario.ei = np.copy(ei)
-        GS = get_greenfunction(xm, ym, x, y, kb)
+        ei = np.conj(ei)
 
         if isinstance(f, float):
             MONO_FREQUENCY = True
@@ -182,86 +183,62 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         [xe, ye] = np.meshgrid(np.arange(xmin-(NX/2-1)*dx, xmax+NY/2*dx, dx),
                                np.arange(ymin-(NY/2-1)*dy, ymax+NY/2*dy, dy))
         Rmn = np.sqrt(xe**2 + ye**2)  # distance between the cells
-        Z = self.__get_extended_matrix(Rmn, kb, an, NX, NY)
-
-        if MONO_FREQUENCY:
-            b = np.tile(Xr.reshape((-1, 1)), (1, NS))*ei
-
-        else:
-            b = np.zeros((N, NS, NF), dtype=complex)
-            for nf in range(NF):
-                b[:, :, nf] = (np.tile(Xr[:, :, nf].reshape((-1, 1)), (1, NS))
-                               * ei[:, :, nf])
+        G = self.__get_extended_matrix(Rmn, kb, an, NX, NY)
+        b = np.copy(ei)
 
         if MONO_FREQUENCY:
             tic = time.time()
-            J, niter, error = self.__CG_FFT(Z, b, NX, NY, NS, Xr, self.MAX_IT,
-                                            self.TOL, PRINT_INFO)
+            et, niter, error = self.__CG_FFT(G, b, NX, NY, NS, Xr, self.MAX_IT,
+                                             self.TOL, PRINT_INFO)
             time_cg_fft = time.time()-tic
             if PRINT_INFO:
                 print('Execution time: %.2f' % time_cg_fft + ' [sec]')
 
         else:
-            J = np.zeros((N, NS, NF), dtype=complex)
+            et = np.zeros((N, NS, NF), dtype=complex)
             niter = np.zeros(NF)
             error = np.zeros((self.MAX_IT, NF))
             num_cores = multiprocessing.cpu_count()
 
             results = (Parallel(n_jobs=num_cores)(delayed(self.__CG_FFT)
-                                                  (np.squeeze(Z[:, :, nf]),
+                                                  (np.squeeze(G[:, :, nf]),
                                                    np.squeeze(b[:, :, nf]),
                                                    NX, NY, NS,
                                                    np.squeeze(Xr[:, :, nf]),
                                                    self.MAX_IT, self.TOL,
                                                    False)
-                                                  for f in range(NF)))
+                                                  for nf in range(NF)))
 
             for nf in range(NF):
-                J[:, :, nf] = results[nf][0]
+                et[:, :, nf] = results[nf][0]
                 niter[nf] = results[nf][1]
                 error[:, nf] = results[nf][2]
                 print('Frequency: %.3f ' % (f[nf]/1e9) + '[GHz] - '
                       + 'Number of iterations: %d - ' % (niter[nf]+1)
                       + 'Error: %.3e' % error[int(niter[nf]), nf])
+        scenario.et = np.conj(et)
 
-        if MONO_FREQUENCY:
-            es = GS@J  # Scattered Field, NM x NS
-
-        else:
-            es = np.zeros((NM, NS, NF), dtype=complex)
-            for nf in range(NF):
-                es[:, :, nf] = GS[:, :, nf]@J[:, :, nf]
-
-        if scenario.noise > 0:
-            es = fwr.add_noise(es, scenario.noise)
-        scenario.es = np.copy(es)
-
-        if COMPUTE_INTERN_FIELD:
+        if COMPUTE_SCATTERED_FIELD:
+            GS = get_greenfunction(xm, ym, x, y, kb)
 
             if MONO_FREQUENCY:
-                GD = get_greenfunction(x.reshape(-1), y.reshape(-1), x, y, kb)
-                et = GD@J
+                es = GS @ spr.dia_matrix((Xr.flatten(), 0), shape=(N, N)) @ et
 
             else:
-                et = np.zeros((N, NS, NF), dtype=complex)
-                if 8*(N)**2*NF < MEMORY_LIMIT:
-                    GD = get_greenfunction(x.reshape(-1), y.reshape(-1), x, y,
-                                           kb)
-                    for nf in range(NF):
-                        et[:, :, nf] = GD[:, :, nf]@J[:, :, nf]
-                else:
-                    for f in range(NF):
-                        GD = get_greenfunction(x.reshape(-1), y.reshape(-1), x,
-                                               y, kb[nf])
-                        et[:, :, nf] = GD@J[:, :, nf]
+                es = np.zeros((NM, NS, NF), dtype=complex)
+                for nf in range(NF):
+                    aux = spr.dia_matrix((Xr[:, :, nf].flatten(), 0),
+                                         shape=(N, N))
+                    es[:, :, nf] = GS[:, :, nf] @ aux @ et[:, :, nf]
 
-            et = et + ei
-            scenario.et = np.copy(et)
+            if scenario.noise > 0:
+                es = fwr.add_noise(es, scenario.noise)
+            scenario.es = np.conj(es)
 
-            return es, et, ei
+            return np.conj(et), np.conj(ei), np.conj(es)
 
         else:
-            return es, ei
+            return np.conj(et), np.conj(ei)
 
     def __get_extended_matrix(self, Rmn, kb, an, NX, NY):
         """Return the extended matrix of Method of Moments.
@@ -282,49 +259,49 @@ class MoM_CG_FFT(fwr.ForwardSolver):
 
         Returns
         -------
-            Z : :class:`numpy:ndarray`
+            G : :class:`numpy:ndarray`
                 The extent matrix.
         """
         if isinstance(kb, float) or isinstance(kb, complex):
 
             # Matrix elements for off-diagonal entries (m=/n)
-            Zmn = ((1j*np.pi*kb*an)/2)*spc.jv(1, kb*an)*spc.hankel2(0, kb*Rmn)
+            Gmn = 1j*np.pi*kb*an/2*spc.jv(1, kb*an)*spc.hankel1(0, kb*Rmn)
             # Matrix elements for diagonal entries (m==n)
-            Zmn[NY-1, NX-1] = ((1j*np.pi*kb*an)/2)*spc.hankel2(1, kb*an)+1
+            Gmn[NY-1, NX-1] = 1j*np.pi*kb*an/2*spc.hankel1(1, kb*an) - 1
 
             # Extended matrix (2N-1)x(2N-1)
-            Z = np.zeros((2*NY-1, 2*NX-1), dtype=complex)
-            Z[:NY, :NX] = Zmn[NY-1:2*NY-1, NX-1:2*NX-1]
-            Z[NY:2*NY-1, NX:2*NX-1] = Zmn[:NY-1, :NX-1]
-            Z[NY:2*NY-1, :NX] = Zmn[:NY-1, NX-1:2*NX-1]
-            Z[:NY, NX:2*NX-1] = Zmn[NY-1:2*NY-1, :NX-1]
+            G = np.zeros((2*NY-1, 2*NX-1), dtype=complex)
+            G[:NY, :NX] = Gmn[NY-1:2*NY-1, NX-1:2*NX-1]
+            G[NY:2*NY-1, NX:2*NX-1] = Gmn[:NY-1, :NX-1]
+            G[NY:2*NY-1, :NX] = Gmn[:NY-1, NX-1:2*NX-1]
+            G[:NY, NX:2*NX-1] = Gmn[NY-1:2*NY-1, :NX-1]
 
         else:
 
-            Z = np.zeros((2*NY-1, 2*NX-1, kb.size), dtype=complex)
+            G = np.zeros((2*NY-1, 2*NX-1, kb.size), dtype=complex)
 
             for f in range(kb.size):
 
-                # Matrix elements for off-diagonal entries
-                Zmn = (((1j*np.pi*kb[f]*an)/2)*spc.jv(1, kb[f]*an)
-                       * spc.hankel2(0, kb[f]*Rmn))  # m=/n
+                # Matrix elements for off-diagonal entries (m=/n)
+                Gmn = (1j*np.Arrayteratorpi*kb*an/2*spc.jv(1, kb[f]*an)
+                       * spc.hankel1(0, kb[f]*Rmn))
                 # Matrix elements for diagonal entries (m==n)
-                Zmn[NY-1, NX-1] = (((1j*np.pi*kb[f]*an)/2)
-                                   * spc.hankel2(1, kb[f]*an)+1)
+                Gmn[NY-1, NX-1] = (1j*np.pi*kb[f]*an/2*spc.hankel1(1, kb[f]*an)
+                                   - 1)
 
-                Z[:NY, :NX, f] = Zmn[NY-1:2*NY-1, NX-1:2*NX-1]
-                Z[NY:2*NY-1, NX:2*NX-1, f] = Zmn[:NY-1, :NX-1]
-                Z[NY:2*NY-1, :NX, f] = Zmn[:NY-1, NX-1:2*NX-1]
-                Z[:NY, NX:2*NX-1, f] = Zmn[NY-1:2*NY-1, :NX-1]
+                G[:NY, :NX, f] = Gmn[NY-1:2*NY-1, NX-1:2*NX-1]
+                G[NY:2*NY-1, NX:2*NX-1, f] = Gmn[:NY-1, :NX-1]
+                G[NY:2*NY-1, :NX, f] = Gmn[:NY-1, NX-1:2*NX-1]
+                G[:NY, NX:2*NX-1, f] = Gmn[NY-1:2*NY-1, :NX-1]
 
-        return Z
+        return G
 
-    def __CG_FFT(self, Z, b, NX, NY, NS, Xr, MAX_IT, TOL, PRINT_CONVERGENCE):
+    def __CG_FFT(self, G, b, NX, NY, NS, Xr, MAX_IT, TOL, PRINT_CONVERGENCE):
         """Apply the Conjugated-Gradient Method to the forward problem.
 
         Parameters
         ----------
-            Z : :class:`numpy.ndarray`
+            G : :class:`numpy.ndarray`
                 Extended matrix, (2NX-1)x(2NY-1)
 
             b : :class:`numpy.ndarray`
@@ -356,24 +333,24 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             J : :class:`numpy:ndarray`
                 Current density, (NX.NY)xNS
         """
-        Jo = np.zeros((NX*NY, NS), dtype=complex)  # initial guess
-        ro = self.__fft_A(Jo, Z, NX, NY, NS, Xr)-b  # ro = A.Jo - b;
-        go = self.__fft_AH(ro, Z, NX, NY, NS, Xr)  # Complex conjugate AH
+        Eo = np.zeros((NX*NY, NS), dtype=complex)  # initial guess
+        ro = self.__fft_A(Eo, G, NX, NY, NS, Xr)-b  # ro = A.Jo - b;
+        go = self.__fft_AH(ro, G, NX, NY, NS, Xr)  # Complex conjugate AH
         po = -go
         error_res = np.zeros(MAX_IT)
 
         for n in range(MAX_IT):
-
-            alpha = -1*(np.sum(np.conj(self.__fft_A(po, Z, NX, NY, NS, Xr))
-                               * (self.__fft_A(Jo, Z, NX, NY, NS, Xr)-b),
+            
+            alpha = -1*(np.sum(np.conj(self.__fft_A(po, G, NX, NY, NS, Xr))
+                               * (self.__fft_A(Eo, G, NX, NY, NS, Xr)-b),
                                axis=0)
-                        / lag.norm(np.reshape(self.__fft_A(po, Z, NX, NY, NS,
+                        / lag.norm(np.reshape(self.__fft_A(po, G, NX, NY, NS,
                                                            Xr), (NX*NY*NS, 1),
                                               order='F'), ord='fro')**2)
 
-            J = Jo + np.tile(alpha, (NX*NY, 1))*po
-            r = self.__fft_A(J, Z, NX, NY, NS, Xr)-b
-            g = self.__fft_AH(r, Z, NX, NY, NS, Xr)
+            E = Eo + np.tile(alpha, (NX*NY, 1))*po
+            r = self.__fft_A(E, G, NX, NY, NS, Xr)-b
+            g = self.__fft_AH(r, G, NX, NY, NS, Xr)
 
             error = lag.norm(r)/lag.norm(b)  # error tolerance
             error_res[n] = error
@@ -388,38 +365,34 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                                             axis=0)
             p = -g + np.tile(beta, (NX*NY, 1))*po
 
-            po = p
-            Jo = J
-            go = g
+            po = np.copy(p)
+            Eo = np.copy(E)
+            go = np.copy(g)
 
-        return J, n, error_res
+        return E, n, error_res
 
-    def __fft_A(self, J, Z, NX, NY, NS, Xr):
+    def __fft_A(self, E, G, NX, NY, NS, Xr):
         """Compute Matrix-vector product by using two-dimensional FFT."""
-        J = np.reshape(J, (NY, NX, NS))
-        Z = np.tile(Z[:, :, np.newaxis], (1, 1, NS))
-        e = fft.ifft2(fft.fft2(Z, axes=(0, 1))
-                      * fft.fft2(J, axes=(0, 1), s=(2*NY-1, 2*NX-1)),
+        u = np.tile(Xr.reshape((-1, 1)), (1, NS))*E
+        u = np.reshape(u, (NY, NX, NS))
+        H = np.tile(G[:, :, np.newaxis], (1, 1, NS))
+        e = fft.ifft2(fft.fft2(H, axes=(0, 1))
+                      * fft.fft2(u, axes=(0, 1), s=(2*NY-1, 2*NX-1)),
                       axes=(0, 1))
         e = e[:NY, :NX, :]
         e = np.reshape(e, (NX*NY, NS))
-        e = np.reshape(J, (NX*NY, NS)) + np.tile(Xr.reshape((-1, 1)),
-                                                 (1, NS))*e
+        return E - e
 
-        return e
-
-    def __fft_AH(self, J, Z, NX, NY, NS, Xr):
+    def __fft_AH(self, E, G, NX, NY, NS, Xr):
         """Summarize the method."""
-        J = np.reshape(J, (NY, NX, NS))
-        Z = np.tile(Z[:, :, np.newaxis], (1, 1, NS))
-        e = fft.ifft2(fft.fft2(np.conj(Z), axes=(0, 1))
-                      * fft.fft2(J, axes=(0, 1), s=(2*NY-1, 2*NX-1)),
+        u = np.reshape(E, (NY, NX, NS))
+        H = np.tile(G[:, :, np.newaxis], (1, 1, NS))
+        e = fft.ifft2(fft.fft2(np.conj(H), axes=(0, 1))
+                      * fft.fft2(u, axes=(0, 1), s=(2*NY-1, 2*NX-1)),
                       axes=(0, 1))
         e = e[:NY, :NX, :]
         e = np.reshape(e, (NX*NY, NS))
-        e = (np.reshape(J, (NX*NY, NS))
-             + np.conj(np.tile(Xr.reshape((-1, 1)), (1, NS)))*e)
-        return e
+        return E - np.conj(np.tile(Xr.reshape((-1, 1)), (1, NS)))*e
 
     def __str__(self):
         """Print method parametrization."""
@@ -446,11 +419,19 @@ def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
         sigma_b : float
             Background conductivity of the medium [S/m].
 
-        frequency : float
-            Linear frequency of operation [Hz].
+        omega : float or array
+            Angular frequency of operation [Hz].
     """
-    return ((epsilon_r - 1j*sigma/omega/ct.epsilon_0)
-            / (epsilon_rb - 1j*sigma_b/omega/ct.epsilon_0) - 1)
+    if isinstance(omega, float):
+        return ((epsilon_r - 1j*sigma/omega/ct.epsilon_0)
+                / (epsilon_rb - 1j*sigma_b/omega/ct.epsilon_0) - 1)
+    else:
+        Xr = np.zeros((epsilon_r.shape[0], epsilon_r.shape[1], omega.size),
+                      dtype=complex)
+        for i in range(omega.size):
+            Xr[:, :, i] = ((epsilon_r - 1j*sigma/omega[i]/ct.epsilon_0)
+                           / (epsilon_rb - 1j*sigma_b/omega[i]/ct.epsilon_0)-1)
+        return Xr
 
 
 def get_greenfunction(xm, ym, x, y, kb):
@@ -503,7 +484,6 @@ def get_greenfunction(xm, ym, x, y, kb):
     R = np.sqrt((xg-np.tile(np.reshape(x, (Nx*Ny, 1)).T, (M, 1)))**2
                 + (yg-np.tile(np.reshape(y, (Nx*Ny, 1)).T, (M, 1)))**2)
 
-    G = (-1j*kb*np.pi*an/2*spc.jv(1, kb*an)*spc.hankel2(0, kb*R))
-    G[R == 0] = 1j/2*(np.pi*kb*an*spc.hankel2(1, kb*an)-2j)
+    G = 1j*kb*np.pi*an/2*spc.jv(1, kb*an)*spc.hankel1(0, kb*R)
 
     return G
