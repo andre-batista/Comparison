@@ -51,7 +51,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
     TOL = float()
 
     def __init__(self, configuration, configuration_filepath='',
-                 tolerance=1e-3, maximum_iterations=500):
+                 tolerance=1e-3, maximum_iterations=5000):
         """Create the object.
 
         Parameters
@@ -101,7 +101,6 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                            resolution=resolution)
         kb = self.configuration.kb
         E0 = self.configuration.E0
-
         if isinstance(kb, float) or isinstance(kb, complex):
             ei = E0*np.exp(-1j*kb*(x.reshape((-1, 1))
                                    @ np.cos(phi.reshape((1, -1)))
@@ -120,7 +119,8 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                         )
         return ei
 
-    def solve(self, scenario, PRINT_INFO=False, COMPUTE_SCATTERED_FIELD=True):
+    def solve(self, scenario, PRINT_INFO=False, COMPUTE_SCATTERED_FIELD=True,
+              SAVE_INTERN_FIELD=True):
         """Solve the forward problem.
 
         Parameters
@@ -216,7 +216,9 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                 print('Frequency: %.3f ' % (f[nf]/1e9) + '[GHz] - '
                       + 'Number of iterations: %d - ' % (niter[nf]+1)
                       + 'Error: %.3e' % error[int(niter[nf]), nf])
-        scenario.et = np.conj(et)
+
+        if SAVE_INTERN_FIELD:
+            scenario.et = np.conj(et)
 
         if COMPUTE_SCATTERED_FIELD:
             GS = get_greenfunction(xm, ym, x, y, kb)

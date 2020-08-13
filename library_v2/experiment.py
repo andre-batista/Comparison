@@ -52,7 +52,7 @@ from numpy import logical_and
 
 # Developed libraries
 import error
-import configuration as cfg
+import library_v2.configuration as cfg
 import inputdata as ipt
 import solver as slv
 import results as rst
@@ -60,7 +60,7 @@ import forward as frw
 import mom_cg_fft as mom
 
 # Constants
-STANDARD_SYNTHETIZATION_RESOLUTION = 30
+STANDARD_SYNTHETIZATION_RESOLUTION = 25
 STANDARD_RECOVER_RESOLUTION = 20
 GEOMETRIC_PATTERN = 'geometric'
 SURFACES_PATTERN = 'surfaces'
@@ -110,7 +110,6 @@ class Experiment:
     """
 
     name = str
-    map_pattern = str
     sample_size = int
     synthetization_resolution = (int, int)
     recover_resolution = (int, int)
@@ -343,24 +342,52 @@ class Experiment:
             self.scenarios = scenarios
 
         if self.synthetization_resolution is None:
-            self.synthetization_resolution = list()
-            for i in range(len(self.configurations)):
-                resolution = compute_resolution(
-                    self.configurations[i].lambda_b,
-                    self.configurations[i].Ly, self.configurations[i].Lx,
-                    STANDARD_SYNTHETIZATION_RESOLUTION
-                )
-                self.synthetization_resolution.append(resolution)
+            self.synthetization_resolution = []
+            for i in range(len(self.maximum_contrast)):
+                self.synthetization_resolution.append(list())
+                for j in range(len(self.configurations)):
+                    epsilon_rd = cfg.get_relative_permittivity(
+                        self.maximum_contrast[i],
+                        self.configurations[j].epsilon_rb
+                    )
+                    sigma_d = cfg.get_conductivity(
+                        self.maximum_contrast[i],
+                        2*pi*self.configurations[j].f,
+                        self.configurations[j].sigma_b
+                    )
+                    lam_d = cfg.compute_wavelength(self.configurations[j].f,
+                                                   epsilon_r=epsilon_rd,
+                                                   sigma=sigma_d)
+                    resolution = compute_resolution(
+                        lam_d, self.configurations[j].Ly,
+                        self.configurations[j].Lx,
+                        STANDARD_SYNTHETIZATION_RESOLUTION
+                    )
+                    self.synthetization_resolution[i].append(resolution)
 
         if self.recover_resolution is None:
-            self.recover_resolution = list()
-            for i in range(len(self.configurations)):
-                resolution = compute_resolution(
-                    self.configurations[i].lambda_b,
-                    self.configurations[i].Ly, self.configurations[i].Lx,
-                    STANDARD_RECOVER_RESOLUTION
-                )
-                self.recover_resolution.append(resolution)
+            self.recover_resolution = []
+            for i in range(len(self.maximum_contrast)):
+                self.recover_resolution.append(list())
+                for j in range(len(self.configurations)):
+                    epsilon_rd = cfg.get_relative_permittivity(
+                        self.maximum_contrast[i],
+                        self.configurations[j].epsilon_rb
+                    )
+                    sigma_d = cfg.get_conductivity(
+                        self.maximum_contrast[i],
+                        2*pi*self.configurations[j].f,
+                        self.configurations[j].sigma_b
+                    )
+                    lam_d = cfg.compute_wavelength(self.configurations[j].f,
+                                                   epsilon_r=epsilon_rd,
+                                                   sigma=sigma_d)
+                    resolution = compute_resolution(
+                        lam_d, self.configurations[j].Ly,
+                        self.configurations[j].Lx,
+                        STANDARD_SYNTHETIZATION_RESOLUTION
+                    )
+                    self.recover_resolution[i].append(resolution)
 
         if self.scenarios is None:
             self.scenarios = []
@@ -371,7 +398,7 @@ class Experiment:
                     for k in range(self.sample_size):
                         new_scenario = create_scenario(
                             self.configurations[j],
-                            self.synthetization_resolution[j],
+                            self.synthetization_resolution[i][j],
                             self.map_pattern,
                             self.maximum_contrast[i],
                             self.maximum_contrast_density[i],
@@ -386,7 +413,14 @@ class Experiment:
             for j in range(len(self.configurations)):
                 for k in range(self.sample_size):
                     self.forward_solver(self.scenarios[i][j][k],
-                                        COMPUTE_INTERN_FIELD=False)
+                                        SAVE_INTERN_FIELD=False)
+
+        for i in range(len(self.maximum_contrast)):
+            for j in range(len(self.configurations)):
+                for k in range(self.sample_size):
+                    self.scenarios[i][j][k].resolution = (
+                        self.recover_resolution[i][j]
+                    )
 
         self.results = []
         for i in range(len(self.maximum_contrast)):

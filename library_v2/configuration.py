@@ -247,11 +247,11 @@ class Configuration:
                                          sigma=self.sigma_b)
 
             if wavelength_unit:
-                self.Lx = image_size[0]*self.lambda_b
-                self.Ly = image_size[1]*self.lambda_b
+                self.Lx = image_size[1]*self.lambda_b
+                self.Ly = image_size[0]*self.lambda_b
             else:
-                self.Lx = image_size[0]
-                self.Ly = image_size[1]
+                self.Lx = image_size[1]
+                self.Ly = image_size[0]
 
             if observation_radius is None:
                 self.Ro = 1.1*np.sqrt(2)*max([self.Lx, self.Ly])
@@ -651,8 +651,8 @@ def get_coordinates_ddomain(configuration=None, resolution=None,
         ymin, ymax = get_bounds(configuration.Ly)
         dx, dy = configuration.Lx/NX, configuration.Ly/NY
 
-    return np.meshgrid(np.arange(xmin + .5*dx, xmax + .5*dx, dx),
-                       np.arange(ymin + .5*dy, ymax + .5*dy, dy))
+    return np.meshgrid(np.arange(xmin + .5*dx, xmax, dx),
+                       np.arange(ymin + .5*dy, ymax, dy))
 
 
 def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
