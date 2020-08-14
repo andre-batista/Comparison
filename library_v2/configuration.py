@@ -368,7 +368,7 @@ class Configuration:
             if self.perfect_dielectric:
                 rst.add_image(axes, epsilon_r,
                               TITLE_PROBLEM_CONFIGURATION,
-                              rst.COLORBAR_RELATIVE_PERMITTIVITY,
+                              rst.COLORBAR_REL_PERMITTIVITY,
                               bounds=bounds)
             else:
                 rst.add_image(axes, sigma,
@@ -385,8 +385,8 @@ class Configuration:
 
             axes = figure.add_subplot(1, 2, 1)
             rst.add_image(axes, epsilon_r,
-                          rst.TITLE_RELATIVE_PERMITTIVITY,
-                          rst.COLORBAR_RELATIVE_PERMITTIVITY, bounds=bounds)
+                          rst.TITLE_REL_PERMITTIVITY,
+                          rst.COLORBAR_REL_PERMITTIVITY, bounds=bounds)
             plot_ddomain_limits(axes, map_bounds)
             lg_m = plot_antennas(axes, xm, ym, self.lambda_b, 'r', 'Probe')
             lg_l = plot_antennas(axes, xl, yl, self.lambda_b, 'g', 'Source')

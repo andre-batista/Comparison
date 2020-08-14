@@ -52,7 +52,7 @@ from numpy import logical_and
 
 # Developed libraries
 import error
-import library_v2.configuration as cfg
+import configuration as cfg
 import inputdata as ipt
 import solver as slv
 import results as rst

@@ -139,6 +139,8 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
                 alpha, self.configuration.epsilon_rb
             )
             inputdata.epsilon_r[inputdata.epsilon_r < 1] = 1
+            inputdata.epsilon_r = np.reshape(inputdata.epsilon_r,
+                                             inputdata.resolution)
 
         if (self.configuration.good_conductor
                 or not self.configuration.perfect_dielectric):
@@ -148,6 +150,7 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
                 self.configuration.sigma_b
             )
             inputdata.sigma[inputdata.sigma < 0] = 0
+            inputdata.sigma = np.reshape(inputdata.sigma, inputdata.resolution)
 
     def __str__(self):
         """Print discretization information."""

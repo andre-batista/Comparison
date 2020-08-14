@@ -65,14 +65,14 @@ class Inverse(ABC):
             file_name, file_path = new_configuration
             self._configuration = cfg.Configuration(
                 import_filename=file_name,
-                configuration_filepath=file_path
+                import_filepath=file_path
             )
         elif isinstance(new_configuration, str):
-            self.configuration = cfg.Configuration(
+            self._configuration = cfg.Configuration(
                 import_filename=new_configuration
             )
         else:
-            self.configuration = cp.deepcopy(new_configuration)
+            self._configuration = cp.deepcopy(new_configuration)
 
     def __init__(self, configuration):
         """Initialize the method object."""

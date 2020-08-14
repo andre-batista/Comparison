@@ -202,9 +202,7 @@ class MethodOfWeightedResiduals(inv.Inverse):
             self.linsolver = linear_solver
             if isinstance(parameter, str):
                 if (parameter == MOZOROV_CHOICE
-                        or parameter == LAVARELLO_CHOICE
-                        or parameter == EXHAUSTIVE_CHOICE
-                        or parameter == LCURVE_CHOICE):
+                        or parameter == LAVARELLO_CHOICE):
                     self._choice_strategy = parameter
                     self.parameter = None
                 elif parameter == EXHAUSTIVE_CHOICE:
@@ -398,7 +396,7 @@ class MethodOfWeightedResiduals(inv.Inverse):
                            + self.discretization_method_name,
                            configuration_filename=(
                                inputdata.configuration_filename),
-                           inputdata_filename=inputdata.name,
+                           input_filename=inputdata.name,
                            scattered_field=np.reshape(A@alpha,
                                                       inputdata.es.shape),
                            relative_permittivity_map=inputdata.epsilon_r,

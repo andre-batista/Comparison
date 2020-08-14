@@ -208,6 +208,8 @@ class InputData:
             self.compute_totalfield_error = compute_totalfield_error
 
             if resolution is not None:
+                self.resolution = resolution
+            else:
                 self.resolution = None
 
             if scattered_field is not None:

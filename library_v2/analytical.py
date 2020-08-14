@@ -67,6 +67,11 @@ class Analytical(fwr.ForwardSolver):
         super().__init__(configuration, configuration_filepath)
         self.name = "Analytical Solution to Cylinder Scattering"
         self.NT = number_terms
+        self.et, self.ei, self.es = None, None, None
+        self.epsilon_r, self.sigma = None, None
+        self.radius_proportion = None
+        self.constrast = None
+        self.problem = None
 
     def incident_field(self, resolution):
         """Compute the incident field matrix.
@@ -111,9 +116,29 @@ class Analytical(fwr.ForwardSolver):
                                         )
         return ei
 
+    def solve(self, scenario, problem=PERFECT_DIELECTRIC_PROBLEM,
+              radius_proportion=.5, PRINT_INFO=False, SAVE_INTERN_FIELD=True,
+              SAVE_MAP=False, contrast=2.):
+        """Summarize the method."""
+        if problem == PERFECT_DIELECTRIC_PROBLEM:
+            self.dielectric_cylinder(scenario,
+                                     radius_proportion=radius_proportion,
+                                     contrast=contrast,
+                                     SAVE_INTERN_FIELD=SAVE_INTERN_FIELD,
+                                     SAVE_MAP=SAVE_MAP)
+        elif problem == PERFECT_CONDUCTOR_PROBLEM:
+            self.conductor_cylinder(scenario,
+                                    radius_proportion=radius_proportion,
+                                    SAVE_INTERN_FIELD=SAVE_INTERN_FIELD,
+                                    SAVE_MAP=SAVE_MAP)
+        else:
+            raise error.WrongValueInput('Analytical.solve', 'problem',
+                                        "'perfect_dielectric' or "
+                                        + "'perfect_conductor'", problem)
+
     def dielectric_cylinder(self, scenario, radius_proportion=0.5,
-                            contrast=2., PRINT_INFO=False,
-                            SAVE_INTERN_FIELD=True, SAVE_MAP=False):
+                            contrast=2., SAVE_INTERN_FIELD=True,
+                            SAVE_MAP=False):
         """Solve the forward problem.
 
         Parameters
@@ -145,7 +170,7 @@ class Analytical(fwr.ForwardSolver):
             contrast, self.configuration.epsilon_rb
         )
         epsd = epsilon_rd*epsilon_0  # Cylinder's permittivity [F/m]
-        epsb = self.configuration.epsilon_rf*epsilon_0
+        epsb = self.configuration.epsilon_rb*epsilon_0
         mud = mu_0  # Cylinder's permeability [H/m]
         kb = self.configuration.kb  # Wavenumber of background [rad/m]
         kd = omega*np.sqrt(mud*epsd)  # Wavenumber of cylinder [rad/m]
@@ -187,10 +212,17 @@ class Analytical(fwr.ForwardSolver):
             scenario.et = np.copy(et)
         if SAVE_MAP:
             scenario.epsilon_r = np.copy(epsilon_r)
+        self.et = et
+        self.ei = ei
+        self.es = es
+        self.epsilon_r = epsilon_r
+        self.sigma = None
+        self.radius_proportion = radius_proportion
+        self.contrast = contrast
+        self.problem = PERFECT_DIELECTRIC_PROBLEM
 
     def conductor_cylinder(self, scenario, radius_proportion=0.5,
-                           PRINT_INFO=False, SAVE_INTERN_FIELD=True,
-                           SAVE_MAP=False):
+                           SAVE_INTERN_FIELD=True, SAVE_MAP=False):
         """Solve the forward problem.
 
         Parameters
@@ -258,6 +290,27 @@ class Analytical(fwr.ForwardSolver):
             scenario.et = np.copy(et)
         if SAVE_MAP:
             scenario.sigma = np.copy(sigma)
+        self.et = et
+        self.ei = ei
+        self.es = es
+        self.epsilon_r = None
+        self.sigma = sigma
+        self.radius_proportion = radius_proportion
+        self.problem = PERFECT_DIELECTRIC_PROBLEM
+
+    def __str__(self):
+        """Print method parametrization."""
+        message = super().__str__()
+        message = message + "Number of summing terms: %d" % self.NT
+        if self.radius_proportion is not None:
+            message = (message + '\nRadius proportion: %.2f [wavelengths]'
+                       % self.radius_proportion)
+        if self.problem == PERFECT_DIELECTRIC_PROBLEM:
+            message = message + '\nProblem: Perfect Dielectric Cylinder'
+            message = message + '\nConstrast: %.2f' % self.contrast 
+        elif self.problem == PERFECT_CONDUCTOR_PROBLEM:
+            message = message + '\nProblem: Perfect Conductor Cylinder'
+        return message
 
 
 def cart2pol(x, y):
