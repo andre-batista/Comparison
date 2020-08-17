@@ -25,6 +25,7 @@ import numpy as np
 from scipy import constants as ct
 from scipy.special import hankel2, jv
 from numba import jit
+from matplotlib import pyplot as plt
 
 import weightedresiduals as wrm
 import configuration as cfg
@@ -84,8 +85,6 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
         NM = self.configuration.NM
         NY, NX = resolution
         N = NX*NY
-        epsilon_b = self.configuration.epsilon_rb*ct.epsilon_0
-        omega = 2*np.pi*self.configuration.f
         kb = self.configuration.kb
         xm, ym = cfg.get_coordinates_sdomain(self.configuration.Ro, NM)
         x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
@@ -96,9 +95,9 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
         R = np.sqrt((xm-np.tile(np.reshape(x, (N, 1)).T, (NM, 1)))**2
                     + (ym-np.tile(np.reshape(y, (N, 1)).T, (NM, 1)))**2)
         an = np.sqrt(dx*dy/np.pi)
-        self._GS = -omega*epsilon_b*np.pi*kb*an/2*jv(1, kb*an)*hankel2(0, kb*R)
-        self._GS[R == 0] = (1j*omega*epsilon_b)*1j/2*(np.pi*kb*an
-                                                      * hankel2(1, kb*an)-2j)
+        self._GS = -1j*np.pi*kb*an/2*jv(1, kb*an)*hankel2(0, kb*R)
+        # self._GS[R == 0] = (1j*omega*epsilon_b)*1j/2*(np.pi*kb*an
+        #                                               * hankel2(1, kb*an)-2j)
 
     def _compute_beta(self, inputdata):
         """Compute the right-hand-side array.
@@ -164,7 +163,7 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
         self._GS = None
 
 
-@jit(nopython=True)
+# @jit(nopython=True)
 def get_operator_matrix(et, NM, NS, GS, N):
     """Compute the kernel.
 
@@ -191,6 +190,6 @@ def get_operator_matrix(et, NM, NS, GS, N):
     row = 0
     for m in range(NM):
         for n in range(NS):
-            K[row, :] = GS[m, :]*et[:, n]
+            K[row, :] = GS[m, :].flatten()*et[:, n].flatten()
             row += 1
     return K
