@@ -123,13 +123,8 @@ class MethodOfWeightedResiduals(inv.Inverse):
        1984. 72-85.
     """
 
-    # Public attributes
-    linsolver = str()
-    parameter = None
     name = "Method of Weighted Residuals"
     alias_name = 'mwr'
-    discretization_method_name = ''
-    discretization_method_alias = ''
 
     def __init__(self, configuration, linear_solver, parameter):
         r"""Create the object.
@@ -390,17 +385,19 @@ class MethodOfWeightedResiduals(inv.Inverse):
         # Recover the relative permittivity and conductivity maps
         self._recover_map(inputdata, alpha)
 
-        return rst.Results(inputdata.name + '_' + self.alias_name + '_'
-                           + self.discretization_method_alias,
-                           method_name=self.name + ' '
-                           + self.discretization_method_name,
-                           configuration_filename=(
-                               inputdata.configuration_filename),
-                           input_filename=inputdata.name,
-                           scattered_field=np.reshape(A@alpha,
-                                                      inputdata.es.shape),
-                           relative_permittivity_map=inputdata.epsilon_r,
-                           conductivity_map=inputdata.sigma)
+        aux = rst.Results(inputdata.name + '_' + self.alias_name + '_'
+                          + self.discretization_method_alias,
+                          method_name=self.name + ' '
+                          + self.discretization_method_name,
+                          configuration_filename=(
+                              inputdata.configuration_filename),
+                          input_filename=inputdata.name,
+                          scattered_field=np.reshape(A@alpha,
+                                                     inputdata.es.shape),
+                          relative_permittivity_map=inputdata.epsilon_r,
+                          conductivity_map=inputdata.sigma)
+
+        return aux
 
     @abstractmethod
     def _compute_A(self, inputdata):

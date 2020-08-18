@@ -47,7 +47,11 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
 
     discretization_method_name = 'Subdomain Method'
     discretization_method_alias = 'subdomain'
-    _GS = None
+
+    def __init__(self, configuration, linear_solver, parameter):
+        """Build the object."""
+        super().__init__(configuration, linear_solver, parameter)
+        self._GS = None
 
     def _compute_A(self, inputdata):
         """Compute the coefficient matrix.

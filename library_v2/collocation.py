@@ -74,7 +74,6 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
        2011.
     """
 
-    trial_function = ''
     discretization_method_name = 'Collocation Method'
     discretization_method_alias = 'collocation'
 

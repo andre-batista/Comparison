@@ -109,13 +109,6 @@ class Experiment:
             An object of forward solver for synthetizing data.
     """
 
-    name = str
-    sample_size = int
-    synthetization_resolution = (int, int)
-    recover_resolution = (int, int)
-    results = list()
-    forward_solver = None  # frw.Forward()
-
     @property
     def configurations(self):
         """Get the configurations list."""

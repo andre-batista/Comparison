@@ -47,9 +47,6 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             Tolerance level of error.
     """
 
-    MAX_IT = int()
-    TOL = float()
-
     def __init__(self, configuration, configuration_filepath='',
                  tolerance=1e-3, maximum_iterations=5000):
         """Create the object.

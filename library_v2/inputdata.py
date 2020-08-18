@@ -93,20 +93,6 @@ class InputData:
             executation.
     """
 
-    name = ''
-    configuration_filename = ''
-    resolution = (int(), int())
-    es = np.array((int(), int()), dtype=complex)
-    et = np.array((int(), int()), dtype=complex)
-    ei = np.array((int(), int()), dtype=complex)
-    epsilon_r = np.array((int(), int()), dtype=complex)
-    sigma = np.array((int(), int()), dtype=complex)
-    homogeneous_objects = bool()
-    noise = float()
-    compute_residual_error = bool()
-    compute_map_error = bool()
-    compute_totalfield_error = bool()
-
     def __init__(self, name=None, configuration_filename=None, resolution=None,
                  scattered_field=None, total_field=None, incident_field=None,
                  relative_permittivity_map=None, conductivity_map=None,

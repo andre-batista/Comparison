@@ -73,11 +73,8 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
        1984. 72-85.
     """
 
-    basis_function = ''
-    discretization = (int, int)
     discretization_method_name = 'Galerkin Method'
     discretization_method_alias = 'galerkin'
-    constant_iterpolation = 4
 
     def __init__(self, configuration, linear_solver, parameter,
                  basis_function, discretization):
@@ -155,6 +152,7 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
         self.basis_function = basis_function
         self.discretization = discretization
         self._not_valid_variables = True
+        self.constant_iterpolation = 4
 
     def reset_parameters(self):
         """Reset elements mesh variables."""

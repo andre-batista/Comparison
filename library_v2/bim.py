@@ -58,9 +58,6 @@ class BornIterativeMethod(slv.Solver):
     """
 
     name = 'Born Iterative Method'
-    forward = fwr.ForwardSolver(cfg.Configuration(name='', frequency=float))
-    inverse = inv.Inverse()
-    MAX_IT = int()
 
     def __init__(self, configuration, version, forward_solver, inverse_solver,
                  maximum_iterations=10):

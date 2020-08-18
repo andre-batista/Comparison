@@ -42,10 +42,6 @@ class Solver(ABC):
         The name of the method should be defined by default.
     """
 
-    name = ''
-    version = ''
-    execution_time = float()
-
     @property
     def configuration(self):
         """Get routine of configuration attribute."""
@@ -95,6 +91,9 @@ class Solver(ABC):
                 An object of problem configuration.
         """
         self.configuration = configuration
+        self.version = None
+        self.execution_time = None
+
 
     @abstractmethod
     def solve(self, inputdata, print_info=True):

@@ -128,15 +128,6 @@ class Configuration:
             Magnitude of incident field [V/m].
     """
 
-    name = ''
-    path = ''
-    NM, NS = int(), int()
-    Ro, Lx, Ly = float(), float(), float()
-    epsilon_rb, sigma_b = float(), float()
-    f, lambda_b, kb = float(), float(), float()
-    perfect_dielectric, good_conductor = bool(), bool()
-    E0 = float()
-
     def __init__(self, name=None, number_measurements=10, number_sources=10,
                  observation_radius=None, frequency=None, wavelength=None,
                  background_permittivity=1., background_conductivity=.0,
@@ -655,7 +646,8 @@ def get_coordinates_ddomain(configuration=None, resolution=None,
                        np.arange(ymin + .5*dy, ymax, dy))
 
 
-def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
+def get_contrast_map(epsilon_r=None, sigma=None, epsilon_rb=None, sigma_b=None,
+                     omega=None):
     """Compute the contrast function for a given image.
 
     Parameters
@@ -675,8 +667,25 @@ def get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b, omega):
         frequency : float
             Linear frequency of operation [Hz].
     """
-    return (epsilon_r/epsilon_rb - 1
-            - 1j*(sigma-sigma_b)/(omega*epsilon_rb*ct.epsilon_0))
+    if epsilon_r is None and sigma is None:
+        raise error.MissingInputError('get_contrast_map',
+                                      'epsilon_r or sigma')
+    if epsilon_r is not None and epsilon_rb is None:
+        raise error.MissingInputError('get_contrast_map',
+                                      'epsilon_rb')
+    if sigma is not None and sigma_b is None:
+        raise error.MissingInputError('get_contrast_map',
+                                      'sigma_b')
+    if sigma is not None and omega is None:
+        raise error.MissingInputError('get_contrast_map',
+                                      'omega')
+    if sigma is None:
+        return (epsilon_r/epsilon_rb - 1) + 0j
+    elif epsilon_r is None:
+        return -1j*(sigma-sigma_b)/(omega*epsilon_rb*ct.epsilon_0)
+    else:
+        return (epsilon_r/epsilon_rb - 1
+                - 1j*(sigma-sigma_b)/(omega*epsilon_rb*ct.epsilon_0))
 
 
 def get_relative_permittivity(chi, epsilon_rb):

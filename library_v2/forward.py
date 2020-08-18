@@ -62,13 +62,6 @@ class ForwardSolver(ABC):
             Configuration object.
     """
 
-    name = ''
-    et = np.array([], dtype=complex)
-    ei = np.array([], dtype=complex)
-    es = np.array([], dtype=complex)
-    epsilon_r = np.array([])
-    sigma = np.array([])
-
     @property
     def configuration(self):
         """Get routine of configuration attribute."""
@@ -127,6 +120,12 @@ class ForwardSolver(ABC):
             self.configuration = (configuration, configuration_filepath)
         else:
             self.configuration = configuration
+        self.et = None
+        self.ei = None
+        self.es = None
+        self.epsilon_r = None
+        self.sigma = None
+
 
     @abstractmethod
     def solve(self, inputdata):

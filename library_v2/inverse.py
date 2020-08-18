@@ -32,8 +32,6 @@ class Inverse(ABC):
             An object of problem configuration.
     """
 
-    name = ''
-
     @property
     def configuration(self):
         """Get routine of configuration attribute."""

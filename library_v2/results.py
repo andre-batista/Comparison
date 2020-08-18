@@ -113,21 +113,6 @@ class Results:
             The amount of time for running the method.
     """
 
-    name = str()
-    method_name = str()
-    configuration_filename, configuration_filepath = str(), str()
-    input_filename, input_filepath = str(), str()
-    et = np.array([])
-    es = np.array([])
-    epsilon_r, sigma = np.array([]), np.array([])
-    execution_time = float
-    zeta_rn, zeta_rpad = list(), list()
-    zeta_epad, zeta_sad = list(), list()
-    zeta_be = list()
-    zeta_ebe, zeta_sbe = list(), list()
-    zeta_eoe, zeta_soe = list(), list()
-    zeta_tfmpad, zeta_tfppad = list(), list()
-
     def __init__(self, name=None, method_name=None,
                  configuration_filename=None, configuration_filepath='',
                  input_filename=None, input_filepath='', scattered_field=None,
@@ -158,6 +143,12 @@ class Results:
             self.epsilon_r = relative_permittivity_map
             self.sigma = conductivity_map
             self.execution_time = execution_time
+            self.zeta_rn, self.zeta_rpad = list(), list()
+            self.zeta_epad, self.zeta_sad = list(), list()
+            self.zeta_be = list()
+            self.zeta_ebe, self.zeta_sbe = list(), list()
+            self.zeta_eoe, self.zeta_soe = list(), list()
+            self.zeta_tfmpad, self.zeta_tfppad = list(), list()
 
     def save(self, file_path=''):
         """Save object information."""
@@ -391,25 +382,38 @@ class Results:
                 Conductivity image recovered by the solver.
         """
         if inputdata.compute_residual_error:
-            if scattered_field is None:
+            if scattered_field is None and self.es is None:
                 raise error.MissingInputError('Result.update_error',
                                               'scattered_field')
             elif inputdata.es is None:
                 raise error.MissingAttributesError('InputData', 'es')
-            self.zeta_rn.append(compute_zeta_rn(inputdata.es, scattered_field))
-            self.zeta_rpad.append(compute_zeta_rpad(inputdata.es,
+            if scattered_field is not None:
+                self.zeta_rn.append(compute_zeta_rn(inputdata.es,
                                                     scattered_field))
+                self.zeta_rpad.append(compute_zeta_rpad(inputdata.es,
+                                                        scattered_field))
+            else:
+                self.zeta_rn.append(compute_zeta_rn(inputdata.es,
+                                                    self.es))
+                self.zeta_rpad.append(compute_zeta_rpad(inputdata.es,
+                                                        self.es))
 
         if inputdata.compute_totalfield_error:
-            if total_field is None:
+            if total_field is None and self.et is None:
                 raise error.MissingInputError('Result.update_error',
                                               'total_field')
             elif inputdata.et is None:
                 raise error.MissingAttributesError('InputData', 'et')
-            self.zeta_tfmpad.append(compute_zeta_tfmpad(inputdata.et,
-                                                        total_field))
-            self.zeta_tfppad.append(compute_zeta_tfppad(inputdata.et,
-                                                        total_field))
+            if total_field is not None:
+                self.zeta_tfmpad.append(compute_zeta_tfmpad(inputdata.et,
+                                                            total_field))
+                self.zeta_tfppad.append(compute_zeta_tfppad(inputdata.et,
+                                                            total_field))
+            else:
+                self.zeta_tfmpad.append(compute_zeta_tfmpad(inputdata.et,
+                                                            self.et))
+                self.zeta_tfppad.append(compute_zeta_tfppad(inputdata.et,
+                                                            self.et))
 
         if inputdata.compute_map_error:
             if self.configuration_filename is None:
@@ -421,45 +425,68 @@ class Results:
             sigma_b = config[cfg.BACKGROUND_CONDUCTIVITY]
             omega = 2*np.pi*config[cfg.FREQUENCY]
 
-        if (inputdata.compute_map_error and inputdata.epsilon_r is not None
-                and relative_permittivity_map is not None):
-            self.zeta_epad.append(compute_zeta_epad(inputdata.epsilon_r,
-                                                    relative_permittivity_map))
+        if (inputdata.compute_map_error and inputdata.epsilon_r is not None):
+            if relative_permittivity_map is not None:
+                self.zeta_epad.append(
+                    compute_zeta_epad(inputdata.epsilon_r,
+                                      relative_permittivity_map)
+                )
+            else:
+                self.zeta_epad.append(compute_zeta_epad(inputdata.epsilon_r,
+                                                        self.epsilon_r))
 
-        if (inputdata.compute_map_error and inputdata.sigma is not None
-                and conductivity_map is not None):
-            self.zeta_sad.append(compute_zeta_sad(inputdata.sigma,
-                                                  conductivity_map))
+        if (inputdata.compute_map_error and inputdata.sigma is not None):
+            if conductivity_map is not None:
+                self.zeta_sad.append(compute_zeta_sad(inputdata.sigma,
+                                                      conductivity_map))
+            else:
+                self.zeta_sad.append(compute_zeta_sad(inputdata.sigma,
+                                                      self.sigma))
 
         if inputdata.compute_map_error and inputdata.homogeneous_objects:
             if inputdata.epsilon_r is not None:
-                if relative_permittivity_map is None:
+                if (relative_permittivity_map is None
+                        and self.epsilon_r is None):
                     raise error.MissingInputError('Results.update_error',
                                                   'relative_permittivity_map')
-                self.zeta_ebe.append(
-                    compute_zeta_ebe(inputdata.epsilon_r,
-                                     relative_permittivity_map,
-                                     epsilon_rb)
-                )
-                self.zeta_eoe.append(
-                    compute_zeta_eoe(inputdata.epsilon_r,
-                                     relative_permittivity_map,
-                                     epsilon_rb)
-                )
+                if relative_permittivity_map is not None:
+                    self.zeta_ebe.append(
+                        compute_zeta_ebe(inputdata.epsilon_r,
+                                         relative_permittivity_map, epsilon_rb)
+                    )
+                    self.zeta_eoe.append(
+                        compute_zeta_eoe(inputdata.epsilon_r,
+                                         relative_permittivity_map, epsilon_rb)
+                    )
+                else:
+                    self.zeta_ebe.append(compute_zeta_ebe(inputdata.epsilon_r,
+                                                          self.epsilon_r,
+                                                          epsilon_rb))
+                    self.zeta_eoe.append(compute_zeta_eoe(inputdata.epsilon_r,
+                                                          self.epsilon_r,
+                                                          epsilon_rb))
 
             if inputdata.sigma is not None:
-                if conductivity_map is None:
+                if conductivity_map is None and self.sigma is None:
                     raise error.MissingInputError('Results.update_error',
                                                   'conductivity_map')
-                self.zeta_sbe.append(compute_zeta_sbe(inputdata.sigma,
-                                                      conductivity_map,
-                                                      sigma_b))
-                self.zeta_soe.append(compute_zeta_soe(inputdata.sigma,
-                                                      conductivity_map,
-                                                      sigma_b))
+                if conductivity_map is not None:
+                    self.zeta_sbe.append(compute_zeta_sbe(inputdata.sigma,
+                                                          conductivity_map,
+                                                          sigma_b))
+                    self.zeta_soe.append(compute_zeta_soe(inputdata.sigma,
+                                                          conductivity_map,
+                                                          sigma_b))
+                else:
+                    self.zeta_sbe.append(compute_zeta_sbe(inputdata.sigma,
+                                                          self.sigma,
+                                                          sigma_b))
+                    self.zeta_soe.append(compute_zeta_soe(inputdata.sigma,
+                                                          self.sigma,
+                                                          sigma_b))
 
-            if (relative_permittivity_map is not None
-                    and conductivity_map is None):
+            if ((relative_permittivity_map is not None or self.epsilon_r is not
+                    None) and conductivity_map is None):
                 conductivity_map = (
                     sigma_b*np.zeros(relative_permittivity_map.shape)
                 )
@@ -476,11 +503,26 @@ class Results:
                 ), resolution=relative_permittivity_map.shape
             )
 
+            if relative_permittivity_map is not None:
+                e = relative_permittivity_map
+            elif self.epsilon_r is not None:
+                e = self.epsilon_r
+            else:
+                e = None
+
+            if conductivity_map is not None:
+                o = conductivity_map
+            elif self.sigma is not None:
+                o = self.sigma
+            else:
+                o = None
+
             self.zeta_be.append(
-                compute_zeta_be(cfg.get_contrast_map(relative_permittivity_map,
-                                                     conductivity_map,
-                                                     epsilon_rb, sigma_b,
-                                                     omega), x, y)
+                compute_zeta_be(cfg.get_contrast_map(epsilon_r=e,
+                                                     sigma=o,
+                                                     epsilon_rb=epsilon_rb,
+                                                     sigma_b=sigma_b,
+                                                     omega=omega), x, y)
             )
 
     def last_error_message(self, inputdata, pre_message=None):
@@ -926,14 +968,14 @@ class Results:
             if len(self.zeta_rpad) == 1:
                 info = '%.2f%%' % self.zeta_rpad[0]
             else:
-                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                info = '[' + str(', '.join('{:.2f}%'.format(i)
                                            for i in self.zeta_rpad) + ']')
             message = message + '\nPercent. Aver. Devi. of Residuals: ' + info
         if len(self.zeta_epad) > 0:
             if len(self.zeta_epad) == 1:
                 info = '%.2f%%' % self.zeta_epad[0]
             else:
-                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                info = '[' + str(', '.join('{:.2f}%'.format(i)
                                            for i in self.zeta_epad) + ']')
             message = (message + '\nPercent. Aver. Devi. of Rel. Permittivity:'
                        + ' ' + info)
@@ -941,7 +983,7 @@ class Results:
             if len(self.zeta_sad) == 1:
                 info = '%.3e' % self.zeta_sad[0]
             else:
-                info = '[' + str(', '.join('{:.3e%}'.format(i)
+                info = '[' + str(', '.join('{:.3e}'.format(i)
                                            for i in self.zeta_sad) + ']')
             message = (message + '\nAver. Devi. of Conductivity: '
                        + info)
@@ -951,12 +993,12 @@ class Results:
             else:
                 info = '[' + str(', '.join('{:.3e}'.format(i)
                                            for i in self.zeta_be) + ']')
-            message = message + '\nBackground error: ' + info
+            message = message + '\nBoundary error: ' + info
         if len(self.zeta_ebe) > 0:
             if len(self.zeta_ebe) == 1:
                 info = '%.2f%%' % self.zeta_ebe[0]
             else:
-                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                info = '[' + str(', '.join('{:.2f}%'.format(i)
                                            for i in self.zeta_ebe) + ']')
             message = message + '\nBackground Rel. Permit. error: ' + info
         if len(self.zeta_sbe) > 0:
@@ -970,7 +1012,7 @@ class Results:
             if len(self.zeta_eoe) == 1:
                 info = '%.2f%%' % self.zeta_eoe[0]
             else:
-                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                info = '[' + str(', '.join('{:.2f}%'.format(i)
                                            for i in self.zeta_eoe) + ']')
             message = message + '\nObject Rel. Permit. error: ' + info
         if len(self.zeta_soe) > 0:
@@ -984,7 +1026,7 @@ class Results:
             if len(self.zeta_tfmpad) == 1:
                 info = '%.2f%%' % self.zeta_tfmpad[0]
             else:
-                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                info = '[' + str(', '.join('{:.2f}%'.format(i)
                                            for i in self.zeta_tfmpad) + ']')
             message = (message + '\nTotal Field Mag. Per. Aver. Devi. error: '
                        + info)
@@ -992,7 +1034,7 @@ class Results:
             if len(self.zeta_tfppad) == 1:
                 info = '%.2f%%' % self.zeta_tfppad[0]
             else:
-                info = '[' + str(', '.join('{:.2f%}'.format(i)
+                info = '[' + str(', '.join('{:.2f}%'.format(i)
                                            for i in self.zeta_tfppad) + ']')
             message = (message + '\nTotal Field Phase Per. Aver. Devi. error:'
                        + ' ' + info)
