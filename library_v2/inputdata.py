@@ -37,6 +37,7 @@ NOISE = 'noise'
 COMPUTE_RESIDUAL_ERROR = 'residual_error'
 COMPUTE_MAP_ERROR = 'map_error'
 COMPUTE_TOTALFIELD_ERROR = 'totalfield_error'
+HOMOGENEOUS_OBJECTS = 'homogeneous_objects'
 
 
 class InputData:
@@ -246,7 +247,8 @@ class InputData:
             CONDUCTIVITY_MAP: self.sigma,
             COMPUTE_RESIDUAL_ERROR: self.compute_residual_error,
             COMPUTE_MAP_ERROR: self.compute_map_error,
-            COMPUTE_TOTALFIELD_ERROR: self.compute_totalfield_error
+            COMPUTE_TOTALFIELD_ERROR: self.compute_totalfield_error,
+            HOMOGENEOUS_OBJECTS: self.homogeneous_objects
         }
 
         with open(file_path + self.name, 'wb') as datafile:
@@ -268,6 +270,7 @@ class InputData:
         self.compute_residual_error = data[COMPUTE_RESIDUAL_ERROR]
         self.compute_map_error = data[COMPUTE_MAP_ERROR]
         self.compute_totalfield_error = data[COMPUTE_TOTALFIELD_ERROR]
+        self.homogeneous_objects = data[HOMOGENEOUS_OBJECTS]
 
     def draw(self, figure_title=None, file_path='', file_format='eps',
              show=False):

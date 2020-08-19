@@ -32,7 +32,7 @@ TITLE_ORIGINAL_REL_PERMITTIVITY = ('Original '
                                         + TITLE_REL_PERMITTIVITY)
 TITLE_ORIGINAL_CONDUCTIVITY = 'Original ' + TITLE_CONDUCTIVITY
 IMAGE_SIZE_SINGLE = (6., 5.)
-IMAGE_SIZE_1x2 = (9., 5.)
+IMAGE_SIZE_1x2 = (9., 4.) # 9 x 5
 IMAGE_SIZE_2X2 = (9., 9.)
 
 # Constant string for easier access of dictionary fields
@@ -500,7 +500,7 @@ class Results:
                 configuration=cfg.Configuration(
                     import_filename=self.configuration_filename,
                     import_filepath=self.configuration_filepath
-                ), resolution=relative_permittivity_map.shape
+                ), resolution=inputdata.resolution
             )
 
             if relative_permittivity_map is not None:
@@ -1153,8 +1153,8 @@ def set_subplot_size(figure):
         figure : `:class:matplotlib.pyplot.Figure`
             A figure object.
     """
-    figure.subplots_adjust(left=.125, bottom=.0, right=.9, top=.9, wspace=.5,
-                           hspace=.2)
+    figure.subplots_adjust(left=.125, bottom=-.3, right=.9, top=1.3, wspace=.7,
+                           hspace=.5)
 
 
 def get_single_figure_axes(figure):
