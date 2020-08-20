@@ -32,10 +32,11 @@ import numpy as np
 from scipy import constants as ct
 from scipy.special import hankel2
 from numba import jit
+from matplotlib import pyplot as plt
 
 # Developed libraries
-import library_v2.weightedresiduals as wrm
-import library_v2.configuration as cfg
+import weightedresiduals as wrm
+import configuration as cfg
 
 # String constants
 TRIAL_BILINEAR = 'bilinear'
@@ -131,7 +132,7 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
                   to zero. The argument is `parameter=float()`. Default:
                   `1e-3`.
 
-            trial_function : {'biliear', 'minimum_norm'}
+            trial_function : {'biliear', 'mininum_norm'}
                 A string indicating which trial function should be used.
 
             discretization : 2-tuple
@@ -152,7 +153,7 @@ class CollocationMethod(wrm.MethodOfWeightedResiduals):
         super().__init__(configuration, linear_solver, parameter)
         self.trial_function = trial_function
         self.discretization = discretization
-        self._not_valid_variables = True
+        self.__not_valid_variables = True
 
     def reset_parameters(self):
         """Reset elements mesh variables."""

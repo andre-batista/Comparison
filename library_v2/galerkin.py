@@ -41,9 +41,9 @@ from scipy import constants as ct
 from numba import jit
 
 # Standard libraries
-import library_v2.weightedresiduals as wrm
-import library_v2.configuration as cfg
-import library_v2.collocation as clc
+import weightedresiduals as wrm
+import configuration as cfg
+import collocation as clc
 
 # String constants
 BASIS_BILINEAR = 'bilinear'
@@ -152,7 +152,7 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
         self.basis_function = basis_function
         self.discretization = discretization
         self._not_valid_variables = True
-        self.constant_iterpolation = 4
+        self.constant_interpolation = 2
 
     def reset_parameters(self):
         """Reset elements mesh variables."""
@@ -190,18 +190,19 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
             new_NS = self.constant_interpolation*self.configuration.NS
             inputdata.es = interpolate_scattered_field(inputdata.es, new_NM,
                                                        new_NS)
+            print(inputdata.es.shape)
 
         # In case of more elements in S-space, the total field must
         # contain more sources.
         if self._FLAG_INTERPOLATION:
-            new_NS = self.constant_iterpolation*self.configuration.NS
+            new_NS = self.constant_interpolation*self.configuration.NS
             inputdata.et = interpolate_total_field(inputdata.et, new_NS)
 
         K = self._get_kernel(inputdata.et, inputdata.resolution)
-        A = computeA(self._theta.shape[0], self._theta.shape[1], NW, NZ, NP,
-                     NQ, NX, NY, K, self._fij, self._gij, self._du, self._dv,
-                     self._dtheta, self._dphi)
-
+        A = computeA(self._theta_ms.shape[0], self._theta_ms.shape[1], NW, NZ,
+                     NP, NQ, NX, NY, K, self._fij, self._gij, self._du,
+                     self._dv, self._dtheta, self._dphi)
+        print("compute A")
         return A
 
     def _compute_beta(self, inputdata):
@@ -301,8 +302,8 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
 
         # If the original data have less information than discretization
         else:
-            new_NM = self.constant_iterpolation*NW
-            new_NS = self.constant_iterpolation*NZ
+            new_NM = self.constant_interpolation*NW
+            new_NS = self.constant_interpolation*NZ
             xm, ym = cfg.get_coordinates_sdomain(self.configuration.Ro, new_NM)
             self._xms = np.reshape(np.tile(xm.reshape((-1, 1)), (1, new_NS)),
                                    (-1))
@@ -362,7 +363,7 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
         kb = self.configuration.kb
         K = np.zeros(self._R.shape, dtype=complex)
         if self._FLAG_INTERPOLATION:
-            L = self.constant_iterpolation*NS
+            L = self.constant_interpolation*NS
         else:
             L = NS
         s = 0
@@ -458,7 +459,7 @@ def interpolate_total_field(et, N):
     return et2
 
 
-@jit(nopython=True)
+# @jit(nopython=True)
 def computeA(NM, NS, NW, NZ, NP, NQ, NX, NY, K, fij, gij, du, dv, dtheta,
              dphi):
     r"""Compute the coefficient matrix.
@@ -520,7 +521,7 @@ def computeA(NM, NS, NW, NZ, NP, NQ, NX, NY, K, fij, gij, du, dv, dtheta,
     return A
 
 
-@jit(nopython=True)
+# @jit(nopython=True)
 def computebeta(es, gij, dtheta, dphi):
     r"""Compute the right-hand-side array.
 
@@ -541,8 +542,11 @@ def computebeta(es, gij, dtheta, dphi):
         .. math:: \beta_{wz,pq} = \int_0^{2\pi}\int_0^{2\pi}
         E^s_z(\theta, \phi) g_{wz}(\theta, \phi) d\phi d\theta
     """
+    print(gij.shape)
+    print(es.shape)
     beta = 1j*np.zeros(gij.shape[0])
     for i in range(gij.shape[0]):
         beta[i] = np.trapz(np.trapz(es*gij[i, :].reshape(es.shape),
                                     dx=dphi), dx=dtheta)
+    print('compute beta!')
     return beta

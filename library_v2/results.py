@@ -488,12 +488,12 @@ class Results:
             if ((relative_permittivity_map is not None or self.epsilon_r is not
                     None) and conductivity_map is None):
                 conductivity_map = (
-                    sigma_b*np.zeros(relative_permittivity_map.shape)
+                    sigma_b*np.zeros(inputdata.resolution)
                 )
             elif (relative_permittivity_map is None
                     and conductivity_map is not None):
                 relative_permittivity_map = (
-                    epsilon_rb*np.zeros(conductivity_map.shape)
+                    epsilon_rb*np.zeros(inputdata.resolution)
                 )
 
             x, y = cfg.get_coordinates_ddomain(
@@ -1154,7 +1154,7 @@ def set_subplot_size(figure):
             A figure object.
     """
     figure.subplots_adjust(left=.125, bottom=-.3, right=.9, top=1.3, wspace=.7,
-                           hspace=.5)
+                           hspace=-.7)
 
 
 def get_single_figure_axes(figure):

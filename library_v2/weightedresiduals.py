@@ -64,7 +64,7 @@ from scipy.linalg import svdvals
 # Developed libraries
 import inverse as inv
 import inputdata as ipt
-import error as error
+import error
 import results as rst
 
 # String constants
@@ -392,8 +392,6 @@ class MethodOfWeightedResiduals(inv.Inverse):
                           configuration_filename=(
                               inputdata.configuration_filename),
                           input_filename=inputdata.name,
-                          scattered_field=np.reshape(A@alpha,
-                                                     inputdata.es.shape),
                           relative_permittivity_map=inputdata.epsilon_r,
                           conductivity_map=inputdata.sigma)
 
