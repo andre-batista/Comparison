@@ -38,7 +38,7 @@ from scipy.special import eval_legendre as Pn
 from scipy.interpolate import interp2d
 from scipy.special import hankel2
 from scipy import constants as ct
-from numba import jit
+from numba import jit, prange
 
 # Standard libraries
 import weightedresiduals as wrm
@@ -152,7 +152,7 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
         self.basis_function = basis_function
         self.discretization = discretization
         self._not_valid_variables = True
-        self.constant_interpolation = 2
+        self.constant_interpolation = 4
 
     def reset_parameters(self):
         """Reset elements mesh variables."""
@@ -186,23 +186,22 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
         # In case we are using more elements in S-space than the number
         # than the number of measurements and sources
         if self._FLAG_INTERPOLATION:
-            new_NM = self.constant_interpolation*self.configuration.NM
-            new_NS = self.constant_interpolation*self.configuration.NS
+            new_NM = self.constant_interpolation*NW
+            new_NS = self.constant_interpolation*NZ
             inputdata.es = interpolate_scattered_field(inputdata.es, new_NM,
                                                        new_NS)
-            print(inputdata.es.shape)
 
         # In case of more elements in S-space, the total field must
         # contain more sources.
         if self._FLAG_INTERPOLATION:
-            new_NS = self.constant_interpolation*self.configuration.NS
+            new_NS = self.constant_interpolation*NZ
             inputdata.et = interpolate_total_field(inputdata.et, new_NS)
 
         K = self._get_kernel(inputdata.et, inputdata.resolution)
         A = computeA(self._theta_ms.shape[0], self._theta_ms.shape[1], NW, NZ,
                      NP, NQ, NX, NY, K, self._fij, self._gij, self._du,
                      self._dv, self._dtheta, self._dphi)
-        print("compute A")
+
         return A
 
     def _compute_beta(self, inputdata):
@@ -289,7 +288,7 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
         # in the points of the original data.
         # Otherwise, the original data is interpolated in order to have
         # more integration points than elements.
-        self._FLAG_INTERPOLATION = not(NW <= NM and NZ <= NS)
+        self._FLAG_INTERPOLATION = NW > NM or NZ > NS
 
         # If the original data have more information than discretization
         if not self._FLAG_INTERPOLATION:
@@ -362,10 +361,7 @@ class GalerkinMethod(wrm.MethodOfWeightedResiduals):
         NS = self.configuration.NS
         kb = self.configuration.kb
         K = np.zeros(self._R.shape, dtype=complex)
-        if self._FLAG_INTERPOLATION:
-            L = self.constant_interpolation*NS
-        else:
-            L = NS
+        L = et.shape[1]
         s = 0
         for i in range(K.shape[0]):
             K[i, :] = -kb**2*1j/4*hankel2(0, kb*self._R[i, :])*et[:, s]
@@ -459,7 +455,7 @@ def interpolate_total_field(et, N):
     return et2
 
 
-# @jit(nopython=True)
+@jit(nopython=True, parallel=True)
 def computeA(NM, NS, NW, NZ, NP, NQ, NX, NY, K, fij, gij, du, dv, dtheta,
              dphi):
     r"""Compute the coefficient matrix.
@@ -506,14 +502,14 @@ def computeA(NM, NS, NW, NZ, NP, NQ, NX, NY, K, fij, gij, du, dv, dtheta,
     """
     # Integration over the D-domain
     B = 1j*np.zeros((NM*NS, NP*NQ))
-    for j in range(NP*NQ):
+    for j in prange(NP*NQ):
         for k in range(NM*NS):
             B[k, j] = np.trapz(np.trapz(K[k, :].reshape((NY, NX))
                                         * fij[j, :].reshape((NY, NX)), dx=du),
                                dx=dv)
     # Integration over the S-domain
     A = 1j*np.zeros((NW*NZ, NP*NQ))
-    for i in range(NW*NZ):
+    for i in prange(NW*NZ):
         for j in range(NP*NQ):
             A[i, j] = np.trapz(np.trapz(np.reshape(np.copy(B[:, j]), (NM, NS))
                                         * gij[i, :].reshape((NM, NS)),
@@ -521,7 +517,7 @@ def computeA(NM, NS, NW, NZ, NP, NQ, NX, NY, K, fij, gij, du, dv, dtheta,
     return A
 
 
-# @jit(nopython=True)
+@jit(nopython=True)
 def computebeta(es, gij, dtheta, dphi):
     r"""Compute the right-hand-side array.
 
@@ -542,11 +538,8 @@ def computebeta(es, gij, dtheta, dphi):
         .. math:: \beta_{wz,pq} = \int_0^{2\pi}\int_0^{2\pi}
         E^s_z(\theta, \phi) g_{wz}(\theta, \phi) d\phi d\theta
     """
-    print(gij.shape)
-    print(es.shape)
     beta = 1j*np.zeros(gij.shape[0])
     for i in range(gij.shape[0]):
         beta[i] = np.trapz(np.trapz(es*gij[i, :].reshape(es.shape),
                                     dx=dphi), dx=dtheta)
-    print('compute beta!')
     return beta

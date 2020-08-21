@@ -388,10 +388,11 @@ class InputData:
         NS = self.et.shape[1]
         nrows = int(np.sqrt(NS))
         ncols = int(np.ceil(NS/nrows))
-        image_size = (5.+3*ncols, 5.+1*nrows)
+        image_size = (5.+3*ncols, 5.+2*nrows)
         figure = plt.figure(figsize=image_size)
         rst.set_subplot_size(figure)
-        figure.subplots_adjust(hspace=.5, bottom=0.1)
+        figure.subplots_adjust(left=.125, bottom=-.3, right=.9, top=1.3,
+                               wspace=.7, hspace=-.7)
         for i in range(NS):
             axes = figure.add_subplot(nrows, ncols, i+1)
             img = self.et[:, i].reshape(self.resolution)

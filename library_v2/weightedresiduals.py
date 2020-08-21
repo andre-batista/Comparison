@@ -58,7 +58,7 @@ References
 from abc import ABC, abstractmethod
 import numpy as np
 from numpy import linalg as lag
-from numba import jit
+from numba import jit, prange
 from scipy.linalg import svdvals
 
 # Developed libraries
@@ -74,7 +74,6 @@ CONJUGATED_GRADIENT_METHOD = 'cg'
 LEAST_SQUARES_METHOD = 'lstsq'
 MOZOROV_CHOICE = 'mozorov'
 LAVARELLO_CHOICE = 'lavarello'
-EXHAUSTIVE_CHOICE = 'exhaustive'
 LCURVE_CHOICE = 'lcurve'
 FIXED_CHOICE = 'fixed'
 
@@ -155,8 +154,6 @@ class MethodOfWeightedResiduals(inv.Inverse):
                   principle for defining the regularization parameter of
                   Tikhonov regularization [2]_. In this case,
                   `parameter='mozorov'`.
-                * Exhaustive Search: search the best parameter value
-                  through unidimensional optimization.
                 * L-curve: the parameter value is chosen according to
                   the curve which relates error and solution norm.
 
@@ -200,9 +197,6 @@ class MethodOfWeightedResiduals(inv.Inverse):
                         or parameter == LAVARELLO_CHOICE):
                     self._choice_strategy = parameter
                     self.parameter = None
-                elif parameter == EXHAUSTIVE_CHOICE:
-                    self._choice_strategy = parameter
-                    self._bounds = None
                 elif parameter == LCURVE_CHOICE:
                     self._choice_strategy = parameter
                     self._bounds = None
@@ -238,21 +232,6 @@ class MethodOfWeightedResiduals(inv.Inverse):
                         or parameter[0] == MOZOROV_CHOICE):
                     self._choice_strategy = parameter[0]
                     self.parameter = parameter[1]
-                elif parameter[0] == EXHAUSTIVE_CHOICE:
-                    self._choice_strategy = parameter[0]
-                    if len(parameter) == 3:
-                        self._bounds = (parameter[1], parameter[2])
-                        self.parameter = None
-                    elif len(parameter) == 2:
-                        self._bounds = (parameter[1], 0)
-                        self.parameter = None
-                    else:
-                        raise error.WrongValueInput(
-                            'MethodOfWeightedResiduals', 'parameter',
-                            "'exhaustive' or ('exhaustive', lower_bound) " +
-                            "or ('exaustive', lower_bound, upper_bound)",
-                            "len(parameter) > 3"
-                        )
                 elif parameter[0] == LCURVE_CHOICE:
                     self._choice_strategy = parameter[0]
                     if len(parameter) == 2:
@@ -340,7 +319,10 @@ class MethodOfWeightedResiduals(inv.Inverse):
         # Solve according the predefined method
         if self.linsolver == TIKHONOV_METHOD:
             if self._choice_strategy == MOZOROV_CHOICE:
-                self.parameter = mozorov_choice(A, beta, inputdata.noise)
+                if inputdata.noise is None or inputdata.noise == 0.:
+                    self.parameter = mozorov_choice(A, beta)
+                else:
+                    self.parameter = mozorov_choice(A, beta, inputdata.noise)
             elif self._choice_strategy == LAVARELLO_CHOICE:
                 if self._beta_approximation is None:
                     alpha0 = quick_guess(A, beta)
@@ -353,11 +335,6 @@ class MethodOfWeightedResiduals(inv.Inverse):
                         A, inputdata.es, np.reshape(self._beta_approximation,
                                                     inputdata.es.shape)
                     )
-            elif self._choice_strategy == EXHAUSTIVE_CHOICE:
-                if self._bounds is None:
-                    self.parameter = exhaustive_choice(A, beta)
-                else:
-                    self.parameter = exhaustive_choice(A, beta, self._bounds)
             elif self._choice_strategy == LCURVE_CHOICE:
                 if self._bounds is None and self._number_terms is None:
                     self.parameter = lcurve_choice(A, beta)
@@ -522,8 +499,8 @@ def tikhonov(A, beta, alpha):
     return x
 
 
-@jit(nopython=True)
-def landweber(A, b, a, x0, maximum_iterations, TOL=1e-2, print_info=False):
+@jit(nopython=True, parallel=True)
+def landweber(A, b, a, x0, maximum_iterations, TOL=1e-2):
     r"""Perform the Landweber regularization.
 
     Solve the linear ill-posed system through Landweber regularization
@@ -564,20 +541,16 @@ def landweber(A, b, a, x0, maximum_iterations, TOL=1e-2, print_info=False):
     d = lag.norm(b-A@x)
     d_last = 2*d
     it = 0
-    if print_info:
-        print('Landweber Regularization')
     while it < maximum_iterations and (d_last-d)/d_last > TOL:
         x = x + a*A.T.conj()@(b-A@x)
         d_last = d
         d = lag.norm(b-A@x)
         it += 1
-        if print_info:
-            print('Iteration %d - Error: %.3e' % ((d_last-d)/d_last))
     return x
 
 
-@jit(nopython=True)
-def conjugated_gradient(A, b, x0, delta, print_info=False):
+@jit(nopython=True, parallel=True)
+def conjugated_gradient(A, b, x0, delta, print_info=True):
     r"""Perform the Conjugated-Gradient (CG) regularization.
 
     Solve the linear ill-posed system through CG regularization [1]_.
@@ -605,9 +578,6 @@ def conjugated_gradient(A, b, x0, delta, print_info=False):
        of inverse problems. Vol. 120. Springer Science & Business Media,
        2011.
     """
-    if print_info:
-        print('Conjugated-Gradient Regularization')
-
     p = -A.conj().T@b
     x = np.copy(x0)
     it = 0
@@ -616,10 +586,6 @@ def conjugated_gradient(A, b, x0, delta, print_info=False):
         tm = np.vdot(A@x-b, kp)/lag.norm(kp)**2
         x_last = np.copy(x)
         x = x - tm*p
-
-        if print_info:
-            print('Iteration %d - ' % it
-                  + ' Error: %.3e' % lag.norm(A.conj().T@(A@x-b)))
 
         if lag.norm(A.conj().T@(A@x-b)) < delta:
             break
@@ -712,7 +678,8 @@ def lavarello_choice(A, scattered_field_o, scattered_field_r):
         return s0**2/200
 
 
-def mozorov_choice(K, y, delta):
+@jit(nopython=True, parallel=True)
+def mozorov_choice(A, b, delta=1e-3):
     r"""Apply the Discrepancy Principle of Morozov [1].
 
     Compute the regularization parameter according to the starting guess
@@ -721,10 +688,10 @@ def mozorov_choice(K, y, delta):
 
     Parameters
     ----------
-        K : :class:`numpy.ndarray`
+        A : :class:`numpy.ndarray`
             Coefficient matrix returned by `_compute_A()` routine.
 
-        y : :class:`numpy.ndarray`
+        b : :class:`numpy.ndarray`
             Right-hand-side array returned by `_compute_b()` routine.
 
         delta : float
@@ -747,39 +714,18 @@ def mozorov_choice(K, y, delta):
            of inverse problems. Vol. 120. Springer Science & Business
            Media, 2011.
     """
-    return delta*lag.norm(K)**2/(lag.norm(y)-delta)
-
-
-@jit(nopython=True)
-def exhaustive_choice(A, b, bounds=(-25, 5)):
-    r"""Determine the Tikhonov parameter through exhaustive search.
-
-    The routine estimates regularization parameter of Tikhonov method
-    through one-dimensional optimization (Golden Section Algorithm).
-
-    Parameters
-    ----------
-        A : 2-d :class:`numpy.ndarray`
-            Coefficient matrix of the linear system.
-
-        b : 1-d :class:`numpy.ndarray`
-            Right-hand-side of the linear system.
-
-        bounds : 2-tuple
-            Minimum and maximum value of the exponential form of the
-            regularization parameter.
-    """
     # Auxiliar variables
     AsA = np.conj(A.T)@A
     Asb = np.conj(A.T)@b
     eye = np.eye(A.shape[1])
 
     # Initial guess of frequency interval
-    xmin, xmax = bounds
+    xmax = np.log10(delta*lag.norm(A)**2/(lag.norm(b)-delta))
+    xmin = xmax-5
 
     # Error of the initial guess
-    fa = lag.norm(b - A@lag.solve(AsA + 10**xmin*eye, Asb))
-    fb = lag.norm(b - A@lag.solve(AsA + 10**xmax*eye, Asb))
+    fa = (lag.norm(b - A@lag.solve(AsA + 10**xmin*eye, Asb))-delta**2)**2
+    fb = (lag.norm(b - A@lag.solve(AsA + 10**xmax*eye, Asb))-delta**2)**2
 
     # Find interval
     evals = 2
@@ -787,18 +733,18 @@ def exhaustive_choice(A, b, bounds=(-25, 5)):
         xmin = xmax
         fa = fb
         xmax = 2*xmax
-        fb = lag.norm(b - A@lag.solve(AsA + 10**xmax*eye, Asb))
+        fb = (lag.norm(b - A@lag.solve(AsA + 10**xmax*eye, Asb))-delta**2)**2
         evals += 1
     if evals <= 3:
-        xmin = bounds[0]
+        xmin = np.log10(delta*lag.norm(A)**2/(lag.norm(b)-delta))-5
     else:
         xmin = xmin/2
 
     # Solve the frequency
     xa = xmax - .618*(xmax-xmin)
     xb = xmin + .618*(xmax-xmin)
-    fa = lag.norm(b - A@lag.solve(AsA + 10**xa*eye, Asb))
-    fb = lag.norm(b - A@lag.solve(AsA + 10**xb*eye, Asb))
+    fa = (lag.norm(b - A@lag.solve(AsA + 10**xa*eye, Asb))-delta**2)**2
+    fb = (lag.norm(b - A@lag.solve(AsA + 10**xb*eye, Asb))-delta**2)**2
 
     while (xmax-xmin) > 1e-3:
         if fa > fb:
@@ -806,19 +752,19 @@ def exhaustive_choice(A, b, bounds=(-25, 5)):
             xa = xb
             xb = xmin + 0.618*(xmax-xmin)
             fa = fb
-            fb = lag.norm(b - A@lag.solve(AsA + 10**xb*eye, Asb))
+            fb = (lag.norm(b - A@lag.solve(AsA + 10**xb*eye, Asb))-delta**2)**2
 
         else:
             xmax = xb
             xb = xa
             xa = xmax - 0.618*(xmax-xmin)
             fb = fa
-            fa = lag.norm(b - A@lag.solve(AsA + 10**xa*eye, Asb))
+            fa = (lag.norm(b - A@lag.solve(AsA + 10**xa*eye, Asb))-delta**2)**2
 
     return 10**((xmin+xmax)/2)
 
 
-@jit(nopython=True)
+@jit(nopython=True, parallel=True)
 def lcurve_choice(A, b, bounds=(-20, 0), number_terms=21):
     """Determine the regularization parameter through L-curve.
 
@@ -851,7 +797,7 @@ def lcurve_choice(A, b, bounds=(-20, 0), number_terms=21):
     alpha = 10**np.linspace(bounds[0], bounds[1], number_terms)
 
     # Compute objective-functions
-    for i in range(number_terms):
+    for i in prange(number_terms):
         x = lag.solve(AsA + alpha[i]*eye, Asb)
         f1[i] = lag.norm(b-A@x)
         f2[i] = lag.norm(x)
