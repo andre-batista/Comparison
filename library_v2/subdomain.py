@@ -45,12 +45,11 @@ class SubdomainMethod(wrm.MethodOfWeightedResiduals):
        1984. 72-85.
     """
 
-    discretization_method_name = 'Subdomain Method'
-    discretization_method_alias = 'subdomain'
-
     def __init__(self, configuration, linear_solver, parameter):
         """Build the object."""
         super().__init__(configuration, linear_solver, parameter)
+        self.discretization_method_name = 'Subdomain Method'
+        self.discretization_method_alias = 'subdomain'
         self._GS = None
 
     def _compute_A(self, inputdata):

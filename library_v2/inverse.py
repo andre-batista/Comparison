@@ -75,6 +75,7 @@ class Inverse(ABC):
     def __init__(self, configuration):
         """Initialize the method object."""
         self.configuration = configuration
+        self.name = ''
 
     @abstractmethod
     def solve(self, inputdata):

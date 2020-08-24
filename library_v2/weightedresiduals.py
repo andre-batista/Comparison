@@ -60,6 +60,7 @@ import numpy as np
 from numpy import linalg as lag
 from numba import jit, prange
 from scipy.linalg import svdvals
+from matplotlib import pyplot as plt
 
 # Developed libraries
 import inverse as inv
@@ -121,9 +122,6 @@ class MethodOfWeightedResiduals(inv.Inverse):
        Computational galerkin methods. Springer, Berlin, Heidelberg,
        1984. 72-85.
     """
-
-    name = "Method of Weighted Residuals"
-    alias_name = 'mwr'
 
     def __init__(self, configuration, linear_solver, parameter):
         r"""Create the object.
@@ -189,6 +187,10 @@ class MethodOfWeightedResiduals(inv.Inverse):
            Business Media, 2011.
         """
         super().__init__(configuration)
+        self.name = "Method of Weighted Residuals"
+        self.alias_name = 'mwr'
+        self.discretization_method_alias = ''
+        self.discretization_method_name = ''
 
         if linear_solver == TIKHONOV_METHOD:
             self.linsolver = linear_solver
@@ -581,6 +583,7 @@ def conjugated_gradient(A, b, x0, delta, print_info=True):
     p = -A.conj().T@b
     x = np.copy(x0)
     it = 0
+    last = 1e20
     while True:
         kp = A@p
         tm = np.vdot(A@x-b, kp)/lag.norm(kp)**2
@@ -589,7 +592,11 @@ def conjugated_gradient(A, b, x0, delta, print_info=True):
 
         if lag.norm(A.conj().T@(A@x-b)) < delta:
             break
-
+        elif lag.norm(A.conj().T@(A@x-b)) > last:
+            break
+        else:
+            last = lag.norm(A.conj().T@(A@x-b))
+        # print(last)
         gamma = (lag.norm(A.conj().T@(A@x-b))**2
                  / lag.norm(A.conj().T@(A@x_last-b))**2)
         p = A.conj().T@(A@x-b)+gamma*p
@@ -720,8 +727,8 @@ def mozorov_choice(A, b, delta=1e-3):
     eye = np.eye(A.shape[1])
 
     # Initial guess of frequency interval
-    xmax = np.log10(delta*lag.norm(A)**2/(lag.norm(b)-delta))
-    xmin = xmax-5
+    xmax = 2
+    xmin = -15
 
     # Error of the initial guess
     fa = (lag.norm(b - A@lag.solve(AsA + 10**xmin*eye, Asb))-delta**2)**2
@@ -797,7 +804,7 @@ def lcurve_choice(A, b, bounds=(-20, 0), number_terms=21):
     alpha = 10**np.linspace(bounds[0], bounds[1], number_terms)
 
     # Compute objective-functions
-    for i in prange(number_terms):
+    for i in range(number_terms):
         x = lag.solve(AsA + alpha[i]*eye, Asb)
         f1[i] = lag.norm(b-A@x)
         f2[i] = lag.norm(x)
