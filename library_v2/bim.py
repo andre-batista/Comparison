@@ -20,12 +20,12 @@ import time as tm
 import numpy as np
 
 # Developed libraries
-import library_v2.configuration as cfg
-import library_v2.inputdata as ipt
-import library_v2.results as rst
-import library_v2.solver as slv
-import library_v2.forward as fwr
-import library_v2.inverse as inv
+import configuration as cfg
+import inputdata as ipt
+import results as rst
+import solver as slv
+import forward as fwr
+import inverse as inv
 
 
 class BornIterativeMethod(slv.Solver):
@@ -115,12 +115,15 @@ class BornIterativeMethod(slv.Solver):
                              method_name=self.name,
                              configuration_filename=self.configuration.name,
                              configuration_filepath=self.configuration.path,
-                             inputdata_filename=instance.name)
+                             input_filename=instance.name)
 
         if print_info:
             print('Iterations: %d' % self.MAX_IT)
+            print('----------------------------------------')
             print(self.forward)
+            print('----------------------------------------')
             print(self.inverse)
+            print('----------------------------------------')
 
         # The solution variable will be an object of InputData.
         solution = cp.deepcopy(instance)
@@ -136,7 +139,7 @@ class BornIterativeMethod(slv.Solver):
 
         for it in range(self.MAX_IT):
 
-            iteration_message = 'Iteration: %d - ' % it
+            iteration_message = 'Iteration: %d - ' % (it+1)
             tic = tm.time()
             self.inverse.solve(solution)
             self.forward.solve(solution)

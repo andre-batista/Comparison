@@ -129,9 +129,6 @@ class Results:
         else:
             if name is None:
                 raise error.MissingInputError('Results.__init__()', 'name')
-            if configuration_filename is None:
-                raise error.MissingInputError('Results.__init__()',
-                                              'configuration_filename')
             self.name = name
             self.method_name = method_name
             self.configuration_filename = configuration_filename
@@ -207,7 +204,7 @@ class Results:
         self.zeta_tfmpad = data[TOTALFIELD_MAGNITUDE_PAD]
         self.zeta_tfppad = data[TOTALFIELD_PHASE_PAD]
 
-    def plot_map(self, show=False, file_path='', file_format='eps'):
+    def plot_map(self, show=False, file_path='', file_format='eps', benchmark=None):
         """Plot map results.
 
         Call signatures::
@@ -528,30 +525,30 @@ class Results:
     def last_error_message(self, inputdata, pre_message=None):
         """Summarize the method."""
         if pre_message is not None:
-            message = pre_message + '\n'
+            message = pre_message
         else:
             message = ''
 
         if inputdata.compute_residual_error:
             message = message + 'Residual norm: %.3e, ' % self.zeta_rn[-1]
-            message = message + 'PAD: %.3e%%' % self.zeta_rpad[-1]
+            message = message + 'PAD: %.2f%%' % self.zeta_rpad[-1]
 
         if inputdata.compute_map_error:
             if inputdata.compute_residual_error:
                 message = message + ' - '
             if len(self.zeta_epad) != 0:
                 message = (message
-                           + 'Rel. Per. PAD: %.3e%%' % self.zeta_epad[-1])
+                           + 'Rel. Per. PAD: %.2f%%' % self.zeta_epad[-1])
                 if inputdata.homogeneous_objects:
-                    message = message + ', Back.: %.3e%%, ' % self.zeta_ebe[-1]
-                    message = message + 'Ob.: %.3e%%' % self.zeta_eoe[-1]
+                    message = message + ', Back.: %.2f%%, ' % self.zeta_ebe[-1]
+                    message = message + 'Ob.: %.2f%%' % self.zeta_eoe[-1]
             if len(self.zeta_sad) != 0:
                 if len(self.zeta_epad) != 0:
                     message = message + ' - '
-                message = message + 'Con. PAD: %.3e%%' % self.zeta_sad[-1]
+                message = message + 'Con. AD: %.3e' % self.zeta_sad[-1]
                 if inputdata.homogeneous_objects:
-                    message = message + ' Back.: %.3e%%,' % self.zeta_sbe[-1]
-                    message = message + 'Ob.: %.3e%%' % self.zeta_soe[-1]
+                    message = message + ' Back.: %.3e,' % self.zeta_sbe[-1]
+                    message = message + 'Ob.: %.3e' % self.zeta_soe[-1]
             if inputdata.homogeneous_objects:
                 message = message + ' - Bound.: %.3e' % self.zeta_be[-1]
 
@@ -559,9 +556,9 @@ class Results:
             if inputdata.compute_residual_error or inputdata.compute_map_error:
                 message = message + ' - '
             message = (message
-                       + 'To. Field Mag. PAD: %.3e%%' % self.zeta_tfmpad[-1])
+                       + 'To. Field Mag. PAD: %.2f%%' % self.zeta_tfmpad[-1])
             message = (message
-                       + 'To. Field Phase PAD: %.3e%%' % self.zeta_tfppad[-1])
+                       + ' To. Field Phase PAD: %.2f%%' % self.zeta_tfppad[-1])
 
         return message
 
@@ -594,8 +591,7 @@ class Results:
         ncols = int(np.ceil(number_plots/nrows))
         image_size = (5.+2*ncols, 5.+1*nrows)
         figure = plt.figure(figsize=image_size)
-        set_subplot_size(figure)
-        figure.subplots_adjust(hspace=.5, bottom=0.1)
+        figure.subplots_adjust(wspace=.5, hspace=.5)
         i = 1
         if len(self.zeta_be) > 0:
             axes = figure.add_subplot(nrows, ncols, i)

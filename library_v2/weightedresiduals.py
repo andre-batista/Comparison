@@ -457,7 +457,7 @@ class MethodOfWeightedResiduals(inv.Inverse):
             message = (message + 'Parameter choice strategy: '
                        + self._choice_strategy)
             if self._choice_strategy == FIXED_CHOICE:
-                message = message + ', value: $.3e' % self.parameter
+                message = message + ', value: %.3e' % self.parameter
         elif self.linsolver == LANDWEBER_METHOD:
             message = (message + 'Landweber Method, a = %.3e/||K||^2, '
                        % self.parameter[0] + 'Iter.: %d' % self.parameter[1])
@@ -727,8 +727,9 @@ def mozorov_choice(A, b, delta=1e-3):
     eye = np.eye(A.shape[1])
 
     # Initial guess of frequency interval
-    xmax = 2
-    xmin = -15
+    x0 = np.log10(delta*lag.norm(A)**2/(lag.norm(b)-delta))
+    xmax = x0+5
+    xmin = x0-5
 
     # Error of the initial guess
     fa = (lag.norm(b - A@lag.solve(AsA + 10**xmin*eye, Asb))-delta**2)**2
@@ -804,7 +805,7 @@ def lcurve_choice(A, b, bounds=(-20, 0), number_terms=21):
     alpha = 10**np.linspace(bounds[0], bounds[1], number_terms)
 
     # Compute objective-functions
-    for i in range(number_terms):
+    for i in prange(number_terms):
         x = lag.solve(AsA + alpha[i]*eye, Asb)
         f1[i] = lag.norm(b-A@x)
         f2[i] = lag.norm(x)
