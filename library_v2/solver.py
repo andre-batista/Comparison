@@ -91,7 +91,8 @@ class Solver(ABC):
                 An object of problem configuration.
         """
         self.configuration = configuration
-        self.version = None
+        self.name = ''
+        self.alias = ''
         self.execution_time = None
 
 
@@ -130,5 +131,7 @@ class Solver(ABC):
         """
         print("==============================================================")
         print('Method: ' + self.name)
+        if self.alias != '':
+            print('Alias: ' + self.alias)
         print('Problem configuration: ' + self.configuration.name)
         print('Instance: ' + instance.name)

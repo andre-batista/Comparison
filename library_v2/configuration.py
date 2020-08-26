@@ -133,7 +133,7 @@ class Configuration:
                  background_permittivity=1., background_conductivity=.0,
                  image_size=[1., 1.], wavelength_unit=True, magnitude=1.,
                  perfect_dielectric=False, good_conductor=False,
-                 import_filename=None, import_filepath=''):
+                 import_filename=None, import_filepath='', path=''):
         """Build or import a configuration object.
 
         You may either give the parameters or import information from a
@@ -224,7 +224,7 @@ class Configuration:
             self.perfect_dielectric = perfect_dielectric
             self.good_conductor = good_conductor
             self.E0 = magnitude
-            self.path = None
+            self.path = path
 
             if frequency is not None:
                 self.f = frequency
@@ -252,14 +252,15 @@ class Configuration:
                 else:
                     self.Ro = observation_radius
 
-    def save(self, file_path=''):
+    def save(self, file_path=None):
         """Save the problem configuration within a pickle file.
 
         It will only be saved the attribute variables, not the object
         itself. If you want to load these variables, you may use the
         constant string variables for a more friendly usage.
         """
-        self.path = file_path
+        if file_path is not None:
+            self.path = file_path
         data = {
             NAME: self.name,
             PATH: self.path,
@@ -403,7 +404,7 @@ class Configuration:
         """Import data from a saved object."""
         data = import_dict(file_name, file_path)
         self.name = data[NAME]
-        self.path = data[PATH]
+        self.path = file_path
         self.NM = data[NUMBER_MEASUREMENTS]
         self.NS = data[NUMBER_SOURCES]
         self.Ro = data[OBSERVATION_RADIUS]

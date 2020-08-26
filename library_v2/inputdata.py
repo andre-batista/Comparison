@@ -26,6 +26,7 @@ import results as rst
 
 # Constants for easier access to fields of the saved pickle file
 NAME = 'name'
+PATH = 'path'
 CONFIGURATION_FILENAME = 'configuration_filename'
 RESOLUTION = 'resolution'
 SCATTERED_FIELD = 'es'
@@ -99,7 +100,8 @@ class InputData:
                  relative_permittivity_map=None, conductivity_map=None,
                  noise=None, import_filename=None, import_filepath='',
                  homogeneous_objects=True, compute_residual_error=True,
-                 compute_map_error=False, compute_totalfield_error=False):
+                 compute_map_error=False, compute_totalfield_error=False,
+                 path=''):
         r"""
         Build or import an object.
 
@@ -188,6 +190,7 @@ class InputData:
                                               'resolution')
 
             self.name = name
+            self.path = path
             self.configuration_filename = configuration_filename
             self.homogeneous_objects = homogeneous_objects
             self.compute_residual_error = compute_residual_error
@@ -233,10 +236,13 @@ class InputData:
             else:
                 self.noise = None
 
-    def save(self, file_path=''):
+    def save(self, file_path=None):
         """Save object information."""
+        if file_path is not None:
+            self.path = file_path
         data = {
             NAME: self.name,
+            PATH: self.path,
             CONFIGURATION_FILENAME: self.configuration_filename,
             RESOLUTION: self.resolution,
             SCATTERED_FIELD: self.es,
@@ -251,7 +257,7 @@ class InputData:
             HOMOGENEOUS_OBJECTS: self.homogeneous_objects
         }
 
-        with open(file_path + self.name, 'wb') as datafile:
+        with open(self.path + self.name, 'wb') as datafile:
             pickle.dump(data, datafile)
 
     def importdata(self, file_name, file_path=''):
@@ -259,6 +265,7 @@ class InputData:
         with open(file_path + file_name, 'rb') as datafile:
             data = pickle.load(datafile)
         self.name = data[NAME]
+        self.path = file_path
         self.configuration_filename = data[CONFIGURATION_FILENAME]
         self.resolution = data[RESOLUTION]
         self.et = data[TOTAL_FIELD]

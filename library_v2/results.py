@@ -12,6 +12,7 @@ The list of routines...
 """
 
 import pickle
+import copy as cp
 import numpy as np
 import matplotlib.pyplot as plt
 import error
@@ -21,6 +22,8 @@ import inputdata as ipt
 # Strings for easier implementation of plots
 XLABEL_STANDARD = r'x [$\lambda_b$]'
 YLABEL_STANDARD = r'y [$\lambda_b$]'
+XLABEL_UNDEFINED = r'x [$L_x$]'
+YLABEL_UNDEFINED = r'y [$L_y$]'
 COLORBAR_REL_PERMITTIVITY = r'$\epsilon_r$'
 COLORBAR_CONDUCTIVITY = r'$\sigma$ [S/m]'
 TITLE_REL_PERMITTIVITY = 'Relative Permittivity'
@@ -229,23 +232,52 @@ class Results:
                 Default: 'eps'
 
         """
-        if self.configuration_filename is None:
-            raise error.MissingAttributesError('Results',
-                                               'configuration_filename')
+        try:
+            with open(self.configuration_filepath + self.configuration_filename,
+                      'rb') as datafile:
+                data = pickle.load(datafile)
+            lambda_b = data[cfg.BACKGROUND_WAVELENGTH]
+            Lx, Ly = data[cfg.IMAGE_SIZE]
+            xmin, xmax = cfg.get_bounds(Lx)
+            ymin, ymax = cfg.get_bounds(Ly)
+            bounds = (xmin/lambda_b, xmax/lambda_b,
+                      ymin/lambda_b, ymax/lambda_b)
+            perfect_dieletric = data[cfg.PERFECT_DIELECTRIC_FLAG]
+            good_conductor = data[cfg.GOOD_CONDUCTOR_FLAG]
+            xlabel, ylabel = XLABEL_STANDARD, YLABEL_STANDARD
+        except Exception:
+            bounds = (0., 1., 0., 1.)
+            if self.epsilon_r is not None and self.sigma is None:
+                perfect_dieletric, good_conductor = True, False
+            elif self.epsilon_r is None and self.sigma is not None:
+                perfect_dieletric, good_conductor = False, True
+            elif self.epsilon_r is not None and self.sigma is not None:
+                perfect_dieletric, good_conductor = False, False
+            else:
+                raise error.MissingAttributesError('Results',
+                                                   'epsilon_r or/and sigma')
+            xlabel, ylabel = XLABEL_UNDEFINED, YLABEL_UNDEFINED
 
-        with open(self.configuration_filepath + self.configuration_filename,
-                  'rb') as datafile:
-            data = pickle.load(datafile)
+        if benchmark is None:
+            try:
+                with open(self.input_filepath
+                          + self.input_filename, 'rb') as datafile:
+                    inputdata = pickle.load(datafile)
+                epsilon_rgoal = inputdata[ipt.RELATIVE_PERMITTIVITY_MAP]
+                sigma_goal = inputdata[ipt.CONDUCTIVITY_MAP]
+            except Exception:
+                epsilon_rgoal = sigma_goal = None
+        elif not isinstance(benchmark, ipt.InputData):
+            raise error.WrongTypeInput('Results.plot_map', 'benchmark',
+                                       benchmark.__class__.__name__,
+                                       'InputData')
+        else:
+            epsilon_rgoal = cp.deepcopy(benchmark.epsilon_r)
+            sigma_goal = cp.deepcopy(benchmark.sigma)
 
-        lambda_b = data[cfg.BACKGROUND_WAVELENGTH]
-        Lx, Ly = data[cfg.IMAGE_SIZE]
-        xmin, xmax = cfg.get_bounds(Lx)
-        ymin, ymax = cfg.get_bounds(Ly)
-        bounds = (xmin/lambda_b, xmax/lambda_b, ymin/lambda_b, ymax/lambda_b)
+        if epsilon_rgoal is None and sigma_goal is None:
 
-        if self.input_filename is None:
-
-            if data[cfg.PERFECT_DIELECTRIC_FLAG]:
+            if perfect_dieletric:
                 if self.epsilon_r is None:
                     raise error.MissingAttributesError('Results',
                                                        'relative_permittivity'
@@ -254,9 +286,10 @@ class Results:
                 axes = get_single_figure_axes(figure)
                 add_image(axes, self.epsilon_r,
                           TITLE_REL_PERMITTIVITY,
-                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds,
+                          xlabel=xlabel, ylabel=ylabel)
 
-            elif data[cfg.GOOD_CONDUCTOR_FLAG]:
+            elif good_conductor:
                 if self.sigma is None:
                     raise error.MissingAttributesError('Results',
                                                        'conductivity_map')
@@ -264,7 +297,8 @@ class Results:
                 axes = get_single_figure_axes(figure)
                 add_image(axes, self.sigma,
                           TITLE_CONDUCTIVITY,
-                          COLORBAR_CONDUCTIVITY, bounds=bounds)
+                          COLORBAR_CONDUCTIVITY, bounds=bounds,
+                          xlabel=xlabel, ylabel=ylabel)
 
             else:
                 figure = plt.figure(figsize=IMAGE_SIZE_1x2)
@@ -272,19 +306,17 @@ class Results:
 
                 axes = figure.add_subplot(1, 2, 1)
                 add_image(axes, self.epsilon_r, TITLE_REL_PERMITTIVITY,
-                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds,
+                          xlabel=xlabel, ylabel=ylabel)
 
                 axes = figure.add_subplot(1, 2, 2)
                 add_image(axes, self.sigma, TITLE_CONDUCTIVITY,
-                          COLORBAR_CONDUCTIVITY, bounds=bounds)
+                          COLORBAR_CONDUCTIVITY, bounds=bounds,
+                          xlabel=xlabel, ylabel=ylabel)
 
         else:
 
-            with open(self.input_filepath
-                      + self.input_filename, 'rb') as datafile:
-                inputdata = pickle.load(datafile)
-
-            if data[cfg.PERFECT_DIELECTRIC_FLAG]:
+            if perfect_dieletric:
                 if self.epsilon_r is None:
                     raise error.MissingAttributesError('Results',
                                                        'relative_permittivity'
@@ -294,16 +326,18 @@ class Results:
                 set_subplot_size(figure)
 
                 axes = figure.add_subplot(1, 2, 1)
-                add_image(axes, inputdata[ipt.RELATIVE_PERMITTIVITY_MAP],
+                add_image(axes, epsilon_rgoal,
                           TITLE_ORIGINAL_REL_PERMITTIVITY,
-                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds,
+                          xlabel=xlabel, ylabel=ylabel)
 
                 axes = figure.add_subplot(1, 2, 2)
                 add_image(axes, self.epsilon_r,
                           TITLE_RECOVERED_REL_PERMITTIVITY,
-                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds,
+                          xlabel=xlabel, ylabel=ylabel)
 
-            elif data[cfg.GOOD_CONDUCTOR_FLAG]:
+            elif good_conductor:
                 if self.sigma is None:
                     raise error.MissingAttributesError('Results',
                                                        'conductivity_map')
@@ -312,14 +346,14 @@ class Results:
                 set_subplot_size(figure)
 
                 axes = figure.add_subplot(1, 2, 1)
-                add_image(axes, inputdata[ipt.CONDUCTIVITY_MAP],
+                add_image(axes, sigma_goal,
                           TITLE_ORIGINAL_CONDUCTIVITY, COLORBAR_CONDUCTIVITY,
-                          bounds=bounds)
+                          bounds=bounds, xlabel=xlabel, ylabel=ylabel)
 
                 axes = figure.add_subplot(1, 2, 2)
-                add_image(axes, self.sigma,
+                add_image(axes, sigma_goal,
                           TITLE_RECOVERED_CONDUCTIVITY, COLORBAR_CONDUCTIVITY,
-                          bounds=bounds)
+                          bounds=bounds, xlabel=xlabel, ylabel=ylabel)
 
             else:
                 if self.epsilon_r is None:
@@ -334,24 +368,26 @@ class Results:
                 set_subplot_size(figure)
 
                 axes = figure.add_subplot(2, 2, 1)
-                add_image(axes, inputdata[ipt.RELATIVE_PERMITTIVITY_MAP],
+                add_image(axes, epsilon_rgoal,
                           TITLE_ORIGINAL_REL_PERMITTIVITY,
-                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds,
+                          xlabel=xlabel, ylabel=ylabel)
 
                 axes = figure.add_subplot(2, 2, 2)
-                add_image(axes, inputdata[ipt.CONDUCTIVITY_MAP],
+                add_image(axes, sigma_goal,
                           TITLE_ORIGINAL_CONDUCTIVITY, COLORBAR_CONDUCTIVITY,
-                          bounds=bounds)
+                          bounds=bounds, xlabel=xlabel, ylabel=ylabel)
 
                 axes = figure.add_subplot(2, 2, 3)
                 add_image(axes, self.epsilon_r,
                           TITLE_RECOVERED_REL_PERMITTIVITY,
-                          COLORBAR_REL_PERMITTIVITY, bounds=bounds)
+                          COLORBAR_REL_PERMITTIVITY, bounds=bounds,
+                          xlabel=xlabel, ylabel=ylabel)
 
                 axes = figure.add_subplot(2, 2, 4)
                 add_image(axes, self.sigma,
                           TITLE_RECOVERED_CONDUCTIVITY, COLORBAR_CONDUCTIVITY,
-                          bounds=bounds)
+                          bounds=bounds, xlabel=xlabel, ylabel=ylabel)
 
         if show:
             plt.show()

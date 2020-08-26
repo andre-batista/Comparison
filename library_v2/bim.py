@@ -90,7 +90,7 @@ class BornIterativeMethod(slv.Solver):
         self.MAX_IT = maximum_iterations
         self.forward = forward_solver
         self.inverse = inverse_solver
-        self.version = version
+        self.alias = version
 
         if self.forward.configuration is None:
             self.forward.configuration = self.configuration
@@ -111,11 +111,12 @@ class BornIterativeMethod(slv.Solver):
                 Print or not the iteration information.
         """
         super().solve(instance, print_info)
-        result = rst.Results(instance.name + '_' + self.version,
-                             method_name=self.name,
+        result = rst.Results(instance.name + '_' + self.alias,
+                             method_name=self.alias,
                              configuration_filename=self.configuration.name,
                              configuration_filepath=self.configuration.path,
-                             input_filename=instance.name)
+                             input_filename=instance.name,
+                             input_filepath=instance.path)
 
         if print_info:
             print('Iterations: %d' % self.MAX_IT)

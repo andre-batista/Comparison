@@ -120,6 +120,7 @@ class ForwardSolver(ABC):
             self.configuration = (configuration, configuration_filepath)
         else:
             self.configuration = configuration
+        self.name = None
         self.et = None
         self.ei = None
         self.es = None

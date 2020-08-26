@@ -335,69 +335,13 @@ class Experiment:
             self.scenarios = scenarios
 
         if self.synthetization_resolution is None:
-            self.synthetization_resolution = []
-            for i in range(len(self.maximum_contrast)):
-                self.synthetization_resolution.append(list())
-                for j in range(len(self.configurations)):
-                    epsilon_rd = cfg.get_relative_permittivity(
-                        self.maximum_contrast[i],
-                        self.configurations[j].epsilon_rb
-                    )
-                    sigma_d = cfg.get_conductivity(
-                        self.maximum_contrast[i],
-                        2*pi*self.configurations[j].f,
-                        self.configurations[j].sigma_b
-                    )
-                    lam_d = cfg.compute_wavelength(self.configurations[j].f,
-                                                   epsilon_r=epsilon_rd,
-                                                   sigma=sigma_d)
-                    resolution = compute_resolution(
-                        lam_d, self.configurations[j].Ly,
-                        self.configurations[j].Lx,
-                        STANDARD_SYNTHETIZATION_RESOLUTION
-                    )
-                    self.synthetization_resolution[i].append(resolution)
+            self.define_synthetization_resolution()
 
         if self.recover_resolution is None:
-            self.recover_resolution = []
-            for i in range(len(self.maximum_contrast)):
-                self.recover_resolution.append(list())
-                for j in range(len(self.configurations)):
-                    epsilon_rd = cfg.get_relative_permittivity(
-                        self.maximum_contrast[i],
-                        self.configurations[j].epsilon_rb
-                    )
-                    sigma_d = cfg.get_conductivity(
-                        self.maximum_contrast[i],
-                        2*pi*self.configurations[j].f,
-                        self.configurations[j].sigma_b
-                    )
-                    lam_d = cfg.compute_wavelength(self.configurations[j].f,
-                                                   epsilon_r=epsilon_rd,
-                                                   sigma=sigma_d)
-                    resolution = compute_resolution(
-                        lam_d, self.configurations[j].Ly,
-                        self.configurations[j].Lx,
-                        STANDARD_SYNTHETIZATION_RESOLUTION
-                    )
-                    self.recover_resolution[i].append(resolution)
+            self.define_recover_resolution()
 
         if self.scenarios is None:
-            self.scenarios = []
-            for i in range(len(self.maximum_contrast)):
-                self.scenarios.append(list())
-                for j in range(len(self.configurations)):
-                    self.scenarios[i].append(list())
-                    for k in range(self.sample_size):
-                        new_scenario = create_scenario(
-                            self.configurations[j],
-                            self.synthetization_resolution[i][j],
-                            self.map_pattern,
-                            self.maximum_contrast[i],
-                            self.maximum_contrast_density[i],
-                            self._maximum_object_size[i]
-                        )
-                        self.scenarios[i][j].append(cp.deepcopy(new_scenario))
+            self.randomize_scenarios(self.synthetization_resolution)
 
         if self.forward_solver is None:
             self.forward_solver = mom.MoM_CG_FFT(self.configurations[0])
@@ -430,6 +374,179 @@ class Experiment:
                         self.results[i][j][k].append(
                             self.methods[m].solve(self.scenarios[i][j][k])
                         )
+
+    def define_synthetization_resolution(self):
+        """Set synthetization resolution attribute."""
+        if self.maximum_contrast is None:
+            raise error.MissingAttributesError('Experiment',
+                                               'maximum_contrast')
+        if self.configurations is None or len(self.configurations) == 0:
+            raise error.MissingAttributesError('Experiment',
+                                               'configurations')
+        self.synthetization_resolution = []
+        for i in range(len(self.maximum_contrast)):
+            self.synthetization_resolution.append(list())
+            for j in range(len(self.configurations)):
+                epsilon_rd = cfg.get_relative_permittivity(
+                    self.maximum_contrast[i],
+                    self.configurations[j].epsilon_rb
+                )
+                sigma_d = cfg.get_conductivity(
+                    self.maximum_contrast[i],
+                    self.configurations[j].epsilon_rb,
+                    2*pi*self.configurations[j].f,
+                    self.configurations[j].sigma_b
+                )
+                lam_d = cfg.compute_wavelength(self.configurations[j].f,
+                                               epsilon_r=epsilon_rd,
+                                               sigma=sigma_d)
+                resolution = compute_resolution(
+                    lam_d, self.configurations[j].Ly,
+                    self.configurations[j].Lx,
+                    STANDARD_SYNTHETIZATION_RESOLUTION
+                )
+                self.synthetization_resolution[i].append(resolution)
+
+    def define_recover_resolution(self):
+        """Set recover resolution variable."""
+        if self.maximum_contrast is None:
+            raise error.MissingAttributesError('Experiment',
+                                               'maximum_contrast')
+        if self.configurations is None or len(self.configurations) == 0:
+            raise error.MissingAttributesError('Experiment',
+                                               'configurations')
+        self.recover_resolution = []
+        for i in range(len(self.maximum_contrast)):
+            self.recover_resolution.append(list())
+            for j in range(len(self.configurations)):
+                epsilon_rd = cfg.get_relative_permittivity(
+                    self.maximum_contrast[i],
+                    self.configurations[j].epsilon_rb
+                )
+                sigma_d = cfg.get_conductivity(
+                    self.maximum_contrast[i],
+                    self.configurations[j].epsilon_rb,
+                    2*pi*self.configurations[j].f,
+                    self.configurations[j].sigma_b
+                )
+                lam_d = cfg.compute_wavelength(self.configurations[j].f,
+                                               epsilon_r=epsilon_rd,
+                                               sigma=sigma_d)
+                resolution = compute_resolution(
+                    lam_d, self.configurations[j].Ly,
+                    self.configurations[j].Lx,
+                    STANDARD_RECOVER_RESOLUTION
+                )
+                self.recover_resolution[i].append(resolution)
+
+    def randomize_scenarios(self, resolution=None):
+        """Create random scenarios."""
+        if self.maximum_contrast is None:
+            raise error.MissingAttributesError('Experiment',
+                                               'maximum_contrast')
+        if self.configurations is None or len(self.configurations) == 0:
+            raise error.MissingAttributesError('Experiment',
+                                               'configurations')
+        if self.sample_size is None:
+            raise error.MissingAttributesError('Experiment',
+                                               'configurations')
+        if resolution is None and self.synthetization_resolution is None:
+            raise error.MissingAttributesError('Experiment',
+                                               'configurations')
+        if resolution is None:
+            resolution = self.synthetization_resolution
+
+        auxlist = []
+        for i in range(len(self.maximum_contrast)):
+            auxlist.append(list())
+            for j in range(len(self.configurations)):
+                auxlist[i].append(list())
+                for k in range(self.sample_size):
+                    new_scenario = create_scenario(
+                        'rand' + '%d' % i + '%d' % j + '%d' % k,
+                        self.configurations[j],
+                        resolution[i][j],
+                        self.map_pattern,
+                        self.maximum_contrast[i],
+                        self.maximum_contrast_density[i],
+                        self._maximum_object_size[i]
+                    )
+                    auxlist[i][j].append(cp.deepcopy(new_scenario))
+        self.scenarios = auxlist
+
+    def __str__(self):
+        """Print the object information."""
+        message = 'Text name: ' + self.name
+        if all(i == self.maximum_contrast[0] for i in self.maximum_contrast):
+            message = (message 
+                       + '\nMaximum Contrast: %.2f'
+                       % np.real(self.maximum_contrast[0]) + ' %.2ej'
+                       % np.imag(self.maximum_contrast[0]))
+        else:
+            message = (message + '\nMaximum Contrast: '
+                       + str(self.maximum_contrast))
+        if all(i == self.maximum_object_size[0] for i in self.maximum_object_size):
+            message = (message + '\nMaximum Object Size: %.1f [lambda]'
+                       % self.maximum_object_size[0])
+        else:
+            message = (message + '\nMaximum Object Size: '
+                       + str(self.maximum_object_size))
+        if all(i == self.maximum_contrast_density[0]
+               for i in self.maximum_contrast_density):
+            message = (message + '\nMaximum Constrast Density: %.1f'
+                       % np.real(self.maximum_contrast_density[0]) + ' + %.2ej'
+                       % np.imag(self.maximum_contrast_density[0]))
+        else:
+            message = (message + '\nMaximum Contrast Density: '
+                       + str(self.maximum_contrast_density))
+        message = message + '\nMap pattern: ' + self.map_pattern
+        if self.sample_size is not None:
+            message = message + '\nSample Size: %d' % self.sample_size
+        if self.configurations is not None and len(self.configurations) > 0:
+            message = message + '\nConfiguration names:'
+            for i in range(len(self.configurations)-1):
+                message = message + ' ' + self.configurations[i].name + ','
+            message = message + ' ' + self.configurations[-1].name
+        if self.methods is not None and len(self.methods) > 0:
+            message = message + '\nMethods:'
+            for i in range(len(self.methods)-1):
+                message = message + ' ' + self.methods[i].alias + ','
+            message = message + ' ' + self.methods[-1].alias
+        if self.forward_solver is not None:
+            message = message + '\nForward solver: ' + self.forward_solver.name
+        if self.synthetization_resolution is not None:
+            message = message + '\nSynthetization resolutions: '
+            for j in range(len(self.configurations)):
+                message = message + 'Configuration %d: [' % (j+1)
+                for i in range(len(self.synthetization_resolution)-1):
+                    message = (message + '%dx'
+                               % self.synthetization_resolution[i][j][0]
+                               + '%d, '
+                               % self.synthetization_resolution[i][j][1])
+                message = (message + '%dx'
+                           % self.synthetization_resolution[-1][j][0]
+                           + '%d], '
+                           % self.synthetization_resolution[-1][j][1])
+            message = message[:-2]
+        if self.recover_resolution is not None:
+            message = message + '\nRecover resolutions: '
+            for j in range(len(self.configurations)):
+                message = message + 'Configuration %d: [' % (j+1)
+                for i in range(len(self.recover_resolution)-1):
+                    message = (message + '%dx'
+                               % self.recover_resolution[i][j][0]
+                               + '%d, '
+                               % self.recover_resolution[i][j][1])
+                message = (message + '%dx'
+                           % self.recover_resolution[-1][j][0]
+                           + '%d], '
+                           % self.recover_resolution[-1][j][1])
+            message = message[:-2]
+        if self.scenarios is not None:
+            message = (message + '\nNumber of scenarios: %d'
+                       % (len(self.scenarios)*len(self.scenarios[0])
+                          * len(self.scenarios[0][0])))
+        return message
 
 
 def create_scenario(name, configuration, resolution, map_pattern,

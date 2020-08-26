@@ -368,9 +368,10 @@ class MethodOfWeightedResiduals(inv.Inverse):
                           + self.discretization_method_alias,
                           method_name=self.name + ' '
                           + self.discretization_method_name,
-                          configuration_filename=(
-                              inputdata.configuration_filename),
+                          configuration_filename=self.configuration.name,
+                          configuration_filepath=self.configuration.path,
                           input_filename=inputdata.name,
+                          input_filepath=inputdata.path,
                           relative_permittivity_map=inputdata.epsilon_r,
                           conductivity_map=inputdata.sigma)
 
