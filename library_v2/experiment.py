@@ -47,8 +47,10 @@ A set of routines for defining surfaces is also provided:
 import copy as cp
 import numpy as np
 from numpy import random as rnd
-from numpy import pi
-from numpy import logical_and
+from numpy import pi, logical_and
+import time as tm
+from joblib import Parallel, delayed
+import multiprocessing
 
 # Developed libraries
 import error
@@ -112,7 +114,7 @@ class Experiment:
     @property
     def configurations(self):
         """Get the configurations list."""
-        return cp.deepcopy(self._configurations)
+        return self._configurations
 
     @configurations.setter
     def configurations(self, configurations):
@@ -134,10 +136,10 @@ class Experiment:
     @property
     def scenarios(self):
         """Get the scenario list."""
-        return cp.deepcopy(self._scenarios)
+        return self._scenarios
 
     @scenarios.setter
-    def scenarios(self, scenarios):
+    def scenarios(self, new_scenario):
         """Set the scenarios attribute.
 
         There are three options to set this attribute:
@@ -146,17 +148,17 @@ class Experiment:
         >>> self.scenarios = [ipt.InputData, ipt.InputData]
         >>> self.scenarios = None
         """
-        if type(scenarios) is ipt.InputData:
-            self._scenarios = [cp.deepcopy(scenarios)]
-        elif type(scenarios) is list:
-            self._scenarios = cp.deepcopy(scenarios)
+        if type(new_scenario) is ipt.InputData:
+            self._scenarios = [cp.deepcopy(new_scenario)]
+        elif type(new_scenario) is list:
+            self._scenarios = cp.deepcopy(new_scenario)
         else:
             self._scenarios = None
 
     @property
     def methods(self):
         """Get the list of methods."""
-        return cp.deepcopy(self._methods)
+        return self._methods
 
     @methods.setter
     def methods(self, methods):
@@ -346,34 +348,11 @@ class Experiment:
         if self.forward_solver is None:
             self.forward_solver = mom.MoM_CG_FFT(self.configurations[0])
 
-        for i in range(len(self.maximum_contrast)):
-            for j in range(len(self.configurations)):
-                for k in range(self.sample_size):
-                    self.forward_solver(self.scenarios[i][j][k],
-                                        SAVE_INTERN_FIELD=False)
+        self.synthesize_scattered_field()
 
-        for i in range(len(self.maximum_contrast)):
-            for j in range(len(self.configurations)):
-                for k in range(self.sample_size):
-                    self.scenarios[i][j][k].resolution = (
-                        self.recover_resolution[i][j]
-                    )
+        self.solve_scenarios()
 
-        self.results = []
-        for i in range(len(self.maximum_contrast)):
-            self.results.append(list())
-            for j in range(len(self.configurations)):
-                self.results[i].append()
-                for m in range(len(self.methods)):
-                    self.methods[m].configuration = (
-                        self.configurations[j]
-                    )
-                for k in range(self.sample_size):
-                    self.results[i][j].append(list())
-                    for m in range(len(self.methods)):
-                        self.results[i][j][k].append(
-                            self.methods[m].solve(self.scenarios[i][j][k])
-                        )
+    """PARALELIZAR A CRIACAO DE SCENARIO!!!!"""
 
     def define_synthetization_resolution(self):
         """Set synthetization resolution attribute."""
@@ -455,12 +434,12 @@ class Experiment:
                                                'configurations')
         if resolution is None:
             resolution = self.synthetization_resolution
-
-        auxlist = []
+        tic = tm.time()
+        self.scenarios = []
         for i in range(len(self.maximum_contrast)):
-            auxlist.append(list())
+            self.scenarios.append(list())
             for j in range(len(self.configurations)):
-                auxlist[i].append(list())
+                self.scenarios[i].append(list())
                 for k in range(self.sample_size):
                     new_scenario = create_scenario(
                         'rand' + '%d' % i + '%d' % j + '%d' % k,
@@ -471,8 +450,68 @@ class Experiment:
                         self.maximum_contrast_density[i],
                         self._maximum_object_size[i]
                     )
-                    auxlist[i][j].append(cp.deepcopy(new_scenario))
-        self.scenarios = auxlist
+                    self.scenarios[i][j].append(cp.deepcopy(new_scenario))
+        print('Time elapsed: %.2f' % ((tm.time()-tic)/60))
+
+    def synthesize_scattered_field(self, PRINT_INFO=True):
+        if self.maximum_contrast is None:
+            raise error.MissingAttributesError('Experiment',
+                                               'maximum_contrast')
+        if self.configurations is None or len(self.configurations) == 0:
+            raise error.MissingAttributesError('Experiment', 'configurations')
+        if self.sample_size is None:
+            raise error.MissingAttributesError('Experiment', 'sample_size')
+        if self.forward_solver is None:
+            self.forward_solver = mom.MoM_CG_FFT(self.configurations[0])
+        if self.scenarios is None:
+            raise error.MissingAttributesError('Experiment', 'scenarios')
+
+        N = (len(self.maximum_contrast)*len(self.configurations)
+             * self.sample_size)
+        n = 0
+        for i in range(len(self.maximum_contrast)):
+            for j in range(len(self.configurations)):
+                self.forward_solver.configuration = self.configurations[j]
+                for k in range(self.sample_size):
+                    if PRINT_INFO:
+                        print('Synthesizing scattered field: %d' % (n+1)
+                              + ' of %d' % N + ' scenarios', end='\r',
+                              flush=True)
+                    self.forward_solver.solve(self.scenarios[i][j][k],
+                                              SAVE_INTERN_FIELD=False)
+                    n += 1
+        print('Synthesizing scattered field: %d' % N + ' of %d' % N
+              + ' scenarios')
+
+    def solve_scenarios(self, PRINT_INFO=True):
+        """Run inverse solvers."""
+        if self.maximum_contrast is None:
+            raise error.MissingAttributesError('Experiment',
+                                               'maximum_contrast')
+        if self.configurations is None or len(self.configurations) == 0:
+            raise error.MissingAttributesError('Experiment', 'configurations')
+        if self.sample_size is None:
+            raise error.MissingAttributesError('Experiment', 'sample_size')
+        if self.methods is None:
+            raise error.MissingAttributesError('Experiment', 'methods')
+        if self.scenarios is None:
+            raise error.MissingAttributesError('Experiment', 'scenarios')
+        self.results = []
+        for i in range(len(self.maximum_contrast)):
+            self.results.append(list())
+            for j in range(len(self.configurations)):
+                self.results[i].append(list())
+                for m in range(len(self.methods)):
+                    self.methods[m].configuration = self.configurations[j]
+                for k in range(self.sample_size):
+                    self.results[i][j].append(list())
+                    self.scenarios[i][j][k].resolution = (
+                        self.recover_resolution[i][j]
+                    )
+                    self.results[i][j][k] = (
+                        run_methods(self.methods, self.scenarios[i][j][k])
+                    )
+                    print(self.results[i][j][k][0])
 
     def __str__(self):
         """Print the object information."""
@@ -547,6 +586,19 @@ class Experiment:
                        % (len(self.scenarios)*len(self.scenarios[0])
                           * len(self.scenarios[0][0])))
         return message
+
+
+def run_methods(methods, scenario):
+    """Run methods parallely."""
+    num_cores = multiprocessing.cpu_count()
+    output = (Parallel(n_jobs=num_cores)(
+        delayed(methods[m].solve)
+        (scenario,print_info=False) for m in range(len(methods))
+    ))
+    results = []
+    for m in range(len(methods)):
+        results.append(output[m])
+    return results
 
 
 def create_scenario(name, configuration, resolution, map_pattern,

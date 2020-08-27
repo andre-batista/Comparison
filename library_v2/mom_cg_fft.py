@@ -185,8 +185,22 @@ class MoM_CG_FFT(fwr.ForwardSolver):
 
         if MONO_FREQUENCY:
             tic = time.time()
-            et, niter, error = self.__CG_FFT(G, b, NX, NY, NS, Xr, self.MAX_IT,
-                                             self.TOL, PRINT_INFO)
+            et = np.zeros((N, NS), dtype=complex)
+            niter = np.zeros(NS)
+            error = np.zeros((self.MAX_IT, NS))
+            num_cores = multiprocessing.cpu_count()
+            results = (Parallel(n_jobs=num_cores)(delayed(self.__CG_FFT)
+                                                  (G,
+                                                   b[:, ns].reshape((-1, 1)),
+                                                   NX, NY, 1,
+                                                   Xr,
+                                                   self.MAX_IT, self.TOL,
+                                                   False)
+                                                  for ns in range(NS)))
+            for ns in range(NS):
+                et[:, ns] = results[ns][0].flatten()
+                niter[ns] = results[ns][1]
+                error[:,ns] = results[ns][2].flatten()
             time_cg_fft = time.time()-tic
             if PRINT_INFO:
                 print('Execution time: %.2f' % time_cg_fft + ' [sec]')
@@ -230,7 +244,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                          shape=(N, N))
                     es[:, :, nf] = GS[:, :, nf] @ aux @ et[:, :, nf]
 
-            if scenario.noise > 0:
+            if scenario.noise is not None and scenario.noise > 0:
                 es = fwr.add_noise(es, scenario.noise)
             scenario.es = np.conj(es)
 
@@ -282,7 +296,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             for f in range(kb.size):
 
                 # Matrix elements for off-diagonal entries (m=/n)
-                Gmn = (1j*np.Arrayteratorpi*kb*an/2*spc.jv(1, kb[f]*an)
+                Gmn = (1j*np.pi*kb*an/2*spc.jv(1, kb[f]*an)
                        * spc.hankel1(0, kb[f]*Rmn))
                 # Matrix elements for diagonal entries (m==n)
                 Gmn[NY-1, NX-1] = (1j*np.pi*kb[f]*an/2*spc.hankel1(1, kb[f]*an)
