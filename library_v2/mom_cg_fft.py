@@ -116,8 +116,8 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                         )
         return ei
 
-    def solve(self, scenario, PRINT_INFO=False, COMPUTE_SCATTERED_FIELD=True,
-              SAVE_INTERN_FIELD=True):
+    def solve(self, scenario, noise=None, PRINT_INFO=False,
+              COMPUTE_SCATTERED_FIELD=True, SAVE_INTERN_FIELD=True):
         """Solve the forward problem.
 
         Parameters
@@ -244,8 +244,8 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                          shape=(N, N))
                     es[:, :, nf] = GS[:, :, nf] @ aux @ et[:, :, nf]
 
-            if scenario.noise is not None and scenario.noise > 0:
-                es = fwr.add_noise(es, scenario.noise)
+            if noise is not None and noise > 0:
+                es = fwr.add_noise(es, noise)
             scenario.es = np.conj(es)
 
             return np.conj(et), np.conj(ei), np.conj(es)

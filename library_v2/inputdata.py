@@ -102,8 +102,7 @@ class InputData:
                  homogeneous_objects=True, compute_residual_error=True,
                  compute_map_error=False, compute_totalfield_error=False,
                  path=''):
-        r"""
-        Build or import an object.
+        r"""Build or import an object.
 
         You must give either the import file name and path or the
         required variables.

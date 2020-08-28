@@ -243,6 +243,28 @@ class Experiment:
             )
 
     @property
+    def noise(self):
+        """Get the list of noise."""
+        return self._noise
+
+    @noise.setter
+    def noise(self, value):
+        """Set the noise level.
+
+        There are three options to set this attribute:
+
+        >>> self.noise = float()
+        >>> self.noise = [float(), ...]
+        >>> self.noise = None
+        """
+        if type(value) is float:
+            self._noise = [value]
+        elif type(value) is list:
+            self._noise = value
+        elif type(value) is None:
+            self._noise = [0.]
+
+    @property
     def map_pattern(self):
         """Get the map pattern."""
         return self._map_pattern
@@ -261,7 +283,8 @@ class Experiment:
                  maximum_contrast_density, map_pattern, sample_size=None,
                  synthetization_resolution=None, recover_resolution=None,
                  configurations=None, scenarios=None, methods=None,
-                 forward_solver=None):
+                 forward_solver=None, noise=None, study_residual=True,
+                 study_map=False, study_internfield=False):
         """Create the experiment object.
 
         The object should be defined with one of the following
@@ -281,6 +304,7 @@ class Experiment:
         self.maximum_contrast = maximum_contrast
         self.maximum_object_size = maximum_object_size
         self.maximum_contrast_density = maximum_contrast_density
+        self.noise = noise
         self.map_pattern = map_pattern
         self.sample_size = sample_size
         self.synthetization_resolution = synthetization_resolution
@@ -289,31 +313,49 @@ class Experiment:
         self.scenarios = scenarios
         self.methods = methods
         self.forward_solver = forward_solver
+        self.study_residual = study_residual
+        self.study_map = study_map
+        self.study_internfield = study_internfield
         self.results = None
 
         # Enforcing that all experimentation parameters are of same length
         if (len(self.maximum_contrast) == len(self.maximum_object_size)
                 and len(self.maximum_object_size)
-                == len(self.maximum_contrast_density)):
+                == len(self.maximum_contrast_density)
+                and len(self.maximum_contrast_density) == len(self.noise)):
             pass
         elif (len(self.maximum_contrast) > 1
                 and len(self.maximum_object_size) == 1
-                and len(self.maximum_contrast_density) == 1):
+                and len(self.maximum_contrast_density) == 1
+                and len(self.noise) == 1):
             N = len(self.maximum_contrast)
             self.maximum_object_size = N * self.maximum_object_size
             self.maximum_contrast_density = N * self.maximum_contrast_density
+            self.noise = N * self.noise
         elif (len(self.maximum_contrast) == 1
                 and len(self.maximum_object_size) > 1
-                and len(self.maximum_contrast_density) == 1):
+                and len(self.maximum_contrast_density) == 1
+                and len(self.noise) == 1):
             N = len(self.maximum_object_size)
             self.maximum_contrast = N * self.maximum_contrast
             self.maximum_contrast_density = N * self.maximum_contrast_density
+            self.noise = N * self.noise
         elif (len(self.maximum_contrast) == 1
                 and len(self.maximum_object_size) == 1
-                and len(self.maximum_contrast_density) > 1):
+                and len(self.maximum_contrast_density) > 1
+                and len(self.noise) == 1):
             N = len(self.maximum_contrast_density)
             self.maximum_contrast = N*self.maximum_contrast
             self.maximum_object_size = N*self.maximum_object_size
+            self.noise = N * self.noise
+        elif (len(self.maximum_contrast) == 1
+                and len(self.maximum_object_size) == 1
+                and len(self.maximum_contrast_density) == 1
+                and len(self.noise) > 1):
+            N = len(self.noise)
+            self.maximum_contrast = N*self.maximum_contrast
+            self.maximum_object_size = N*self.maximum_object_size
+            self.maximum_contrast_density = N * self.maximum_contrast_density
         else:
             raise error.WrongValueInput('Experiment.__init__',
                                         'maximum_contrast and ' +
@@ -351,8 +393,6 @@ class Experiment:
         self.synthesize_scattered_field()
 
         self.solve_scenarios()
-
-    """PARALELIZAR A CRIACAO DE SCENARIO!!!!"""
 
     def define_synthetization_resolution(self):
         """Set synthetization resolution attribute."""
@@ -434,24 +474,25 @@ class Experiment:
                                                'configurations')
         if resolution is None:
             resolution = self.synthetization_resolution
-        tic = tm.time()
         self.scenarios = []
         for i in range(len(self.maximum_contrast)):
             self.scenarios.append(list())
             for j in range(len(self.configurations)):
                 self.scenarios[i].append(list())
+                num_cores = multiprocessing.cpu_count()
+                output = Parallel(n_jobs=num_cores)(delayed(create_scenario)(
+                    'rand' + '%d' % i + '%d' % j + '%d' % k,
+                    self.configurations[j], resolution[i][j], self.map_pattern,
+                    self.maximum_contrast[i], self.maximum_contrast_density[i],
+                    maximum_object_size=self.maximum_object_size[i],
+                    noise=self.noise[i],
+                    compute_residual_error=self.study_residual,
+                    compute_map_error=self.study_map,
+                    compute_totalfield_error=self.study_internfield
+                ) for k in range(self.sample_size))
                 for k in range(self.sample_size):
-                    new_scenario = create_scenario(
-                        'rand' + '%d' % i + '%d' % j + '%d' % k,
-                        self.configurations[j],
-                        resolution[i][j],
-                        self.map_pattern,
-                        self.maximum_contrast[i],
-                        self.maximum_contrast_density[i],
-                        self._maximum_object_size[i]
-                    )
+                    new_scenario = output[k]
                     self.scenarios[i][j].append(cp.deepcopy(new_scenario))
-        print('Time elapsed: %.2f' % ((tm.time()-tic)/60))
 
     def synthesize_scattered_field(self, PRINT_INFO=True):
         if self.maximum_contrast is None:
@@ -477,13 +518,16 @@ class Experiment:
                         print('Synthesizing scattered field: %d' % (n+1)
                               + ' of %d' % N + ' scenarios', end='\r',
                               flush=True)
-                    self.forward_solver.solve(self.scenarios[i][j][k],
-                                              SAVE_INTERN_FIELD=False)
+                    self.forward_solver.solve(
+                        self.scenarios[i][j][k],
+                        noise=self.scenarios[i][j][k].noise,
+                        SAVE_INTERN_FIELD=False
+                    )
                     n += 1
         print('Synthesizing scattered field: %d' % N + ' of %d' % N
               + ' scenarios')
 
-    def solve_scenarios(self, PRINT_INFO=True):
+    def solve_scenarios(self, parallelization=False):
         """Run inverse solvers."""
         if self.maximum_contrast is None:
             raise error.MissingAttributesError('Experiment',
@@ -509,13 +553,18 @@ class Experiment:
                         self.recover_resolution[i][j]
                     )
                     self.results[i][j][k] = (
-                        run_methods(self.methods, self.scenarios[i][j][k])
+                        run_methods(self.methods, self.scenarios[i][j][k],
+                                    parallelization=parallelization)
                     )
-                    print(self.results[i][j][k][0])
+
+    def analyse_residual(self):
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment','results')
+        
 
     def __str__(self):
         """Print the object information."""
-        message = 'Text name: ' + self.name
+        message = 'Experiment name: ' + self.name
         if all(i == self.maximum_contrast[0] for i in self.maximum_contrast):
             message = (message 
                        + '\nMaximum Contrast: %.2f'
@@ -538,9 +587,19 @@ class Experiment:
         else:
             message = (message + '\nMaximum Contrast Density: '
                        + str(self.maximum_contrast_density))
+        if all(i == 0 for i in self.noise):
+            message = message + '\nNoise levels: None'
+        elif all(i == self.noise[0] for i in self.noise):
+            message = message + '\nNoise levels: %.1e' % self.noise[0]
+        else:
+            message = message + '\nNoise levels: ' + str(self.noise)
         message = message + '\nMap pattern: ' + self.map_pattern
         if self.sample_size is not None:
             message = message + '\nSample Size: %d' % self.sample_size
+        message = message + 'Study residual error: ' + str(self.study_residual)
+        message = message + 'Study map error: ' + str(self.study_map)
+        message = (message + 'Study intern field error: '
+                   + str(self.study_internfield))
         if self.configurations is not None and len(self.configurations) > 0:
             message = message + '\nConfiguration names:'
             for i in range(len(self.configurations)-1):
@@ -588,22 +647,47 @@ class Experiment:
         return message
 
 
-def run_methods(methods, scenario):
+def run_methods(methods, scenario, parallelization=False):
     """Run methods parallely."""
-    num_cores = multiprocessing.cpu_count()
-    output = (Parallel(n_jobs=num_cores)(
-        delayed(methods[m].solve)
-        (scenario,print_info=False) for m in range(len(methods))
-    ))
+    if parallelization:
+        num_cores = multiprocessing.cpu_count()
+        output = (Parallel(n_jobs=num_cores)(
+            delayed(methods[m].solve)
+            (scenario, print_info=False) for m in range(len(methods))
+        ))
     results = []
     for m in range(len(methods)):
-        results.append(output[m])
+        if parallelization:
+            results.append(output[m])
+        else:
+            results.append(methods[m].solve(scenario, print_info=False))
+    return results
+
+
+def run_scenarios(method, scenarios, parallelization=False):
+    """Run methods parallely."""
+    results = []
+    if parallelization:
+        num_cores = multiprocessing.cpu_count()
+        copies = []
+        for i in range(len(scenarios)):
+            copies.append(cp.deepcopy(method))
+        output = (Parallel(n_jobs=num_cores)(
+            delayed(copies[i].solve)
+            (scenarios[i],print_info=False) for i in range(len(scenarios))
+        ))
+    for m in range(len(scenarios)):
+        if parallelization:
+            results.append(output[m])
+        else:
+            results.append(method.solve(scenarios[i], print_info=False))
     return results
 
 
 def create_scenario(name, configuration, resolution, map_pattern,
-                    maximum_contrast, maximum_contrast_density,
-                    maximum_object_size=None):
+                    maximum_contrast, maximum_contrast_density, noise=None,
+                    maximum_object_size=None, compute_residual_error=None,
+                    compute_map_error=None, compute_totalfield_error=None):
     """Summarize this method."""
     Lx = configuration.Lx/configuration.lambda_b
     Ly = configuration.Ly/configuration.lambda_b
@@ -690,7 +774,15 @@ def create_scenario(name, configuration, resolution, map_pattern,
     scenario = ipt.InputData(name=name,
                              configuration_filename=configuration.name,
                              resolution=resolution,
-                             homogeneous_objects=homogeneous_objects)
+                             homogeneous_objects=homogeneous_objects,
+                             noise=noise)
+
+    if compute_residual_error is not None:
+        scenario.compute_residual_error = compute_residual_error
+    if compute_map_error is not None:
+        scenario.compute_map_error = compute_map_error
+    if compute_totalfield_error is not None:
+        scenario.compute_totalfield_error = compute_totalfield_error
 
     if not configuration.good_conductor:
         scenario.epsilon_r = epsilon_r

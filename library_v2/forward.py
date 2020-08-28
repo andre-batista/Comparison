@@ -129,7 +129,7 @@ class ForwardSolver(ABC):
 
 
     @abstractmethod
-    def solve(self, inputdata):
+    def solve(self, inputdata, noise=None, PRINT_INFO=False):
         """Execute the method given a problem input.
 
         This is the basic model of the simulation routine.
