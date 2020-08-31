@@ -44,6 +44,7 @@ A set of routines for defining surfaces is also provided:
 """
 
 # Standard libraries
+import pickle
 import copy as cp
 import numpy as np
 from numpy import random as rnd
@@ -51,6 +52,7 @@ from numpy import pi, logical_and
 import time as tm
 from joblib import Parallel, delayed
 import multiprocessing
+from matplotlib import pyplot as plt
 
 # Developed libraries
 import error
@@ -66,6 +68,25 @@ STANDARD_SYNTHETIZATION_RESOLUTION = 25
 STANDARD_RECOVER_RESOLUTION = 20
 GEOMETRIC_PATTERN = 'geometric'
 SURFACES_PATTERN = 'surfaces'
+
+# PICKLE DICTIONARY STRINGS
+NAME = 'name'
+CONFIGURATIONS = 'configurations'
+SCENARIOS = 'scenarios'
+METHODS = 'methods'
+MAXIMUM_CONTRAST = 'maximum_contrast'
+MAXIMUM_OBJECT_SIZE = 'maximum_object_size'
+MAXIMUM_CONTRAST_DENSITY = 'maximum_contrast_density'
+NOISE = 'noise'
+MAP_PATTERN = 'map_pattern'
+SAMPLE_SIZE = 'sample_size'
+SYNTHETIZATION_RESOLUTION = 'synthetization_resolution'
+RECOVER_RESOLUTION = 'recover_resolution'
+FORWARD_SOLVER = 'forward_solver'
+STUDY_RESIDUAL = 'study_residual'
+STUDY_MAP = 'study_map'
+STUDY_INTERNFIELD = 'study_internfield'
+RESULTS = 'results'
 
 
 class Experiment:
@@ -261,8 +282,10 @@ class Experiment:
             self._noise = [value]
         elif type(value) is list:
             self._noise = value
-        elif type(value) is None:
+        elif value is None:
             self._noise = [0.]
+        else:
+            self._noise = None
 
     @property
     def map_pattern(self):
@@ -279,12 +302,14 @@ class Experiment:
                                         GEOMETRIC_PATTERN + ' or '
                                         + SURFACES_PATTERN, map_pattern)
 
-    def __init__(self, name, maximum_contrast, maximum_object_size,
-                 maximum_contrast_density, map_pattern, sample_size=None,
+    def __init__(self, name=None, maximum_contrast=None,
+                 maximum_object_size=None, maximum_contrast_density=None,
+                 map_pattern=None, sample_size=30,
                  synthetization_resolution=None, recover_resolution=None,
                  configurations=None, scenarios=None, methods=None,
                  forward_solver=None, noise=None, study_residual=True,
-                 study_map=False, study_internfield=False):
+                 study_map=False, study_internfield=False,
+                 import_filename=None, import_filepath=''):
         """Create the experiment object.
 
         The object should be defined with one of the following
@@ -300,6 +325,24 @@ class Experiment:
             maximum_contrast : float or complex of list
                 The 
         """
+        if import_filename is not None:
+            self.importdata(import_filename, import_filepath)
+            return
+
+        if name is None:
+            raise error.MissingInputError('Experiment.__init__', 'name')
+        elif maximum_contrast is None:
+            raise error.MissingInputError('Experiment.__init__',
+                                          'maximum_contrast')
+        elif maximum_object_size is None:
+            raise error.MissingInputError('Experiment.__init__',
+                                          'maximum_object_size')
+        elif maximum_contrast_density is None:
+            raise error.MissingInputError('Experiment.__init__',
+                                          'maximum_contrast_density')
+        elif map_pattern is None:
+            raise error.MissingInputError('Experiment.__init__', 'map_pattern')
+
         self.name = name
         self.maximum_contrast = maximum_contrast
         self.maximum_object_size = maximum_object_size
@@ -560,7 +603,171 @@ class Experiment:
     def analyse_residual(self):
         if self.results is None:
             raise error.MissingAttributesError('Experiment','results')
-        
+        pass
+
+    def single_method_single_configuration_single_group(self, show=False,
+                                                        file_path=''):
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment','results')
+        # i = group, j = configuration, k = sample, m = method
+        y = np.zeros(self.sample_size)
+        nplots = 0
+        if self.study_residual:
+            nplots += 2
+        if self.study_map:
+            if (self.configurations[0].perfect_dielectric
+                    or self.configurations[0].good_conductor):
+                if self.scenarios[0][0][0].homogenous_objects:
+                    nplots += 3
+                else:
+                    nplots += 1
+            else:
+                if self.scenarios[0][0][0].homogenous_objects:
+                    nplots += 6
+                else:
+                    nplots += 2
+            if self.scenarios[0][0][0].homogenous_objects:
+                nplots += 1
+        if self.study_internfield:
+            nplots += 2
+
+        nrows = int(np.sqrt(nplots))
+        ncols = int(np.ceil(nplots/nrows))
+        image_size = (5.+2*ncols, 5.+1*nrows)
+        plt.figure(figsize=image_size)
+        plt.subplots_adjust(wspace=.5, hspace=.5)
+        x = range(1, self.sample_size+1)
+        y = np.zeros(self.sample_size)
+
+        i = 1
+        if self.study_residual:
+            plt.subplot(nrows, ncols, i)
+            for j in range(self.sample_size):
+                y[j] = self.results[0][0][i][0].zeta_rn[-1]
+            plt.plot(x, y, '--*')
+            plt.grid()
+            plt.xlabel('Instance Index')
+            plt.xticks(x)
+            plt.ylabel(r'$\zeta_{RN}$')
+            plt.title('Residual Norm')
+            i += 1
+            plt.subplot(nrows, ncols, i)
+            for j in range(self.sample_size):
+                y[j] = self.results[0][0][i][0].zeta_rpad[-1]
+            plt.plot(x, y, '--*')
+            plt.grid()
+            plt.xlabel('Instance Index')
+            plt.xticks(x)
+            plt.ylabel(r'$\zeta_{RPAD}$')
+            plt.title('Residual PAD')
+            i += 1
+
+        if self.study_map:
+            if (self.configurations[0].perfect_dielectric
+                    or not self.configurations[0].good_conductor):
+                plt.subplot(nrows, ncols, i)
+                for j in range(self.sample_size):
+                    y[j] = self.results[0][0][i][0].zeta_epad[-1]
+                plt.plot(x, y, '--*')
+                plt.grid()
+                plt.xlabel('Instance Index')
+                plt.xticks(x)
+                plt.ylabel(r'$\zeta_{\epsilon PAD}$')
+                plt.title('Rel. Per. PAD')
+                i += 1
+                if self.scenarios[0][0][0].homogenous_objects:
+                    plt.subplot(nrows, ncols, i)
+                    for j in range(self.sample_size):
+                        y[j] = self.results[0][0][i][0].zeta_ebe[-1]
+                    plt.plot(x, y, '--*')
+                    plt.grid()
+                    plt.xlabel('Instance Index')
+                    plt.xticks(x)
+                    plt.ylabel(r'$\zeta_{\epsilon BE}$')
+                    plt.title('Rel. Per. Back. PAD')
+                    i += 1
+                    plt.subplot(nrows, ncols, i)
+                    for j in range(self.sample_size):
+                        y[j] = self.results[0][0][i][0].zeta_eoe[-1]
+                    plt.plot(x, y, '--*')
+                    plt.grid()
+                    plt.xlabel('Instance Index')
+                    plt.xticks(x)
+                    plt.ylabel(r'$\zeta_{\epsilon OE}$')
+                    plt.title('Rel. Per. Ob. PAD')
+                    i += 1
+            if (self.configurations[0].good_conductor
+                    or not self.configurations[0].perfect_dielectric):
+                plt.subplot(nrows, ncols, i)
+                for j in range(self.sample_size):
+                    y[j] = self.results[0][0][i][0].zeta_sad[-1]
+                plt.plot(x, y, '--*')
+                plt.grid()
+                plt.xlabel('Instance Index')
+                plt.xticks(x)
+                plt.ylabel(r'$\zeta_{\sigma AD}$')
+                plt.title('Con. AD')
+                i += 1
+                if self.scenarios[0][0][0].homogenous_objects:
+                    plt.subplot(nrows, ncols, i)
+                    for j in range(self.sample_size):
+                        y[j] = self.results[0][0][i][0].zeta_sbe[-1]
+                    plt.plot(x, y, '--*')
+                    plt.grid()
+                    plt.xlabel('Instance Index')
+                    plt.xticks(x)
+                    plt.ylabel(r'$\zeta_{\sigma BE}$')
+                    plt.title('Con. Back. AD')
+                    i += 1
+                    plt.subplot(nrows, ncols, i)
+                    for j in range(self.sample_size):
+                        y[j] = self.results[0][0][i][0].zeta_soe[-1]
+                    plt.plot(x, y, '--*')
+                    plt.grid()
+                    plt.xlabel('Instance Index')
+                    plt.xticks(x)
+                    plt.ylabel(r'$\zeta_{\sigma OE}$')
+                    plt.title('Con. Ob. AD')
+                    i += 1
+            if self.scenarios[0][0][0].homogenous_objects:
+                plt.subplot(nrows, ncols, i)
+                for j in range(self.sample_size):
+                    y[j] = self.results[0][0][i][0].zeta_be[-1]
+                plt.plot(x, y, '--*')
+                plt.grid()
+                plt.xlabel('Instance Index')
+                plt.xticks(x)
+                plt.ylabel(r'$\zeta_{BE}$')
+                plt.title('Boundary')
+                i += 1
+
+        if self.study_internfield:
+            plt.subplot(nrows, ncols, i)
+            for j in range(self.sample_size):
+                y[j] = self.results[0][0][i][0].zeta_tfmpad[-1]
+            plt.plot(x, y, '--*')
+            plt.grid()
+            plt.xlabel('Instance Index')
+            plt.xticks(x)
+            plt.ylabel(r'$\zeta_{TFMPAD}$')
+            plt.title('To. Field Mag. PAD')
+            i += 1
+            plt.subplot(nrows, ncols, i)
+            for j in range(self.sample_size):
+                y[j] = self.results[0][0][i][0].zeta_tfppad[-1]
+            plt.plot(x, y, '--*')
+            plt.grid()
+            plt.xlabel('Instance Index')
+            plt.xticks(x)
+            plt.ylabel(r'$\zeta_{TFPPAD}$')
+            plt.title('To. Field Phase PAD')
+            i += 1
+
+        if show:
+            plt.show()
+        else:
+            plt.savefig(file_path + self.name + '_zeta_tfmpad.' + file_format, format=file_format)
+            plt.close()
 
     def __str__(self):
         """Print the object information."""
@@ -645,6 +852,51 @@ class Experiment:
                        % (len(self.scenarios)*len(self.scenarios[0])
                           * len(self.scenarios[0][0])))
         return message
+
+    def save(self, file_path=''):
+        data = {
+            NAME: self.name,
+            CONFIGURATIONS: self.configurations,
+            SCENARIOS: self.scenarios,
+            METHODS: self.methods,
+            MAXIMUM_CONTRAST: self.maximum_contrast,
+            MAXIMUM_OBJECT_SIZE: self.maximum_object_size,
+            MAXIMUM_CONTRAST_DENSITY: self.maximum_contrast_density,
+            NOISE: self.noise,
+            MAP_PATTERN: self.map_pattern,
+            SAMPLE_SIZE: self.sample_size,
+            SYNTHETIZATION_RESOLUTION: self.synthetization_resolution,
+            RECOVER_RESOLUTION: self.recover_resolution,
+            FORWARD_SOLVER: self.forward_solver,
+            STUDY_RESIDUAL: self.study_residual,
+            STUDY_MAP: self.study_map,
+            STUDY_INTERNFIELD: self.study_internfield,
+            RESULTS: self.results
+        }
+
+        with open(file_path + self.name, 'wb') as datafile:
+            pickle.dump(data, datafile)
+
+    def importdata(self, file_name, file_path=''):
+        """Import data from a saved object."""
+        data = cfg.import_dict(file_name, file_path)
+        self.name = data[NAME]
+        self.configurations = data[CONFIGURATIONS]
+        self.scenarios = data[SCENARIOS]
+        self.methods = data[METHODS]
+        self.maximum_contrast = data[MAXIMUM_CONTRAST]
+        self.maximum_object_size = data[MAXIMUM_OBJECT_SIZE]
+        self.maximum_contrast_density = data[MAXIMUM_CONTRAST_DENSITY]
+        self.noise = data[NOISE]
+        self.map_pattern = data[MAP_PATTERN]
+        self.sample_size = data[SAMPLE_SIZE]
+        self.synthetization_resolution = data[SYNTHETIZATION_RESOLUTION]
+        self.recover_resolution = data[RECOVER_RESOLUTION]
+        self.forward_solver = data[FORWARD_SOLVER]
+        self.study_internfield = data[STUDY_INTERNFIELD]
+        self.study_residual = data[STUDY_RESIDUAL]
+        self.study_map = data[STUDY_MAP]
+        self.results = data[RESULTS]
 
 
 def run_methods(methods, scenario, parallelization=False):
