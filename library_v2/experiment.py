@@ -68,6 +68,7 @@ STANDARD_SYNTHETIZATION_RESOLUTION = 25
 STANDARD_RECOVER_RESOLUTION = 20
 GEOMETRIC_PATTERN = 'geometric'
 SURFACES_PATTERN = 'surfaces'
+LABEL_INSTANCE = 'Instance Index'
 
 # PICKLE DICTIONARY STRINGS
 NAME = 'name'
@@ -549,7 +550,10 @@ class Experiment:
             self.forward_solver = mom.MoM_CG_FFT(self.configurations[0])
         if self.scenarios is None:
             raise error.MissingAttributesError('Experiment', 'scenarios')
-
+        if self.study_internfield:
+            SAVE_INTERN_FIELD = True
+        else:
+            SAVE_INTERN_FIELD = False
         N = (len(self.maximum_contrast)*len(self.configurations)
              * self.sample_size)
         n = 0
@@ -564,7 +568,7 @@ class Experiment:
                     self.forward_solver.solve(
                         self.scenarios[i][j][k],
                         noise=self.scenarios[i][j][k].noise,
-                        SAVE_INTERN_FIELD=False
+                        SAVE_INTERN_FIELD=SAVE_INTERN_FIELD
                     )
                     n += 1
         print('Synthesizing scattered field: %d' % N + ' of %d' % N
@@ -633,140 +637,119 @@ class Experiment:
 
         nrows = int(np.sqrt(nplots))
         ncols = int(np.ceil(nplots/nrows))
-        image_size = (5.+2*ncols, 5.+1*nrows)
-        plt.figure(figsize=image_size)
-        plt.subplots_adjust(wspace=.5, hspace=.5)
+        image_size = (4.*ncols, 4.*nrows)
+        figure = plt.figure(figsize=image_size)
+        figure.subplots_adjust(wspace=.5, hspace=.5)
+
         x = range(1, self.sample_size+1)
         y = np.zeros(self.sample_size)
-
         i = 1
         if self.study_residual:
-            plt.subplot(nrows, ncols, i)
+            
             for j in range(self.sample_size):
-                y[j] = self.results[0][0][i][0].zeta_rn[-1]
-            plt.plot(x, y, '--*')
-            plt.grid()
-            plt.xlabel('Instance Index')
-            plt.xticks(x)
-            plt.ylabel(r'$\zeta_{RN}$')
-            plt.title('Residual Norm')
+                y[j] = self.results[0][0][j][0].zeta_rn[-1]
+            axes = figure.add_subplot(nrows, ncols, i)
+            rst.add_plot(axes, y, x=x, title='Residual Norm',
+                         xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_RN,
+                         xticks=x)
             i += 1
-            plt.subplot(nrows, ncols, i)
+
             for j in range(self.sample_size):
-                y[j] = self.results[0][0][i][0].zeta_rpad[-1]
-            plt.plot(x, y, '--*')
-            plt.grid()
-            plt.xlabel('Instance Index')
-            plt.xticks(x)
-            plt.ylabel(r'$\zeta_{RPAD}$')
-            plt.title('Residual PAD')
+                y[j] = self.results[0][0][j][0].zeta_rpad[-1]
+            axes = figure.add_subplot(nrows, ncols, i)
+            rst.add_plot(axes, y, x=x, title='Residual PAD',
+                         xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_RPAD,
+                         xticks=x)
             i += 1
 
         if self.study_map:
             if (self.configurations[0].perfect_dielectric
                     or not self.configurations[0].good_conductor):
-                plt.subplot(nrows, ncols, i)
                 for j in range(self.sample_size):
-                    y[j] = self.results[0][0][i][0].zeta_epad[-1]
-                plt.plot(x, y, '--*')
-                plt.grid()
-                plt.xlabel('Instance Index')
-                plt.xticks(x)
-                plt.ylabel(r'$\zeta_{\epsilon PAD}$')
-                plt.title('Rel. Per. PAD')
+                    y[j] = self.results[0][0][j][0].zeta_epad[-1]
+                axes = figure.add_subplot(nrows, ncols, i)
+                rst.add_plot(axes, y, x=x, title='Rel. Per. PAD',
+                             xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_EPAD,
+                             xticks=x)
                 i += 1
                 if self.scenarios[0][0][0].homogenous_objects:
-                    plt.subplot(nrows, ncols, i)
+
                     for j in range(self.sample_size):
-                        y[j] = self.results[0][0][i][0].zeta_ebe[-1]
-                    plt.plot(x, y, '--*')
-                    plt.grid()
-                    plt.xlabel('Instance Index')
-                    plt.xticks(x)
-                    plt.ylabel(r'$\zeta_{\epsilon BE}$')
-                    plt.title('Rel. Per. Back. PAD')
+                        y[j] = self.results[0][0][j][0].zeta_ebe[-1]
+                    axes = figure.add_subplot(nrows, ncols, i)
+                    rst.add_plot(axes, y, x=x, title='Rel. Per. Back. PAD',
+                                 xlabel=LABEL_INSTANCE,
+                                 ylabel=rst.LABEL_ZETA_EBE, xticks=x)
                     i += 1
-                    plt.subplot(nrows, ncols, i)
+
                     for j in range(self.sample_size):
-                        y[j] = self.results[0][0][i][0].zeta_eoe[-1]
-                    plt.plot(x, y, '--*')
-                    plt.grid()
-                    plt.xlabel('Instance Index')
-                    plt.xticks(x)
-                    plt.ylabel(r'$\zeta_{\epsilon OE}$')
-                    plt.title('Rel. Per. Ob. PAD')
+                        y[j] = self.results[0][0][j][0].zeta_eoe[-1]
+                    axes = figure.add_subplot(nrows, ncols, i)
+                    rst.add_plot(axes, y, x=x, title='Rel. Per. Ob. PAD',
+                                 xlabel=LABEL_INSTANCE,
+                                 ylabel=rst.LABEL_ZETA_EOE, xticks=x)
                     i += 1
+
             if (self.configurations[0].good_conductor
                     or not self.configurations[0].perfect_dielectric):
-                plt.subplot(nrows, ncols, i)
+
                 for j in range(self.sample_size):
-                    y[j] = self.results[0][0][i][0].zeta_sad[-1]
-                plt.plot(x, y, '--*')
-                plt.grid()
-                plt.xlabel('Instance Index')
-                plt.xticks(x)
-                plt.ylabel(r'$\zeta_{\sigma AD}$')
-                plt.title('Con. AD')
+                    y[j] = self.results[0][0][j][0].zeta_sad[-1]
+                axes = figure.add_subplot(nrows, ncols, i)
+                rst.add_plot(axes, y, x=x, title='Con. AD',
+                             xlabel=LABEL_INSTANCE,
+                             ylabel=rst.LABEL_ZETA_SAD, xticks=x)
                 i += 1
+
                 if self.scenarios[0][0][0].homogenous_objects:
-                    plt.subplot(nrows, ncols, i)
+
                     for j in range(self.sample_size):
-                        y[j] = self.results[0][0][i][0].zeta_sbe[-1]
-                    plt.plot(x, y, '--*')
-                    plt.grid()
-                    plt.xlabel('Instance Index')
-                    plt.xticks(x)
-                    plt.ylabel(r'$\zeta_{\sigma BE}$')
-                    plt.title('Con. Back. AD')
+                        y[j] = self.results[0][0][j][0].zeta_sbe[-1]
+                    axes = figure.add_subplot(nrows, ncols, i)
+                    rst.add_plot(axes, y, x=x, title='Con. Back. AD',
+                                 xlabel=LABEL_INSTANCE,
+                                 ylabel=rst.LABEL_ZETA_SBE, xticks=x)
                     i += 1
-                    plt.subplot(nrows, ncols, i)
+
                     for j in range(self.sample_size):
-                        y[j] = self.results[0][0][i][0].zeta_soe[-1]
-                    plt.plot(x, y, '--*')
-                    plt.grid()
-                    plt.xlabel('Instance Index')
-                    plt.xticks(x)
-                    plt.ylabel(r'$\zeta_{\sigma OE}$')
-                    plt.title('Con. Ob. AD')
+                        y[j] = self.results[0][0][j][0].zeta_soe[-1]
+                    axes = figure.add_subplot(nrows, ncols, i)
+                    rst.add_plot(axes, y, x=x, title='Con. Ob. AD',
+                                 xlabel=LABEL_INSTANCE,
+                                 ylabel=rst.LABEL_ZETA_SOE, xticks=x)
                     i += 1
+
             if self.scenarios[0][0][0].homogenous_objects:
-                plt.subplot(nrows, ncols, i)
+
                 for j in range(self.sample_size):
-                    y[j] = self.results[0][0][i][0].zeta_be[-1]
-                plt.plot(x, y, '--*')
-                plt.grid()
-                plt.xlabel('Instance Index')
-                plt.xticks(x)
-                plt.ylabel(r'$\zeta_{BE}$')
-                plt.title('Boundary')
+                    y[j] = self.results[0][0][j][0].zeta_be[-1]
+                axes = figure.add_subplot(nrows, ncols, i)
+                rst.add_plot(axes, y, x=x, title='Boundary',
+                             xlabel=LABEL_INSTANCE,
+                             ylabel=rst.LABEL_ZETA_BE, xticks=x)
                 i += 1
 
         if self.study_internfield:
-            plt.subplot(nrows, ncols, i)
+
             for j in range(self.sample_size):
                 y[j] = self.results[0][0][i][0].zeta_tfmpad[-1]
-            plt.plot(x, y, '--*')
-            plt.grid()
-            plt.xlabel('Instance Index')
-            plt.xticks(x)
-            plt.ylabel(r'$\zeta_{TFMPAD}$')
-            plt.title('To. Field Mag. PAD')
+            axes = figure.add_subplot(nrows, ncols, i)
+            rst.add_plot(axes, y, x=x, title='To. Field Mag. PAD', xticks=x,
+                         xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_TFMPAD)
             i += 1
-            plt.subplot(nrows, ncols, i)
+
             for j in range(self.sample_size):
                 y[j] = self.results[0][0][i][0].zeta_tfppad[-1]
-            plt.plot(x, y, '--*')
-            plt.grid()
-            plt.xlabel('Instance Index')
-            plt.xticks(x)
-            plt.ylabel(r'$\zeta_{TFPPAD}$')
-            plt.title('To. Field Phase PAD')
+            axes = figure.add_subplot(nrows, ncols, i)
+            rst.add_plot(axes, y, x=x, title='To. Field Phase PAD', xticks=x,
+                         xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_TFPPAD)
             i += 1
 
         if show:
             plt.show()
         else:
-            plt.savefig(file_path + self.name + '_zeta_tfmpad.' + file_format, format=file_format)
+            plt.savefig(file_path + self.name + '_single.' + file_format,
+                        format=file_format)
             plt.close()
 
     def __str__(self):

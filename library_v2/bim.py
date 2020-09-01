@@ -143,7 +143,7 @@ class BornIterativeMethod(slv.Solver):
             iteration_message = 'Iteration: %d - ' % (it+1)
             tic = tm.time()
             self.inverse.solve(solution)
-            self.forward.solve(solution)
+            self.forward.solve(solution, SAVE_INTERN_FIELD=True)
 
             # The variable `execution_time` will record only the time
             # expended by the forward and linear routines.

@@ -34,6 +34,19 @@ TITLE_RECOVERED_CONDUCTIVITY = 'Recovered ' + TITLE_CONDUCTIVITY
 TITLE_ORIGINAL_REL_PERMITTIVITY = ('Original '
                                         + TITLE_REL_PERMITTIVITY)
 TITLE_ORIGINAL_CONDUCTIVITY = 'Original ' + TITLE_CONDUCTIVITY
+LABEL_ZETA_RN = r'$\zeta_{RN}$'
+LABEL_ZETA_RPAD = r'$\zeta_{RPAD}$'
+LABEL_ZETA_EPAD = r'$\zeta_{\epsilon PAD}$'
+LABEL_ZETA_EBE = r'$\zeta_{\epsilon BE}$'
+LABEL_ZETA_EOE = r'$\zeta_{\epsilon OE}$'
+LABEL_ZETA_SAD = r'$\zeta_{\sigma AD}$'
+LABEL_ZETA_SBE = r'$\zeta_{\sigma BE}$'
+LABEL_ZETA_SOE = r'$\zeta_{\sigma OE}$'
+LABEL_ZETA_BE = r'$\zeta_{BE}$'
+LABEL_ZETA_TFMPAD = r'$\zeta_{TFMPAD}$'
+LABEL_ZETA_TFPPAD = r'$\zeta_{TFPPAD}$'
+
+
 IMAGE_SIZE_SINGLE = (6., 5.)
 IMAGE_SIZE_1x2 = (9., 4.) # 9 x 5
 IMAGE_SIZE_2X2 = (9., 9.)
@@ -693,7 +706,7 @@ class Results:
             single_plot = False
 
         add_plot(axes, self.zeta_rn, title='Residual Norm Error',
-                 ylabel=r'$\zeta_{RN}$')
+                 ylabel=LABEL_ZETA_RN)
 
         if single_plot:
             if show:
@@ -718,7 +731,7 @@ class Results:
             single_plot = False
 
         add_plot(axes, self.zeta_rpad, title='Residual PAD Error',
-                 ylabel=r'$\zeta_{RPAD}$')
+                 ylabel=LABEL_ZETA_RPAD)
 
         if single_plot:
             if show:
@@ -743,7 +756,7 @@ class Results:
             single_plot = False
 
         add_plot(axes, self.zeta_epad, title='Rel. Permittivity PAD Error',
-                 ylabel=r'$\zeta_{\epsilon PAD}$')
+                 ylabel=LABEL_ZETA_EPAD)
 
         if single_plot:
             if show:
@@ -767,7 +780,7 @@ class Results:
         else:
             single_plot = False
 
-        add_plot(axes, self.zeta_ebe, ylabel=r'$\zeta_{\epsilon BE}$',
+        add_plot(axes, self.zeta_ebe, ylabel=LABEL_ZETA_EBE,
                  title='Rel. Permittivity Background Error')
 
         if single_plot:
@@ -792,7 +805,7 @@ class Results:
         else:
             single_plot = False
 
-        add_plot(axes, self.zeta_eoe, ylabel=r'$\zeta_{\epsilon OE}$',
+        add_plot(axes, self.zeta_eoe, ylabel=LABEL_ZETA_EOE,
                  title='Rel. Permittivity Object Error')
 
         if single_plot:
@@ -817,7 +830,7 @@ class Results:
         else:
             single_plot = False
 
-        add_plot(axes, self.zeta_sad, ylabel=r'$\zeta_{\sigma AD}$',
+        add_plot(axes, self.zeta_sad, ylabel=LABEL_ZETA_SAD,
                  title='Conductivity AD Error')
 
         if single_plot:
@@ -842,7 +855,7 @@ class Results:
         else:
             single_plot = False
 
-        add_plot(axes, self.zeta_sbe, ylabel=r'$\zeta_{\sigma BE}$',
+        add_plot(axes, self.zeta_sbe, ylabel=LABEL_ZETA_SBE,
                  title='Conductivity Background Error')
 
         if single_plot:
@@ -867,7 +880,7 @@ class Results:
         else:
             single_plot = False
 
-        add_plot(axes, self.zeta_soe, ylabel=r'$\zeta_{\sigma OE}$',
+        add_plot(axes, self.zeta_soe, ylabel=LABEL_ZETA_SOE,
                  title='Conductivity Object Error')
 
         if single_plot:
@@ -892,7 +905,7 @@ class Results:
         else:
             single_plot = False
 
-        add_plot(axes, self.zeta_be, ylabel=r'$\zeta_{BE}$',
+        add_plot(axes, self.zeta_be, ylabel=LABEL_ZETA_BE,
                  title='Boundary Error')
 
         if single_plot:
@@ -917,7 +930,7 @@ class Results:
         else:
             single_plot = False
 
-        add_plot(axes, self.zeta_tfmpad, ylabel=r'$\zeta_{TFMPAD}$',
+        add_plot(axes, self.zeta_tfmpad, ylabel=LABEL_ZETA_TFMPAD,
                  title='Total Field Mag. PAD Error')
 
         if single_plot:
@@ -942,7 +955,7 @@ class Results:
         else:
             single_plot = False
 
-        add_plot(axes, self.zeta_tfppad, ylabel=r'$\zeta_{TFPPAD}$',
+        add_plot(axes, self.zeta_tfppad, ylabel=LABEL_ZETA_TFPPAD,
                  title='Total Field Phase PAD Error')
 
         if single_plot:
@@ -1130,7 +1143,7 @@ def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
 
 
 def add_plot(axes, data, x=None, title=None, xlabel='Iterations', ylabel=None,
-             style='--*'):
+             style='--*', xticks=None):
     """Add a plot to the axes.
 
     A predefined function for plotting curves. This is useful for
@@ -1168,6 +1181,8 @@ def add_plot(axes, data, x=None, title=None, xlabel='Iterations', ylabel=None,
 
     axes.plot(x, data, style)
     axes.set_xlabel(xlabel)
+    if xticks is not None:
+        axes.set_xticks(xticks)
     if ylabel is not None:
         axes.set_ylabel(ylabel)
     if title is not None:
