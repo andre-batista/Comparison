@@ -39,6 +39,7 @@ COMPUTE_RESIDUAL_ERROR = 'residual_error'
 COMPUTE_MAP_ERROR = 'map_error'
 COMPUTE_TOTALFIELD_ERROR = 'totalfield_error'
 HOMOGENEOUS_OBJECTS = 'homogeneous_objects'
+TOTAL_FIELD_RESOLUTION = 'total_field_resolution'
 
 
 class InputData:
@@ -195,6 +196,7 @@ class InputData:
             self.compute_residual_error = compute_residual_error
             self.compute_map_error = compute_map_error
             self.compute_totalfield_error = compute_totalfield_error
+            self.total_field_resolution = None
 
             if resolution is not None:
                 self.resolution = resolution
@@ -253,7 +255,8 @@ class InputData:
             COMPUTE_RESIDUAL_ERROR: self.compute_residual_error,
             COMPUTE_MAP_ERROR: self.compute_map_error,
             COMPUTE_TOTALFIELD_ERROR: self.compute_totalfield_error,
-            HOMOGENEOUS_OBJECTS: self.homogeneous_objects
+            HOMOGENEOUS_OBJECTS: self.homogeneous_objects,
+            TOTAL_FIELD_RESOLUTION: self.total_field_resolution
         }
 
         with open(self.path + self.name, 'wb') as datafile:
@@ -277,6 +280,7 @@ class InputData:
         self.compute_map_error = data[COMPUTE_MAP_ERROR]
         self.compute_totalfield_error = data[COMPUTE_TOTALFIELD_ERROR]
         self.homogeneous_objects = data[HOMOGENEOUS_OBJECTS]
+        self.total_field_resolution = data[TOTAL_FIELD_RESOLUTION]
 
     def draw(self, figure_title=None, file_path='', file_format='eps',
              show=False):

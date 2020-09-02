@@ -164,6 +164,9 @@ class ForwardSolver(ABC):
         else:
             sigma = np.copy(inputdata.sigma)
 
+        if SAVE_INTERN_FIELD:
+            inputdata.total_field_resolution = inputdata.resolution
+
         return epsilon_r, sigma
 
     @abstractmethod

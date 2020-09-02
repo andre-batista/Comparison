@@ -14,6 +14,7 @@ The list of routines...
 import pickle
 import copy as cp
 import numpy as np
+from scipy.interpolate import interp2d
 import matplotlib.pyplot as plt
 import error
 import configuration as cfg
@@ -410,7 +411,8 @@ class Results:
             plt.close()
 
     def update_error(self, inputdata, scattered_field=None, total_field=None,
-                     relative_permittivity_map=None, conductivity_map=None):
+                     relative_permittivity_map=None, conductivity_map=None,
+                     resolution=None):
         """Compute errors for a given set of variables.
 
         Parameters
@@ -451,14 +453,46 @@ class Results:
             elif inputdata.et is None:
                 raise error.MissingAttributesError('InputData', 'et')
             if total_field is not None:
-                self.zeta_tfmpad.append(compute_zeta_tfmpad(inputdata.et,
+                if total_field.shape[0] != inputdata.et.shape[0]:
+                    if (resolution is None
+                            and relative_permittivity_map is None
+                            and conductivity_map is None):
+                        raise error.MissingInputError('Results.update_error',
+                                                      'resolution')
+                    elif (resolution is None
+                            and relative_permittivity_map is not None):
+                        resolution = relative_permittivity_map.shape
+                    elif resolution is None and conductivity_map is not None:
+                        resolution = conductivity_map.shape
+
+                et = resize_totalfield(inputdata.et,
+                                       inputdata.total_field_resolution,
+                                       resolution)
+
+                self.zeta_tfmpad.append(compute_zeta_tfmpad(et,
                                                             total_field))
-                self.zeta_tfppad.append(compute_zeta_tfppad(inputdata.et,
+                self.zeta_tfppad.append(compute_zeta_tfppad(et,
                                                             total_field))
             else:
-                self.zeta_tfmpad.append(compute_zeta_tfmpad(inputdata.et,
+                if self.et.shape[0] != inputdata.et.shape[0]:
+                    if (resolution is None
+                            and relative_permittivity_map is None
+                            and conductivity_map is None):
+                        raise error.MissingInputError('Results.update_error',
+                                                      'resolution')
+                    elif (resolution is None
+                            and relative_permittivity_map is not None):
+                        resolution = relative_permittivity_map.shape
+                    elif resolution is None and conductivity_map is not None:
+                        resolution = conductivity_map.shape
+
+                et = resize_totalfield(inputdata.et,
+                                       inputdata.total_field_resolution,
+                                       resolution)
+
+                self.zeta_tfmpad.append(compute_zeta_tfmpad(et,
                                                             self.et))
-                self.zeta_tfppad.append(compute_zeta_tfppad(inputdata.et,
+                self.zeta_tfppad.append(compute_zeta_tfppad(et,
                                                             self.et))
 
         if inputdata.compute_map_error:
@@ -1084,6 +1118,20 @@ class Results:
             message = (message + '\nTotal Field Phase Per. Aver. Devi. error:'
                        + ' ' + info)
         return message
+
+
+def resize_totalfield(et, original_resolution, new_resolution):
+    I1, J1 = original_resolution
+    I2, J2 = new_resolution
+    NS = et.shape[1]
+    x, y = np.arange(.5/I1, 1., 1/I1), np.arange(.5/J1, 1., 1/J1)
+    w, z = np.arange(.5/I2, 1., 1/I2), np.arange(.5/J2, 1., 1/J2)
+    new_et = np.zeros((I2*J2, NS), dtype=complex)
+    for ns in range(NS):
+        freal = interp2d(x, y, np.real(et[:, ns].reshape((J1, I1))))
+        fimag = interp2d(x, y, np.imag(et[:, ns].reshape((J1, I1))))
+        new_et[:, ns] = np.reshape(freal(w, z) + fimag(w, z), -1)
+    return new_et
 
 
 def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
