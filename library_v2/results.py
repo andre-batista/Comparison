@@ -505,101 +505,91 @@ class Results:
             sigma_b = config[cfg.BACKGROUND_CONDUCTIVITY]
             omega = 2*np.pi*config[cfg.FREQUENCY]
 
-        if (inputdata.compute_map_error and inputdata.epsilon_r is not None):
-            if relative_permittivity_map is not None:
-                self.zeta_epad.append(
-                    compute_zeta_epad(inputdata.epsilon_r,
-                                      relative_permittivity_map)
-                )
-            else:
-                self.zeta_epad.append(compute_zeta_epad(inputdata.epsilon_r,
-                                                        self.epsilon_r))
-
-        if (inputdata.compute_map_error and inputdata.sigma is not None):
-            if conductivity_map is not None:
-                self.zeta_sad.append(compute_zeta_sad(inputdata.sigma,
-                                                      conductivity_map))
-            else:
-                self.zeta_sad.append(compute_zeta_sad(inputdata.sigma,
-                                                      self.sigma))
-
-        if inputdata.compute_map_error and inputdata.homogeneous_objects:
             if inputdata.epsilon_r is not None:
+
                 if (relative_permittivity_map is None
                         and self.epsilon_r is None):
                     raise error.MissingInputError('Results.update_error',
                                                   'relative_permittivity_map')
+
                 if relative_permittivity_map is not None:
-                    self.zeta_ebe.append(
-                        compute_zeta_ebe(inputdata.epsilon_r,
-                                         relative_permittivity_map, epsilon_rb)
-                    )
-                    self.zeta_eoe.append(
-                        compute_zeta_eoe(inputdata.epsilon_r,
-                                         relative_permittivity_map, epsilon_rb)
-                    )
-                else:
+
+                    if (relative_permittivity_map.shape[0] !=
+                            inputdata.epsilon_r.shape[0] 
+                            or relative_permittivity_map.shape[1] !=
+                            inputdata.epsilon_r.shape[1]):
+                        epsilon_r = resize_image(relative_permittivity_map,
+                                                 inputdata.epsilon_r.shape)
+                    else:
+                        epsilon_r = relative_permittivity_map
+
+                elif self.epsilon_r is not None:
+
+                    if (self.epsilon_r.shape[0] != inputdata.epsilon_r.shape[0] 
+                            or self.epsilon_r.shape[1] !=
+                            inputdata.epsilon_r.shape[1]):
+                        epsilon_r = resize_image(self.epsilon_r,
+                                                 inputdata.epsilon_r.shape)
+                    else:
+                        epsilon_r = self.epsilon_r
+
+                self.zeta_epad.append(compute_zeta_epad(inputdata.epsilon_r,
+                                                        epsilon_r))
+
+                if inputdata.homogeneous_objects:
                     self.zeta_ebe.append(compute_zeta_ebe(inputdata.epsilon_r,
-                                                          self.epsilon_r,
+                                                          epsilon_r,
                                                           epsilon_rb))
                     self.zeta_eoe.append(compute_zeta_eoe(inputdata.epsilon_r,
-                                                          self.epsilon_r,
+                                                          epsilon_r,
                                                           epsilon_rb))
 
+            else:
+                epsilon_r = epsilon_rb*np.zeros(sigma.shape)
+
             if inputdata.sigma is not None:
+
                 if conductivity_map is None and self.sigma is None:
                     raise error.MissingInputError('Results.update_error',
                                                   'conductivity_map')
                 if conductivity_map is not None:
-                    self.zeta_sbe.append(compute_zeta_sbe(inputdata.sigma,
-                                                          conductivity_map,
-                                                          sigma_b))
-                    self.zeta_soe.append(compute_zeta_soe(inputdata.sigma,
-                                                          conductivity_map,
-                                                          sigma_b))
+                    if (conductivity_map.shape[0] != inputdata.sigma.shape[0] 
+                            or conductivity_map.shape[1] !=
+                            inputdata.sigma.shape[1]):
+                        sigma = resize_image(conductivity_map,
+                                             inputdata.sigma.shape)
+                    else:
+                        sigma = conductivity_map
                 else:
-                    self.zeta_sbe.append(compute_zeta_sbe(inputdata.sigma,
-                                                          self.sigma,
-                                                          sigma_b))
-                    self.zeta_soe.append(compute_zeta_soe(inputdata.sigma,
-                                                          self.sigma,
-                                                          sigma_b))
+                    if (self.sigma.shape[0] != inputdata.sigma.shape[0] 
+                            or self.sigma.shape[1] !=
+                            inputdata.sigma.shape[1]):
+                        sigma = resize_image(self.sigma, inputdata.sigma.shape)
+                    else:
+                        sigma = self.sigma
 
-            if ((relative_permittivity_map is not None or self.epsilon_r is not
-                    None) and conductivity_map is None):
-                conductivity_map = (
-                    sigma_b*np.zeros(inputdata.resolution)
-                )
-            elif (relative_permittivity_map is None
-                    and conductivity_map is not None):
-                relative_permittivity_map = (
-                    epsilon_rb*np.zeros(inputdata.resolution)
-                )
+                self.zeta_sad.append(compute_zeta_sad(inputdata.sigma,
+                                                      sigma))
+
+                if inputdata.homogeneous_objects:
+                    self.zeta_sbe.append(compute_zeta_sbe(inputdata.sigma,
+                                                          sigma, sigma_b))
+                    self.zeta_soe.append(compute_zeta_soe(inputdata.sigma,
+                                                          sigma, sigma_b))
+
+            else:
+                sigma = sigma_b*np.zeros(epsilon_r.shape)
 
             x, y = cfg.get_coordinates_ddomain(
                 configuration=cfg.Configuration(
                     import_filename=self.configuration_filename,
                     import_filepath=self.configuration_filepath
-                ), resolution=inputdata.resolution
+                ), resolution=epsilon_r.shape
             )
 
-            if relative_permittivity_map is not None:
-                e = relative_permittivity_map
-            elif self.epsilon_r is not None:
-                e = self.epsilon_r
-            else:
-                e = None
-
-            if conductivity_map is not None:
-                o = conductivity_map
-            elif self.sigma is not None:
-                o = self.sigma
-            else:
-                o = None
-
             self.zeta_be.append(
-                compute_zeta_be(cfg.get_contrast_map(epsilon_r=e,
-                                                     sigma=o,
+                compute_zeta_be(cfg.get_contrast_map(epsilon_r=epsilon_r,
+                                                     sigma=sigma,
                                                      epsilon_rb=epsilon_rb,
                                                      sigma_b=sigma_b,
                                                      omega=omega), x, y)
@@ -1132,6 +1122,16 @@ def resize_totalfield(et, original_resolution, new_resolution):
         fimag = interp2d(x, y, np.imag(et[:, ns].reshape((J1, I1))))
         new_et[:, ns] = np.reshape(freal(w, z) + fimag(w, z), -1)
     return new_et
+
+
+def resize_image(image, new_resolution):
+    I1, J1 = image.shape
+    I2, J2 = new_resolution
+    x, y = np.arange(.5/I1, 1., 1/I1), np.arange(.5/J1, 1., 1/J1)
+    w, z = np.arange(.5/I2, 1., 1/I2), np.arange(.5/J2, 1., 1/J2)
+    f = interp2d(x, y, image)
+    new_image = f(w, z)
+    return new_image
 
 
 def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),

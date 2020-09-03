@@ -609,11 +609,12 @@ class Experiment:
             raise error.MissingAttributesError('Experiment','results')
         pass
 
-    def single_method_single_configuration_single_group(self, show=False,
-                                                        file_path=''):
+    def plot_instances(self, group_idx=0, config_idx=0, method_idx=0,
+                       show=False, file_path='', file_format='eps'):
         if self.results is None:
             raise error.MissingAttributesError('Experiment','results')
         # i = group, j = configuration, k = sample, m = method
+        g, c, m = group_idx, config_idx, method_idx
         y = np.zeros(self.sample_size)
         nplots = 0
         if self.study_residual:
@@ -621,25 +622,27 @@ class Experiment:
         if self.study_map:
             if (self.configurations[0].perfect_dielectric
                     or self.configurations[0].good_conductor):
-                if self.scenarios[0][0][0].homogenous_objects:
+                if self.scenarios[g][c][0].homogeneous_objects:
                     nplots += 3
                 else:
                     nplots += 1
             else:
-                if self.scenarios[0][0][0].homogenous_objects:
+                if self.scenarios[g][c][0].homogeneous_objects:
                     nplots += 6
                 else:
                     nplots += 2
-            if self.scenarios[0][0][0].homogenous_objects:
+            if self.scenarios[g][c][0].homogeneous_objects:
                 nplots += 1
         if self.study_internfield:
             nplots += 2
 
         nrows = int(np.sqrt(nplots))
         ncols = int(np.ceil(nplots/nrows))
-        image_size = (4.*ncols, 4.*nrows)
+        image_size = (3.*ncols, 3.*nrows)
         figure = plt.figure(figsize=image_size)
-        figure.subplots_adjust(wspace=.5, hspace=.5)
+        # figure.subplots_adjust(top=.8, bottom=.2, wspace=.5, hspace=.7)
+        figure.subplots_adjust(left=.125, right=0.9, top=.9, bottom=.1,
+                               wspace=.4, hspace=.5)
 
         x = range(1, self.sample_size+1)
         y = np.zeros(self.sample_size)
@@ -647,7 +650,7 @@ class Experiment:
         if self.study_residual:
             
             for j in range(self.sample_size):
-                y[j] = self.results[0][0][j][0].zeta_rn[-1]
+                y[j] = self.results[g][c][j][m].zeta_rn[-1]
             axes = figure.add_subplot(nrows, ncols, i)
             rst.add_plot(axes, y, x=x, title='Residual Norm',
                          xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_RN,
@@ -655,7 +658,7 @@ class Experiment:
             i += 1
 
             for j in range(self.sample_size):
-                y[j] = self.results[0][0][j][0].zeta_rpad[-1]
+                y[j] = self.results[g][c][j][m].zeta_rpad[-1]
             axes = figure.add_subplot(nrows, ncols, i)
             rst.add_plot(axes, y, x=x, title='Residual PAD',
                          xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_RPAD,
@@ -666,16 +669,16 @@ class Experiment:
             if (self.configurations[0].perfect_dielectric
                     or not self.configurations[0].good_conductor):
                 for j in range(self.sample_size):
-                    y[j] = self.results[0][0][j][0].zeta_epad[-1]
+                    y[j] = self.results[g][c][j][m].zeta_epad[-1]
                 axes = figure.add_subplot(nrows, ncols, i)
                 rst.add_plot(axes, y, x=x, title='Rel. Per. PAD',
                              xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_EPAD,
                              xticks=x)
                 i += 1
-                if self.scenarios[0][0][0].homogenous_objects:
+                if self.scenarios[g][c][0].homogeneous_objects:
 
                     for j in range(self.sample_size):
-                        y[j] = self.results[0][0][j][0].zeta_ebe[-1]
+                        y[j] = self.results[g][c][j][m].zeta_ebe[-1]
                     axes = figure.add_subplot(nrows, ncols, i)
                     rst.add_plot(axes, y, x=x, title='Rel. Per. Back. PAD',
                                  xlabel=LABEL_INSTANCE,
@@ -683,7 +686,7 @@ class Experiment:
                     i += 1
 
                     for j in range(self.sample_size):
-                        y[j] = self.results[0][0][j][0].zeta_eoe[-1]
+                        y[j] = self.results[g][c][j][m].zeta_eoe[-1]
                     axes = figure.add_subplot(nrows, ncols, i)
                     rst.add_plot(axes, y, x=x, title='Rel. Per. Ob. PAD',
                                  xlabel=LABEL_INSTANCE,
@@ -694,17 +697,17 @@ class Experiment:
                     or not self.configurations[0].perfect_dielectric):
 
                 for j in range(self.sample_size):
-                    y[j] = self.results[0][0][j][0].zeta_sad[-1]
+                    y[j] = self.results[g][c][j][m].zeta_sad[-1]
                 axes = figure.add_subplot(nrows, ncols, i)
                 rst.add_plot(axes, y, x=x, title='Con. AD',
                              xlabel=LABEL_INSTANCE,
                              ylabel=rst.LABEL_ZETA_SAD, xticks=x)
                 i += 1
 
-                if self.scenarios[0][0][0].homogenous_objects:
+                if self.scenarios[g][c][0].homogeneous_objects:
 
                     for j in range(self.sample_size):
-                        y[j] = self.results[0][0][j][0].zeta_sbe[-1]
+                        y[j] = self.results[g][c][j][m].zeta_sbe[-1]
                     axes = figure.add_subplot(nrows, ncols, i)
                     rst.add_plot(axes, y, x=x, title='Con. Back. AD',
                                  xlabel=LABEL_INSTANCE,
@@ -712,17 +715,17 @@ class Experiment:
                     i += 1
 
                     for j in range(self.sample_size):
-                        y[j] = self.results[0][0][j][0].zeta_soe[-1]
+                        y[j] = self.results[g][c][j][m].zeta_soe[-1]
                     axes = figure.add_subplot(nrows, ncols, i)
                     rst.add_plot(axes, y, x=x, title='Con. Ob. AD',
                                  xlabel=LABEL_INSTANCE,
                                  ylabel=rst.LABEL_ZETA_SOE, xticks=x)
                     i += 1
 
-            if self.scenarios[0][0][0].homogenous_objects:
+            if self.scenarios[g][c][0].homogeneous_objects:
 
                 for j in range(self.sample_size):
-                    y[j] = self.results[0][0][j][0].zeta_be[-1]
+                    y[j] = self.results[g][c][j][m].zeta_be[-1]
                 axes = figure.add_subplot(nrows, ncols, i)
                 rst.add_plot(axes, y, x=x, title='Boundary',
                              xlabel=LABEL_INSTANCE,
@@ -732,14 +735,14 @@ class Experiment:
         if self.study_internfield:
 
             for j in range(self.sample_size):
-                y[j] = self.results[0][0][i][0].zeta_tfmpad[-1]
+                y[j] = self.results[g][c][j][m].zeta_tfmpad[-1]
             axes = figure.add_subplot(nrows, ncols, i)
             rst.add_plot(axes, y, x=x, title='To. Field Mag. PAD', xticks=x,
                          xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_TFMPAD)
             i += 1
 
             for j in range(self.sample_size):
-                y[j] = self.results[0][0][i][0].zeta_tfppad[-1]
+                y[j] = self.results[g][c][j][m].zeta_tfppad[-1]
             axes = figure.add_subplot(nrows, ncols, i)
             rst.add_plot(axes, y, x=x, title='To. Field Phase PAD', xticks=x,
                          xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_TFPPAD)
