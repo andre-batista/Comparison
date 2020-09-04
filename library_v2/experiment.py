@@ -605,146 +605,39 @@ class Experiment:
                                     parallelization=parallelization)
                     )
 
-    def analyse_residual(self):
+    def fixed_sampleset_plot(self, group_idx=0, config_idx=0, method_idx=0,
+                             show=False, file_path='', file_format='eps'):
         if self.results is None:
             raise error.MissingAttributesError('Experiment','results')
-        pass
+        if type(method_idx) is int:
+            method_idx = [method_idx]
 
-    def plot_per_instances(self, group_idx=0, config_idx=0, method_idx=0,
-                           show=False, file_path='', file_format='eps'):
-        if self.results is None:
-            raise error.MissingAttributesError('Experiment','results')
-
-        g, c, m = group_idx, config_idx, method_idx
-        y = np.zeros(self.sample_size)
-        nplots = 0
-        if self.study_residual:
-            nplots += 2
-        if self.study_map:
-            if (self.configurations[0].perfect_dielectric
-                    or self.configurations[0].good_conductor):
-                if self.scenarios[g][c][0].homogeneous_objects:
-                    nplots += 3
-                else:
-                    nplots += 1
-            else:
-                if self.scenarios[g][c][0].homogeneous_objects:
-                    nplots += 6
-                else:
-                    nplots += 2
-            if self.scenarios[g][c][0].homogeneous_objects:
-                nplots += 1
-        if self.study_internfield:
-            nplots += 2
+        g, c = group_idx, config_idx
+        y = np.zeros((self.sample_size, len(method_idx)))
+        measures = self.get_measure_set(config_idx)
+        nplots = len(measures)
 
         nrows = int(np.sqrt(nplots))
         ncols = int(np.ceil(nplots/nrows))
         image_size = (3.*ncols, 3.*nrows)
         figure = plt.figure(figsize=image_size)
         rst.set_subplot_size(figure)
+        method_names = []
+        for m in method_idx:
+            method_names.append(self.methods[m].alias)
 
         x = range(1, self.sample_size+1)
-        y = np.zeros(self.sample_size)
         i = 1
-        if self.study_residual:
-
-            for j in range(self.sample_size):
-                y[j] = self.results[g][c][j][m].zeta_rn[-1]
+        for j in range(len(measures)):
+            for m in range(len(method_idx)):
+                y[:, m] = self.get_final_value_over_samples(
+                    group_idx=g, config_idx=c, method_idx=method_idx[m],
+                    measure=measures[j]
+                )
             axes = figure.add_subplot(nrows, ncols, i)
-            rst.add_plot(axes, y, x=x, title='Residual Norm',
-                         xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_RN,
-                         xticks=x)
-            i += 1
-
-            for j in range(self.sample_size):
-                y[j] = self.results[g][c][j][m].zeta_rpad[-1]
-            axes = figure.add_subplot(nrows, ncols, i)
-            rst.add_plot(axes, y, x=x, title='Residual PAD',
-                         xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_RPAD,
-                         xticks=x)
-            i += 1
-
-        if self.study_map:
-            if (self.configurations[0].perfect_dielectric
-                    or not self.configurations[0].good_conductor):
-                for j in range(self.sample_size):
-                    y[j] = self.results[g][c][j][m].zeta_epad[-1]
-                axes = figure.add_subplot(nrows, ncols, i)
-                rst.add_plot(axes, y, x=x, title='Rel. Per. PAD',
-                             xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_EPAD,
-                             xticks=x)
-                i += 1
-                if self.scenarios[g][c][0].homogeneous_objects:
-
-                    for j in range(self.sample_size):
-                        y[j] = self.results[g][c][j][m].zeta_ebe[-1]
-                    axes = figure.add_subplot(nrows, ncols, i)
-                    rst.add_plot(axes, y, x=x, title='Rel. Per. Back. PAD',
-                                 xlabel=LABEL_INSTANCE,
-                                 ylabel=rst.LABEL_ZETA_EBE, xticks=x)
-                    i += 1
-
-                    for j in range(self.sample_size):
-                        y[j] = self.results[g][c][j][m].zeta_eoe[-1]
-                    axes = figure.add_subplot(nrows, ncols, i)
-                    rst.add_plot(axes, y, x=x, title='Rel. Per. Ob. PAD',
-                                 xlabel=LABEL_INSTANCE,
-                                 ylabel=rst.LABEL_ZETA_EOE, xticks=x)
-                    i += 1
-
-            if (self.configurations[0].good_conductor
-                    or not self.configurations[0].perfect_dielectric):
-
-                for j in range(self.sample_size):
-                    y[j] = self.results[g][c][j][m].zeta_sad[-1]
-                axes = figure.add_subplot(nrows, ncols, i)
-                rst.add_plot(axes, y, x=x, title='Con. AD',
-                             xlabel=LABEL_INSTANCE,
-                             ylabel=rst.LABEL_ZETA_SAD, xticks=x)
-                i += 1
-
-                if self.scenarios[g][c][0].homogeneous_objects:
-
-                    for j in range(self.sample_size):
-                        y[j] = self.results[g][c][j][m].zeta_sbe[-1]
-                    axes = figure.add_subplot(nrows, ncols, i)
-                    rst.add_plot(axes, y, x=x, title='Con. Back. AD',
-                                 xlabel=LABEL_INSTANCE,
-                                 ylabel=rst.LABEL_ZETA_SBE, xticks=x)
-                    i += 1
-
-                    for j in range(self.sample_size):
-                        y[j] = self.results[g][c][j][m].zeta_soe[-1]
-                    axes = figure.add_subplot(nrows, ncols, i)
-                    rst.add_plot(axes, y, x=x, title='Con. Ob. AD',
-                                 xlabel=LABEL_INSTANCE,
-                                 ylabel=rst.LABEL_ZETA_SOE, xticks=x)
-                    i += 1
-
-            if self.scenarios[g][c][0].homogeneous_objects:
-
-                for j in range(self.sample_size):
-                    y[j] = self.results[g][c][j][m].zeta_be[-1]
-                axes = figure.add_subplot(nrows, ncols, i)
-                rst.add_plot(axes, y, x=x, title='Boundary',
-                             xlabel=LABEL_INSTANCE,
-                             ylabel=rst.LABEL_ZETA_BE, xticks=x)
-                i += 1
-
-        if self.study_internfield:
-
-            for j in range(self.sample_size):
-                y[j] = self.results[g][c][j][m].zeta_tfmpad[-1]
-            axes = figure.add_subplot(nrows, ncols, i)
-            rst.add_plot(axes, y, x=x, title='To. Field Mag. PAD', xticks=x,
-                         xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_TFMPAD)
-            i += 1
-
-            for j in range(self.sample_size):
-                y[j] = self.results[g][c][j][m].zeta_tfppad[-1]
-            axes = figure.add_subplot(nrows, ncols, i)
-            rst.add_plot(axes, y, x=x, title='To. Field Phase PAD', xticks=x,
-                         xlabel=LABEL_INSTANCE, ylabel=rst.LABEL_ZETA_TFPPAD)
+            rst.add_plot(axes, y, x=x, title=get_title(measures[j]),
+                         xlabel=LABEL_INSTANCE, ylabel=get_label(measures[j]),
+                         xticks=x, legend=method_names)
             i += 1
 
         if show:
@@ -754,83 +647,212 @@ class Experiment:
                         format=file_format)
             plt.close()
 
-    def compare_per_method(self, group_idx=[0], config_idx=[0],
-                           method_idx=[0], measure=None, axes=None, show=False,
-                           file_path='', file_format='eps'):
+    def fixed_sampleset_boxplot(self, group_idx=0, config_idx=0,
+                                method_idx=[0], show=False,
+                                file_path='', file_format='eps'):
+        """Summarize the class method."""
+        if type(group_idx) is not int:
+            raise error.WrongTypeInput('fixed_sampleset_boxplot', 'group_idx',
+                                       'int', type(group_idx))
+        if type(config_idx) is not int:
+            raise error.WrongTypeInput('fixed_sampleset_boxplot', 'config_idx',
+                                       'int', type(config_idx))
+
+        g, c = group_idx, config_idx
+        measures = self.get_measure_set(config_idx)
+        nplots = len(measures)
+
+        nrows = int(np.sqrt(nplots))
+        ncols = int(np.ceil(nplots/nrows))
+        image_size = (3.*ncols, 3.*nrows)
+        figure = plt.figure(figsize=image_size)
+        rst.set_subplot_size(figure)
+        method_names = []
+        for m in method_idx:
+            method_names.append(self.methods[m].alias)
+
+        n = 1
+        for i in range(len(measures)):
+            data = []
+            for m in range(len(method_idx)):
+                data.append(
+                    self.get_final_value_over_samples(group_idx=g,
+                                                      config_idx=c,
+                                                      method_idx=method_idx[m],
+                                                      measure=measures[i])
+                )
+            axes = figure.add_subplot(nrows, ncols, n)
+            boxplot(data, axes=axes, labels=method_names, xlabel='Methods',
+                    ylabel=get_label(measures[i]),
+                    title=get_title(measures[i]), show=show,
+                    file_path=file_path, file_format=file_format)
+            n += 1
+
+        if show:
+            plt.show()
+        else:
+            plt.savefig(file_path + self.name + '_%d' + config_idx + '%d'
+                        + group_idx + '.' + file_format, format=file_format)
+            plt.close()
+
+    def fixed_measure_boxplot(self, group_idx=[0], config_idx=[0],
+                              measure=None, method_idx=[0], show=False,
+                              file_path='', file_format='eps'):
+        """Summarize the class method."""
+        if measure is None:
+            raise error.MissingInputError('Experiments.fixed_measure_boxplot',
+                                          'measure')
+        if type(group_idx) is int:
+            group_idx = [group_idx]
+        if type(config_idx) is int:
+            config_idx = [config_idx]
+
+        ylabel = get_label(measure)
+        nplots = len(group_idx)*len(config_idx)
+        if nplots > 1:
+            nrows = int(np.sqrt(nplots))
+            ncols = int(np.ceil(nplots/nrows))
+            image_size = (3.*ncols, 3.*nrows)
+            figure = plt.figure(figsize=image_size)
+            rst.set_subplot_size(figure)
+        else:
+            axes = rst.get_single_figure_axes(plt.figure())
+
+        n = 1
         for i in range(len(group_idx)):
             for j in range(len(config_idx)):
-                zeta_rn, zeta_rpad = [], []
-                zeta_epad, zeta_ebe, zeta_eoe = [], [], []
-                zeta_sad, zeta_sbe, zeta_soe = [], [], []
-                zeta_tfmpad, zeta_tfppad = [], []
-                zeta_be = []
+                data = []
+                labels = []
+                if nplots > 1:
+                    axes = figure.add_subplot(nrows, ncols, n)
+                    n += 1
                 for k in range(len(method_idx)):
-                    zeta_rn.append(
+                    data.append(
                         self.get_final_value_over_samples(
                             group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_rn'
+                            method_idx=method_idx[k], measure=measure
                         )
                     )
-                    zeta_rpad.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_rpad'
+                    labels.append(self.methods[k].alias)
+                if nplots > 1:
+                    if len(group_idx) == 1:
+                        title = 'Con. %d' % config_idx[j]
+                    elif len(config_idx) == 1:
+                        title = 'Group %d' % group_idx[i]
+                    else:
+                        title = ('Group %d' % group_idx[i]
+                                 + ', Con. %d' % config_idx[j])
+                    figure.suptitle(get_title(measure))
+                else:
+                    title = get_title(measure)
+                boxplot(data, axes=axes, labels=labels, xlabel='Methods',
+                        ylabel=ylabel, title=title, show=show,
+                        file_path=file_path, file_format=file_format)
+        if show:
+            plt.show()
+        else:
+            plt.savefig(file_path + self.name + '_' + measure + '.'
+                        + file_format, format=file_format)
+            plt.close()
+
+    def plot_sampleset_results(self, group_idx=[0], config_idx=[0],
+                               method_idx=[0], show=False, file_path='',
+                               file_format='eps'):
+        """Summarize the method."""
+        if type(group_idx) is int:
+            group_idx = [group_idx]
+        if type(config_idx) is int:
+            config_idx = [config_idx]
+        if type(method_idx) is int:
+            method_idx = [method_idx]
+
+        method_names = []
+        for m in method_idx:
+            method_names.append(self.methods[m].alias)
+
+        if len(method_idx) > 1:
+            nplots = 1 + len(method_idx)
+        else:
+            nplots = self.sample_size
+
+        nrows = int(np.sqrt(nplots))
+        ncols = int(np.ceil(nplots/nrows))
+        image_size = (3.*ncols, 3.*nrows)
+        bounds = (0, 1, 0, 1)
+        xlabel, ylabel = r'$L_x$', r'$L_y$'
+
+        for i in group_idx:
+            for j in config_idx:
+
+                omega = 2*pi*self.configurations[j].f
+                epsilon_rb = self.configurations[j].epsilon_rb
+                sigma_b = self.configurations[j].sigma_b
+
+                if len(method_idx) == 1:
+                    figure = plt.figure(figsize=image_size)
+                    rst.set_subplot_size(figure)
+                    n = 1
+
+                for k in range(self.sample_size):
+
+                    if len(method_idx) > 1:
+                        figure = plt.figure(figsize=image_size)
+                        rst.set_subplot_size(figure)
+
+                        axes = figure.add_subplot(nrows, ncols, 1)
+                        chi = cfg.get_contrast_map(
+                            epsilon_r=self.scenarios[i][j][k].epsilon_r,
+                            sigma=self.scenarios[i][j][k].sigma,
+                            epsilon_rb=epsilon_rb,
+                            sigma_b=sigma_b,
+                            omega=omega
                         )
-                    )
-                    zeta_epad.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_epad'
+
+                        rst.add_image(axes, np.abs(chi), title='Original',
+                                      colorbar_name=r'$|\chi|$', bounds=bounds,
+                                      xlabel=xlabel, ylabel=ylabel)
+                        n = 2
+
+                    p = 0
+                    for m in method_idx:
+
+                        chi = cfg.get_contrast_map(
+                            epsilon_r=self.results[i][j][k][m].epsilon_r,
+                            sigma=self.results[i][j][k][m].sigma,
+                            epsilon_rb=epsilon_rb,
+                            sigma_b=sigma_b,
+                            omega=omega
                         )
-                    )
-                    zeta_eoe.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_eoe'
-                        )
-                    )
-                    zeta_ebe.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_ebe'
-                        )
-                    )
-                    zeta_sad.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_sad'
-                        )
-                    )
-                    zeta_sbe.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_sbe'
-                        )
-                    )
-                    zeta_soe.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_soe'
-                        )
-                    )
-                    zeta_tfmpad.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_tfmpad'
-                        )
-                    )
-                    zeta_tfppad.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_tfppad'
-                        )
-                    )
-                    zeta_be.append(
-                        self.get_final_value_over_samples(
-                            group_idx=group_idx[i], config_idx=config_idx[j],
-                            method_idx=method_idx[k], measure='zeta_be'
-                        )
-                    )
+
+                        if len(method_idx) > 1:
+                            title = method_names[p]
+                        else:
+                            title = self.scenarios[i][j][k].name
+
+                        axes = figure.add_subplot(nrows, ncols, n)
+                        rst.add_image(axes, np.abs(chi), title=title,
+                                      colorbar_name=r'$|\chi|$', bounds=bounds,
+                                      xlabel=xlabel, ylabel=ylabel)
+                        n += 1
+
+                    if len(method_idx) > 1:
+                        if show:
+                            plt.show()
+                        else:
+                            plt.savefig(file_path + self.name
+                                        + 'recoverd_images' + str(i) + str(j)
+                                        + str(k) + '.' + file_format,
+                                        format=file_format)
+                            plt.close()
+
+                if len(method_idx) == 1:
+                    if show:
+                        plt.show()
+                    else:
+                        plt.savefig(file_path + self.name + 'recoverd_images'
+                                    + str(i) + str(j) + '.' + file_format,
+                                    format=file_format)
+                        plt.close()
 
     def __str__(self):
         """Print the object information."""
@@ -968,7 +990,7 @@ class Experiment:
                                           + 'samples', 'measure')
         g, c, m = group_idx, config_idx, method_idx
         data = np.zeros(self.sample_size)
-        for i in range(len(self.sample_size)):
+        for i in range(self.sample_size):
             if measure == 'zeta_rn':
                 data[i] = self.results[g][c][i][m].zeta_rn[-1]
             elif measure == 'zeta_rpad':
@@ -1002,6 +1024,44 @@ class Experiment:
                                             measure)
         return data
 
+    def get_measure_set(self, config_idx=0):
+        measures = []
+        if self.study_residual:
+            measures.append('zeta_rn')
+            measures.append('zeta_rpad')
+        if self.study_map:
+            if self.configurations[config_idx].perfect_dielectric:
+                if self.scenarios[0][config_idx][0].homogeneous_objects:
+                    measures.append('zeta_epad')
+                    measures.append('zeta_ebe')
+                    measures.append('zeta_eoe')
+                else:
+                    measures.append('zeta_epad')
+            elif self.configurations[config_idx].good_conductor:
+                if self.scenarios[0][config_idx][0].homogeneous_objects:
+                    measures.append('zeta_sad')
+                    measures.append('zeta_sbe')
+                    measures.append('zeta_soe')
+                else:
+                    measures.append('zeta_sad')
+            else:
+                if self.scenarios[0][config_idx][0].homogeneous_objects:
+                    measures.append('zeta_epad')
+                    measures.append('zeta_ebe')
+                    measures.append('zeta_eoe')
+                    measures.append('zeta_sad')
+                    measures.append('zeta_sbe')
+                    measures.append('zeta_soe')
+                else:
+                    measures.append('zeta_epad')
+                    measures.append('zeta_sad')
+            if self.scenarios[0][config_idx][0].homogeneous_objects:
+                measures.append('zeta_be')
+        if self.study_internfield:
+            measures.append('zeta_tfmpad')
+            measures.append('zeta_tfppad')
+        return measures
+
 
 def boxplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
             title=None, show=False, file_name=None, file_path='',
@@ -1012,7 +1072,7 @@ def boxplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
 
     if axes is not None:
         sm.graphics.violinplot(data,
-                               axes=axes,
+                               ax=axes,
                                labels=labels,
                                plot_opts=plot_opts)
 
@@ -1040,12 +1100,74 @@ def boxplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
         if show:
             plt.show()
         else:
-            if file_name is None:
+            if file_name is not None:
                 raise error.MissingInputError('boxplot', 'file_name')
 
             plt.savefig(file_path + file_name + '.' + file_format,
                         format=file_format)
             plt.close()
+
+
+def get_label(measure):
+    if measure == 'zeta_rn':
+        return rst.LABEL_ZETA_RN
+    elif measure == 'zeta_rpad':
+        return rst.LABEL_ZETA_RPAD
+    elif measure == 'zeta_epad':
+        return rst.LABEL_ZETA_EPAD
+    elif measure == 'zeta_ebe':
+        return rst.LABEL_ZETA_EBE
+    elif measure == 'zeta_eoe':
+        return rst.LABEL_ZETA_EOE
+    elif measure == 'zeta_sad':
+        return rst.LABEL_ZETA_SAD
+    elif measure == 'zeta_sbe':
+        return rst.LABEL_ZETA_SBE
+    elif measure == 'zeta_soe':
+        return rst.LABEL_ZETA_SOE
+    elif measure == 'zeta_tfmpad':
+        return rst.LABEL_ZETA_TFMPAD
+    elif measure == 'zeta_tfppad':
+        return rst.LABEL_ZETA_TFPPAD
+    elif measure == 'zeta_be':
+        return rst.LABEL_ZETA_BE
+    else:
+        raise error.WrongValueInput('get_label', 'measure', "'zeta_rn'/"
+                                    + "'zeta_rpad'/'zeta_epad'/'zeta_ebe'/"
+                                    + "'zeta_eoe'/'zeta_sad'/'zeta_sbe'/"
+                                    + "'zeta_soe'/'zeta_be'/'zeta_tfmpad'/"
+                                    + "'zeta_tfppad'", measure)
+
+
+def get_title(measure):
+    if measure == 'zeta_rn':
+        return 'Residual Norm'
+    elif measure == 'zeta_rpad':
+        return 'Residual PAD'
+    elif measure == 'zeta_epad':
+        return 'Rel. Per. PAD'
+    elif measure == 'zeta_ebe':
+        return 'Rel. Per. Back. PAD'
+    elif measure == 'zeta_eoe':
+        return 'Rel. Per. Ob. PAD'
+    elif measure == 'zeta_sad':
+        return 'Con. AD'
+    elif measure == 'zeta_sbe':
+        return 'Con. Back. AD'
+    elif measure == 'zeta_soe':
+        return 'Con. Ob. AD'
+    elif measure == 'zeta_tfmpad':
+        return 'To. Field Mag. PAD'
+    elif measure == 'zeta_tfppad':
+        return 'To. Field Phase PAD'
+    elif measure == 'zeta_be':
+        return 'Boundary Error'
+    else:
+        raise error.WrongValueInput('get_label', 'measure', "'zeta_rn'/"
+                                    + "'zeta_rpad'/'zeta_epad'/'zeta_ebe'/"
+                                    + "'zeta_eoe'/'zeta_sad'/'zeta_sbe'/"
+                                    + "'zeta_soe'/'zeta_be'/'zeta_tfmpad'/"
+                                    + "'zeta_tfppad'", measure)
 
 
 def run_methods(methods, scenario, parallelization=False):

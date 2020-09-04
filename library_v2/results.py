@@ -46,7 +46,9 @@ LABEL_ZETA_SOE = r'$\zeta_{\sigma OE}$'
 LABEL_ZETA_BE = r'$\zeta_{BE}$'
 LABEL_ZETA_TFMPAD = r'$\zeta_{TFMPAD}$'
 LABEL_ZETA_TFPPAD = r'$\zeta_{TFPPAD}$'
-
+MEASURE_SET = ['zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', 'zeta_eoe',
+               'zeta_sad', 'zeta_soe', 'zeta_sbe', 'zeta_tfmpad',
+               'zeta_tfppad', 'zeta_be']
 
 IMAGE_SIZE_SINGLE = (6., 5.)
 IMAGE_SIZE_1x2 = (9., 4.) # 9 x 5
@@ -1197,7 +1199,7 @@ def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
 
 
 def add_plot(axes, data, x=None, title=None, xlabel='Iterations', ylabel=None,
-             style='--*', xticks=None):
+             style='--*', xticks=None, legend=None):
     """Add a plot to the axes.
 
     A predefined function for plotting curves. This is useful for
@@ -1241,6 +1243,8 @@ def add_plot(axes, data, x=None, title=None, xlabel='Iterations', ylabel=None,
         axes.set_ylabel(ylabel)
     if title is not None:
         axes.set_title(title)
+    if legend is not None:
+        axes.legend(legend)
     axes.grid()
 
 
@@ -1254,7 +1258,7 @@ def set_subplot_size(figure):
         figure : `:class:matplotlib.pyplot.Figure`
             A figure object.
     """
-    figure.subplots_adjust(left=.125, right=0.9, top=.9, bottom=.1, wspace=.4,
+    figure.subplots_adjust(left=.125, right=0.9, top=.8, bottom=.2, wspace=1.,
                            hspace=.5)
 
 
@@ -1267,7 +1271,7 @@ def get_single_figure_axes(figure):
             A figure object.
 
     """
-    return figure.add_axes([0.125, 0.15, .7, .7])
+    return figure.add_axes([.17, .17, .7, .7])
 
 
 def compute_zeta_rn(es_o, es_a):
