@@ -53,6 +53,7 @@ import time as tm
 from joblib import Parallel, delayed
 import multiprocessing
 from matplotlib import pyplot as plt
+from statsmodels import api as sm
 
 # Developed libraries
 import error
@@ -324,7 +325,7 @@ class Experiment:
             name : str
                 The name of the experiment.
             maximum_contrast : float or complex of list
-                The 
+                The
         """
         if import_filename is not None:
             self.importdata(import_filename, import_filepath)
@@ -609,11 +610,11 @@ class Experiment:
             raise error.MissingAttributesError('Experiment','results')
         pass
 
-    def plot_instances(self, group_idx=0, config_idx=0, method_idx=0,
-                       show=False, file_path='', file_format='eps'):
+    def plot_per_instances(self, group_idx=0, config_idx=0, method_idx=0,
+                           show=False, file_path='', file_format='eps'):
         if self.results is None:
             raise error.MissingAttributesError('Experiment','results')
-        # i = group, j = configuration, k = sample, m = method
+
         g, c, m = group_idx, config_idx, method_idx
         y = np.zeros(self.sample_size)
         nplots = 0
@@ -640,15 +641,13 @@ class Experiment:
         ncols = int(np.ceil(nplots/nrows))
         image_size = (3.*ncols, 3.*nrows)
         figure = plt.figure(figsize=image_size)
-        # figure.subplots_adjust(top=.8, bottom=.2, wspace=.5, hspace=.7)
-        figure.subplots_adjust(left=.125, right=0.9, top=.9, bottom=.1,
-                               wspace=.4, hspace=.5)
+        rst.set_subplot_size(figure)
 
         x = range(1, self.sample_size+1)
         y = np.zeros(self.sample_size)
         i = 1
         if self.study_residual:
-            
+
             for j in range(self.sample_size):
                 y[j] = self.results[g][c][j][m].zeta_rn[-1]
             axes = figure.add_subplot(nrows, ncols, i)
@@ -755,11 +754,89 @@ class Experiment:
                         format=file_format)
             plt.close()
 
+    def compare_per_method(self, group_idx=[0], config_idx=[0],
+                           method_idx=[0], measure=None, axes=None, show=False,
+                           file_path='', file_format='eps'):
+        for i in range(len(group_idx)):
+            for j in range(len(config_idx)):
+                zeta_rn, zeta_rpad = [], []
+                zeta_epad, zeta_ebe, zeta_eoe = [], [], []
+                zeta_sad, zeta_sbe, zeta_soe = [], [], []
+                zeta_tfmpad, zeta_tfppad = [], []
+                zeta_be = []
+                for k in range(len(method_idx)):
+                    zeta_rn.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_rn'
+                        )
+                    )
+                    zeta_rpad.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_rpad'
+                        )
+                    )
+                    zeta_epad.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_epad'
+                        )
+                    )
+                    zeta_eoe.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_eoe'
+                        )
+                    )
+                    zeta_ebe.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_ebe'
+                        )
+                    )
+                    zeta_sad.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_sad'
+                        )
+                    )
+                    zeta_sbe.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_sbe'
+                        )
+                    )
+                    zeta_soe.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_soe'
+                        )
+                    )
+                    zeta_tfmpad.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_tfmpad'
+                        )
+                    )
+                    zeta_tfppad.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_tfppad'
+                        )
+                    )
+                    zeta_be.append(
+                        self.get_final_value_over_samples(
+                            group_idx=group_idx[i], config_idx=config_idx[j],
+                            method_idx=method_idx[k], measure='zeta_be'
+                        )
+                    )
+
     def __str__(self):
         """Print the object information."""
         message = 'Experiment name: ' + self.name
         if all(i == self.maximum_contrast[0] for i in self.maximum_contrast):
-            message = (message 
+            message = (message
                        + '\nMaximum Contrast: %.2f'
                        % np.real(self.maximum_contrast[0]) + ' %.2ej'
                        % np.imag(self.maximum_contrast[0]))
@@ -883,6 +960,92 @@ class Experiment:
         self.study_residual = data[STUDY_RESIDUAL]
         self.study_map = data[STUDY_MAP]
         self.results = data[RESULTS]
+
+    def get_final_value_over_samples(self, group_idx=0, config_idx=0,
+                                     method_idx=0, measure=None):
+        if measure is None:
+            raise error.MissingInputError('Experiments.get_final_value_over_'
+                                          + 'samples', 'measure')
+        g, c, m = group_idx, config_idx, method_idx
+        data = np.zeros(self.sample_size)
+        for i in range(len(self.sample_size)):
+            if measure == 'zeta_rn':
+                data[i] = self.results[g][c][i][m].zeta_rn[-1]
+            elif measure == 'zeta_rpad':
+                data[i] = self.results[g][c][i][m].zeta_rpad[-1]
+            elif measure == 'zeta_epad':
+                data[i] = self.results[g][c][i][m].zeta_epad[-1]
+            elif measure == 'zeta_ebe':
+                data[i] = self.results[g][c][i][m].zeta_ebe[-1]
+            elif measure == 'zeta_eoe':
+                data[i] = self.results[g][c][i][m].zeta_eoe[-1]
+            elif measure == 'zeta_sad':
+                data[i] = self.results[g][c][i][m].zeta_sad[-1]
+            elif measure == 'zeta_sbe':
+                data[i] = self.results[g][c][i][m].zeta_sbe[-1]
+            elif measure == 'zeta_soe':
+                data[i] = self.results[g][c][i][m].zeta_soe[-1]
+            elif measure == 'zeta_tfmpad':
+                data[i] = self.results[g][c][i][m].zeta_tfmpad[-1]
+            elif measure == 'zeta_tfppad':
+                data[i] = self.results[g][c][i][m].zeta_tfppad[-1]
+            elif measure == 'zeta_be':
+                data[i] = self.results[g][c][i][m].zeta_be[-1]
+            else:
+                raise error.WrongValueInput('Experiments.get_final_value_over_'
+                                            + 'samples', 'measure',
+                                            "'zeta_rn'/'zeta_rpad'/"
+                                            + "'zeta_epad'/'zeta_ebe'/"
+                                            + "'zeta_eoe'/'zeta_sad'/"
+                                            + "'zeta_sbe'/'zeta_soe'/'zeta_be'"
+                                            + "/'zeta_tfmpad'/'zeta_tfppad'",
+                                            measure)
+        return data
+
+
+def boxplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
+            title=None, show=False, file_name=None, file_path='',
+            file_format='eps'):
+    plot_opts = {'violin_fc': 'b',
+                 'violin_ec': 'w',
+                 'violin_alpha': .2}
+
+    if axes is not None:
+        sm.graphics.violinplot(data,
+                               axes=axes,
+                               labels=labels,
+                               plot_opts=plot_opts)
+
+        if xlabel is not None:
+            axes.set_xlabel(xlabel)
+        if ylabel is not None:
+            axes.set_ylabel(ylabel)
+        if title is not None:
+            axes.set_title(title)
+        axes.grid()
+
+    else:
+        sm.graphics.violinplot(data,
+                               labels=labels,
+                               plot_opts=plot_opts)
+
+        if xlabel is not None:
+            plt.xlabel(xlabel)
+        if ylabel is not None:
+            plt.ylabel(ylabel)
+        if title is not None:
+            plt.title(title)
+        plt.grid()
+
+        if show:
+            plt.show()
+        else:
+            if file_name is None:
+                raise error.MissingInputError('boxplot', 'file_name')
+
+            plt.savefig(file_path + file_name + '.' + file_format,
+                        format=file_format)
+            plt.close()
 
 
 def run_methods(methods, scenario, parallelization=False):

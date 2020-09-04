@@ -221,7 +221,8 @@ class Results:
         self.zeta_tfmpad = data[TOTALFIELD_MAGNITUDE_PAD]
         self.zeta_tfppad = data[TOTALFIELD_PHASE_PAD]
 
-    def plot_map(self, show=False, file_path='', file_format='eps', benchmark=None):
+    def plot_map(self, show=False, file_path='', file_format='eps',
+                 benchmark=None):
         """Plot map results.
 
         Call signatures::
@@ -247,8 +248,8 @@ class Results:
 
         """
         try:
-            with open(self.configuration_filepath + self.configuration_filename,
-                      'rb') as datafile:
+            with open(self.configuration_filepath
+                      + self.configuration_filename, 'rb') as datafile:
                 data = pickle.load(datafile)
             lambda_b = data[cfg.BACKGROUND_WAVELENGTH]
             Lx, Ly = data[cfg.IMAGE_SIZE]
@@ -515,7 +516,7 @@ class Results:
                 if relative_permittivity_map is not None:
 
                     if (relative_permittivity_map.shape[0] !=
-                            inputdata.epsilon_r.shape[0] 
+                            inputdata.epsilon_r.shape[0]
                             or relative_permittivity_map.shape[1] !=
                             inputdata.epsilon_r.shape[1]):
                         epsilon_r = resize_image(relative_permittivity_map,
@@ -525,7 +526,7 @@ class Results:
 
                 elif self.epsilon_r is not None:
 
-                    if (self.epsilon_r.shape[0] != inputdata.epsilon_r.shape[0] 
+                    if (self.epsilon_r.shape[0] != inputdata.epsilon_r.shape[0]
                             or self.epsilon_r.shape[1] !=
                             inputdata.epsilon_r.shape[1]):
                         epsilon_r = resize_image(self.epsilon_r,
@@ -545,7 +546,7 @@ class Results:
                                                           epsilon_rb))
 
             else:
-                epsilon_r = epsilon_rb*np.zeros(sigma.shape)
+                epsilon_r = None
 
             if inputdata.sigma is not None:
 
@@ -553,7 +554,7 @@ class Results:
                     raise error.MissingInputError('Results.update_error',
                                                   'conductivity_map')
                 if conductivity_map is not None:
-                    if (conductivity_map.shape[0] != inputdata.sigma.shape[0] 
+                    if (conductivity_map.shape[0] != inputdata.sigma.shape[0]
                             or conductivity_map.shape[1] !=
                             inputdata.sigma.shape[1]):
                         sigma = resize_image(conductivity_map,
@@ -561,7 +562,7 @@ class Results:
                     else:
                         sigma = conductivity_map
                 else:
-                    if (self.sigma.shape[0] != inputdata.sigma.shape[0] 
+                    if (self.sigma.shape[0] != inputdata.sigma.shape[0]
                             or self.sigma.shape[1] !=
                             inputdata.sigma.shape[1]):
                         sigma = resize_image(self.sigma, inputdata.sigma.shape)
@@ -578,6 +579,11 @@ class Results:
                                                           sigma, sigma_b))
 
             else:
+                sigma = None
+
+            if epsilon_r is None:
+                epsilon_r = epsilon_rb*np.zeros(sigma.shape)
+            elif sigma is None:
                 sigma = sigma_b*np.zeros(epsilon_r.shape)
 
             x, y = cfg.get_coordinates_ddomain(
@@ -786,8 +792,8 @@ class Results:
             if show:
                 plt.show()
             else:
-                plt.savefig(file_path + self.name + '_zeta_epad.' + file_format,
-                            format=file_format)
+                plt.savefig(file_path + self.name + '_zeta_epad.'
+                            + file_format, format=file_format)
                 plt.close()
         else:
             return axes
@@ -1248,8 +1254,8 @@ def set_subplot_size(figure):
         figure : `:class:matplotlib.pyplot.Figure`
             A figure object.
     """
-    figure.subplots_adjust(left=.125, bottom=-.3, right=.9, top=1.3, wspace=.7,
-                           hspace=-.7)
+    figure.subplots_adjust(left=.125, right=0.9, top=.9, bottom=.1, wspace=.4,
+                           hspace=.5)
 
 
 def get_single_figure_axes(figure):
