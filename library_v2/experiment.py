@@ -17,7 +17,7 @@ This module provides:
         Determine if a point is on the left of a line.
     :func:`winding_number`
         Determine if a point is inside a polygon.
-        
+
 A set of routines for drawing geometric figures is provided:
 
     :func:`draw_triangle`
@@ -54,6 +54,8 @@ from joblib import Parallel, delayed
 import multiprocessing
 from matplotlib import pyplot as plt
 from statsmodels import api as sm
+from statsmodels import stats
+
 
 # Developed libraries
 import error
@@ -854,6 +856,226 @@ class Experiment:
                                     format=file_format)
                         plt.close()
 
+    def plot_nbest_results(self, n, measure, group_idx=[0], config_idx=[0],
+                           method_idx=None, show=False, file_path='',
+                           file_format='eps'):
+        if method_idx is None:
+            if len(self.methods) == 1:
+                method_idx = [0]
+            else:
+                method_idx = range(len(self.methods))
+        else:
+            if type(method_idx) is list:
+                pass
+            else:
+                single_method = True
+                method_idx = [method_idx]
+
+        method_names = []
+        for m in method_idx:
+            method_names.append(self.methods[m].alias)
+
+        nplots = n
+        nrows = int(np.sqrt(nplots))
+        ncols = int(np.ceil(nplots/nrows))
+        image_size = (3.*ncols, 3.*nrows)
+        bounds = (0, 1, 0, 1)
+        xlabel, ylabel = r'$L_x$', r'$L_y$'
+
+        for j in config_idx:
+
+            omega = 2*pi*self.configurations[j].f
+            epsilon_rb = self.configurations[j].epsilon_rb
+            sigma_b = self.configurations[j].sigma_b
+
+            for i in group_idx:
+                for m in method_idx:
+
+                    figure = plt.figure(figsize=image_size)
+                    rst.set_subplot_size(figure)
+                    y = self.get_final_value_over_samples(group_idx=i,
+                                                          config_idx=j,
+                                                          method_idx=m,
+                                                          measure=measure)
+                    yi = np.argsort(y)
+
+                    for k in range(nplots):
+
+                        chi = cfg.get_contrast_map(
+                            epsilon_r=self.results[i][j][yi[k]][m].epsilon_r,
+                            sigma=self.results[i][j][yi[k]][m].sigma,
+                            epsilon_rb=epsilon_rb,
+                            sigma_b=sigma_b,
+                            omega=omega
+                        )
+
+                        axes = figure.add_subplot(nrows, ncols, k+1)
+                        title = (self.scenarios[i][j][yi[k]].name
+                                 + ' - %.2e' % y[yi[k]])
+                        rst.add_image(axes, np.abs(chi), title=title,
+                                      colorbar_name=r'$|\chi|$', bounds=bounds,
+                                      xlabel=xlabel, ylabel=ylabel)
+
+                    title = ('C%d,' % j + ' G%d,' % i + ' ' + get_label(measure)
+                             + ' - ' + self.methods[m].alias)
+                    plt.suptitle(title)
+
+                    if show:
+                        plt.show()
+                    else:
+                        plt.savefig(file_path + self.name + 'nbeast' + str(i)
+                                    + str(j) + str(m) + '.' + file_format,
+                                    format=file_format)
+                        plt.close()
+
+    def study_single_mean(self, measure=None, group_idx=[0], config_idx=[0],
+                          method_idx=[0], show=False, file_path='',
+                          file_format='eps', print=False):
+        method_names = []
+        for m in method_idx:
+            method_names.append(self.methods[m].alias)
+
+        if measure is None or (type(measure) is list and len(measure) > 1):
+
+            if measure is None:
+                none_measure = True
+            else:
+                none_measure = False
+
+            for i in config_idx:
+
+                if none_measure:
+                    measures = self.get_measure_set(i)
+                nplots = len(measures)
+                nrows = int(np.sqrt(nplots))
+                ncols = int(np.ceil(nplots/nrows))
+                image_size = (3.*ncols, 3.*nrows)
+
+                for j in group_idx:
+
+                    figure = plt.figure(figsize=image_size)
+                    rst.set_subplot_size(figure)
+                    k = 1
+
+                    for mea in measures:
+
+                        y = np.zeros((self.sample_size, len(method_idx)))
+                        n = 0
+                        for m in method_idx:
+                            y[:, n] = self.get_final_value_over_samples(
+                                measure=mea, group_idx=j, config_idx=i,
+                                method_idx=m
+                            )
+                        axes = figure.add_subplot(nrows, ncols, k)
+                        confintplot(y, axes=axes, xlabel=get_label(mea),
+                                    ylabel=method_names, title=get_title(mea))
+                        k += 1
+
+                    plt.suptitle('c%d' % i + 'g%d' % j)
+
+                    if show:
+                        plt.show()
+                    else:
+                        plt.savefig(file_path + self.name + '_confint_'
+                                    + str(i) + str(j) + '.' + file_format,
+                                    format=file_format)
+                        plt.close()
+
+        else:
+            if type(measure) is list:
+                mea = measure[0]
+            else:
+                mea = measure
+
+            if len(group_idx) == 1 and len(config_idx) == 1:
+                i, j = config_idx[0], group_idx[0]
+                y = np.zeros((self.sample_size, len(method_idx)))
+                for m in method_idx:
+                    y[:, n] = self.get_final_value_over_samples(measure=mea,
+                                                                group_idx=j,
+                                                                config_idx=i,
+                                                                method_idx=m)
+                confintplot(y, xlabel=get_label(mea), ylabel=method_names,
+                            title=get_title(mea))
+                if show:
+                    plt.show()
+                else:
+                    plt.savefig(file_path + self.name + '_confint_' + mea + '_'
+                                + str(i) + str(j) + '.' + file_format,
+                                format=file_format)
+                    plt.close()
+
+            elif len(group_idx) == 1 and len(config_idx) > 1:
+
+                nplots = len(config_idx)
+                nrows = int(np.sqrt(nplots))
+                ncols = int(np.ceil(nplots/nrows))
+                image_size = (3.*ncols, 3.*nrows)
+                figure = plt.figure(figsize=image_size)
+                rst.set_subplot_size(figure)
+                j = group_idx[0]
+
+                k = 1
+                for i in config_idx:
+
+                    y = np.zeros((self.sample_size, len(method_idx)))
+                    n = 0
+                    for m in method_idx:
+                        y[:, n] = self.get_final_value_over_samples(
+                            measure=mea, group_idx=j, config_idx=i,
+                            method_idx=m
+                        )
+                    axes = figure.add_subplot(nrows, ncols, k)
+                    confintplot(y, axes=axes, xlabel=get_label(mea),
+                                ylabel=method_names,
+                                title=self.configurations[i].name)
+                    k += 1
+
+                if show:
+                    plt.show()
+                else:
+                    plt.savefig(file_path + self.name + '_confint_' + mea + '_'
+                                + 'g%d' % j + '.' + file_format,
+                                format=file_format)
+                    plt.close()
+
+            else:
+
+                nplots = len(group_idx)
+                nrows = int(np.sqrt(nplots))
+                ncols = int(np.ceil(nplots/nrows))
+                image_size = (3.*ncols, 3.*nrows)
+                figure = plt.figure(figsize=image_size)
+                rst.set_subplot_size(figure)
+
+                for i in config_idx:
+
+                    k = 1
+                    for j in group_idx:
+
+                        y = np.zeros((self.sample_size, len(method_idx)))
+                        n = 0
+                        for m in method_idx:
+                            y[:, n] = self.get_final_value_over_samples(
+                                measure=mea, group_idx=j, config_idx=i,
+                                method_idx=m
+                            )
+                        axes = figure.add_subplot(nrows, ncols, k)
+                        confintplot(y, axes=axes, xlabel=get_label(mea),
+                                    ylabel=method_names,
+                                    title='g. %d' %j)
+                        k += 1
+
+                    if show:
+                        plt.show()
+                    else:
+                        plt.savefig(file_path + self.name + '_confint_' + mea + '_'
+                                    + 'c%d' % i + '.' + file_format,
+                                    format=file_format)
+                        plt.close()
+
+""" PRINTAR RESULTADOS NA TELA OU TXT!!! """
+
     def __str__(self):
         """Print the object information."""
         message = 'Experiment name: ' + self.name
@@ -1061,6 +1283,43 @@ class Experiment:
             measures.append('zeta_tfmpad')
             measures.append('zeta_tfppad')
         return measures
+
+
+def confintplot(data, axes=None, xlabel=None, ylabel=None, title=None):
+    if type(data) is np.ndarray:
+        y = []
+        for i in range(data.shape[1]):
+            info = stats.weightstats.DescrStatsW(data[:, i])
+            cf = info.tconfint_mean()
+            y.append((cf[0], info.mean, cf[1]))
+    elif type(data) is list:
+        y = data.copy()
+    else:
+        raise error.WrongTypeInput('confintplot', 'data', 'list or ndarray',
+                                   str(type(data)))
+
+    if axes is None:
+        fig = plt.figure()
+        axes = rst.get_single_figure_axes(fig)
+    else:
+        fig = None
+
+    for i in range(len(y)):
+        axes.plot(y[i][::2], [i, i], 'k')
+        axes.plot(y[i][0], i, '|k', markersize=20)
+        axes.plot(y[i][2], i, '|k', markersize=20)
+        axes.plot(y[i][1], i, 'ok')
+
+    plt.grid()
+    if xlabel is not None:
+        axes.set_xlabel(xlabel)
+    if ylabel is not None:
+        plt.yticks(range(len(y)), ylabel, y=.5)
+        axes.set_ylim(ymin=-1, ymax=len(y))
+    if title is not None:
+        axes.set_title(title)
+
+    return fig
 
 
 def boxplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
