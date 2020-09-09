@@ -55,6 +55,9 @@ import multiprocessing
 from matplotlib import pyplot as plt
 from statsmodels import api as sm
 from statsmodels import stats
+import scipy
+import pingouin as pg
+import warnings
 
 
 # Developed libraries
@@ -610,7 +613,7 @@ class Experiment:
     def fixed_sampleset_plot(self, group_idx=0, config_idx=0, method_idx=0,
                              show=False, file_path='', file_format='eps'):
         if self.results is None:
-            raise error.MissingAttributesError('Experiment','results')
+            raise error.MissingAttributesError('Experiment', 'results')
         if type(method_idx) is int:
             method_idx = [method_idx]
 
@@ -916,8 +919,9 @@ class Experiment:
                                       colorbar_name=r'$|\chi|$', bounds=bounds,
                                       xlabel=xlabel, ylabel=ylabel)
 
-                    title = ('C%d,' % j + ' G%d,' % i + ' ' + get_label(measure)
-                             + ' - ' + self.methods[m].alias)
+                    title = ('C%d,' % j + ' G%d,' % i + ' '
+                             + get_label(measure) + ' - '
+                             + self.methods[m].alias)
                     plt.suptitle(title)
 
                     if show:
@@ -930,10 +934,15 @@ class Experiment:
 
     def study_single_mean(self, measure=None, group_idx=[0], config_idx=[0],
                           method_idx=[0], show=False, file_path='',
-                          file_format='eps', print=False):
+                          file_format='eps', printscreen=False, write=False):
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
+
+        if write or printscreen:
+            title = 'Confidence Interval of Means - *' + self.name + '*'
+            text = ''.join(['*' for _ in range(len(title))]) + '\n'
+            text = text + title + '\n' + text
 
         if measure is None or (type(measure) is list and len(measure) > 1):
 
@@ -945,30 +954,70 @@ class Experiment:
             for i in config_idx:
 
                 if none_measure:
-                    measures = self.get_measure_set(i)
-                nplots = len(measures)
+                    measure = self.get_measure_set(i)
+                nplots = len(measure)
                 nrows = int(np.sqrt(nplots))
                 ncols = int(np.ceil(nplots/nrows))
                 image_size = (3.*ncols, 3.*nrows)
 
                 for j in group_idx:
 
+                    if write or printscreen:
+                        subtitle = 'Configuration %d' % i + ', Group %d' % j
+                        text = (text + '\n' + subtitle + '\n'
+                                + ''.join(['#' for _ in range(len(subtitle))])
+                                + '\n')
+
                     figure = plt.figure(figsize=image_size)
                     rst.set_subplot_size(figure)
                     k = 1
 
-                    for mea in measures:
+                    for mea in measure:
 
                         y = np.zeros((self.sample_size, len(method_idx)))
                         n = 0
+
+                        if write or printscreen:
+                            subsubtitle = 'Measure: ' + mea
+                            text = (text + '\n' + subsubtitle + '\n'
+                                    + ''.join(['*'
+                                               for _ in range(len(subtitle))])
+                                    + '\n')
+
                         for m in method_idx:
+
                             y[:, n] = self.get_final_value_over_samples(
                                 measure=mea, group_idx=j, config_idx=i,
                                 method_idx=m
                             )
+
+                            if stats.diagnostic.normal_ad(y[:, n])[1] < .05:
+                                message = ('The sample from method '
+                                           + method_names[n] + ', config. %d, '
+                                           % i + 'group %d, ' % j
+                                           + ' and measure ' + mea
+                                           + ' is not from a normal '
+                                           + ' distribution!')
+                                warnings.warn(message)
+                                if printscreen or write:
+                                    text = text + message + '\n'
+
+                            if write or printscreen:
+                                info = stats.weightstats.DescrStatsW(y[:, n])
+                                cf = info.tconfint_mean()
+                                text = (text + method_names[n] + ': [%.2e, '
+                                        % cf[0] + '%.2e]' % cf[1] + '\n')
+
+                    else:
+                        plt.savefig(file_path + self.name + '_confint_'
+                                    + str(i) + str(j) + '.' + file_format,
+                                    format=file_format)
+                        plt.close()
+
                         axes = figure.add_subplot(nrows, ncols, k)
                         confintplot(y, axes=axes, xlabel=get_label(mea),
                                     ylabel=method_names, title=get_title(mea))
+
                         k += 1
 
                     plt.suptitle('c%d' % i + 'g%d' % j)
@@ -987,14 +1036,45 @@ class Experiment:
             else:
                 mea = measure
 
+            if write or printscreen:
+                subsubtitle = 'Measure: ' + mea
+                text = (text + '\n' + subsubtitle + '\n'
+                        + ''.join(['#' for _ in range(len(subsubtitle))])
+                        + '\n')
+
             if len(group_idx) == 1 and len(config_idx) == 1:
                 i, j = config_idx[0], group_idx[0]
                 y = np.zeros((self.sample_size, len(method_idx)))
+
+                if write or printscreen:
+                    subtitle = 'Configuration %d' % i + ', Group %d' % j
+                    text = (text + '\n' + subtitle + '\n'
+                            + ''.join(['*' for _ in range(len(subtitle))])
+                            + '\n')
+
                 for m in method_idx:
                     y[:, n] = self.get_final_value_over_samples(measure=mea,
                                                                 group_idx=j,
                                                                 config_idx=i,
                                                                 method_idx=m)
+
+                    if stats.diagnostic.normal_ad(y[:, n])[1] < .05:
+                        message = ('The sample from method '
+                                   + method_names[n] + ', config. %d, '
+                                   % i + 'group %d, ' % j
+                                   + ' and measure ' + mea
+                                   + ' is not from a normal '
+                                   + ' distribution!')
+                        warnings.warn(message)
+                        if printscreen or write:
+                            text = text + message + '\n'
+
+                    if write or printscreen:
+                        info = stats.weightstats.DescrStatsW(y[:, n])
+                        cf = info.tconfint_mean()
+                        text = (text + '* ' + method_names[m] + ': [%.2e, '
+                                % cf[0] + '%.2e]' % cf[1] + '\n')
+
                 confintplot(y, xlabel=get_label(mea), ylabel=method_names,
                             title=get_title(mea))
                 if show:
@@ -1018,6 +1098,12 @@ class Experiment:
                 k = 1
                 for i in config_idx:
 
+                    if write or printscreen:
+                        subtitle = 'Configuration %d' % i + ', Group %d' % j
+                        text = (text + '\n' + subtitle + '\n'
+                                + ''.join(['*' for _ in range(len(subtitle))])
+                                + '\n')
+
                     y = np.zeros((self.sample_size, len(method_idx)))
                     n = 0
                     for m in method_idx:
@@ -1025,6 +1111,24 @@ class Experiment:
                             measure=mea, group_idx=j, config_idx=i,
                             method_idx=m
                         )
+
+                        if stats.diagnostic.normal_ad(y[:, n])[1] < .05:
+                            message = ('The sample from method '
+                                       + method_names[n] + ', config. %d, '
+                                       % i + 'group %d, ' % j
+                                       + ' and measure ' + mea
+                                       + ' is not from a normal '
+                                       + ' distribution!')
+                            warnings.warn(message)
+                            if printscreen or write:
+                                text = text + message + '\n'
+
+                        if write or printscreen:
+                            info = stats.weightstats.DescrStatsW(y[:, n])
+                            cf = info.tconfint_mean()
+                            text = (text + '* ' + method_names[m] + ': [%.2e, '
+                                    % cf[0] + '%.2e]' % cf[1] + '\n')
+
                     axes = figure.add_subplot(nrows, ncols, k)
                     confintplot(y, axes=axes, xlabel=get_label(mea),
                                 ylabel=method_names,
@@ -1053,6 +1157,14 @@ class Experiment:
                     k = 1
                     for j in group_idx:
 
+                        if write or printscreen:
+                            subtitle = ('Configuration %d' % i
+                                        + ', Group %d' % j)
+                            text = (text + '\n' + subtitle + '\n'
+                                    + ''.join(['*'
+                                               for _ in range(len(subtitle))])
+                                    + '\n')
+
                         y = np.zeros((self.sample_size, len(method_idx)))
                         n = 0
                         for m in method_idx:
@@ -1060,21 +1172,142 @@ class Experiment:
                                 measure=mea, group_idx=j, config_idx=i,
                                 method_idx=m
                             )
+
+                            if stats.diagnostic.normal_ad(y[:, n])[1] < .05:
+                                message = ('The sample from method '
+                                           + method_names[n] + ', config. %d, '
+                                           % i + 'group %d, ' % j
+                                           + ' and measure ' + mea
+                                           + ' is not from a normal '
+                                           + ' distribution!')
+                                warnings.warn(message)
+                                if printscreen or write:
+                                    text = text + message + '\n'
+
+                            if write or printscreen:
+                                info = stats.weightstats.DescrStatsW(y[:, n])
+                                cf = info.tconfint_mean()
+                                text = (text + '* ' + method_names[m] 
+                                        + ': [%.2e, ' % cf[0] + '%.2e]' % cf[1]
+                                        + '\n')
+
                         axes = figure.add_subplot(nrows, ncols, k)
                         confintplot(y, axes=axes, xlabel=get_label(mea),
                                     ylabel=method_names,
-                                    title='g. %d' %j)
+                                    title='g. %d' % j)
                         k += 1
 
                     if show:
                         plt.show()
                     else:
-                        plt.savefig(file_path + self.name + '_confint_' + mea + '_'
-                                    + 'c%d' % i + '.' + file_format,
+                        plt.savefig(file_path + self.name + '_confint_' + mea
+                                    + '_' + 'c%d' % i + '.' + file_format,
                                     format=file_format)
                         plt.close()
 
-""" PRINTAR RESULTADOS NA TELA OU TXT!!! """
+        if printscreen:
+            print(text)
+        if write:
+            file = open(file_path + self.name + '_confint.txt', 'w')
+            file.write(text)
+            file.close()
+
+    def plot_normality(self, measure=None, group_idx=[0], config_idx=[0],
+                       method_idx=[0], show=False, file_path='',
+                       file_format='eps'):
+        if measure is None:
+            none_measure = True
+        else:
+            none_measure = False
+
+        method_names = []
+        for m in method_idx:
+            method_names.append(self.methods[m].alias)
+
+        for i in config_idx:
+
+            if none_measure:
+                measure = self.get_measure_set(i)
+
+            for j in group_idx:
+
+                if len(measure) > 1 and len(method_idx) == 1:
+                    m = method_idx[0]
+                    nplots = len(measure)
+                    nrows = int(np.sqrt(nplots))
+                    ncols = int(np.ceil(nplots/nrows))
+                    image_size = (3.*ncols, 3.*nrows)
+                    fig = plt.figure(figsize=image_size)
+                    rst.set_subplot_size(fig)
+                    data = np.zeros((self.sample_size, len(measure)))
+                    for k in range(len(measure)):
+                        data[:, k] = self.get_final_value_over_samples(
+                            group_idx=j, config_idx=i, method_idx=m,
+                            measure=measure[k])
+                        axes = fig.add_subplot(nrows, ncols, k+1)
+                        normalitiyplot(data[:, k], axes, measure[k])
+                    plt.suptitle('c%d' % i + 'g%d - ' % j + method_names[0])
+                    if show:
+                        plt.show()
+                    else:
+                        plt.savefig(file_path + self.name + '_normality_'
+                                    + 'c%d' % i + 'g%d' % j + '_'
+                                    + method_names[0] + '.' + file_format,
+                                    format=file_format)
+                        plt.close()
+
+                elif len(measure) == 1 and len(method_idx) > 1:
+                    nplots = len(method_idx)
+                    nrows = int(np.sqrt(nplots))
+                    ncols = int(np.ceil(nplots/nrows))
+                    image_size = (3.*ncols, 3.*nrows)
+                    fig = plt.figure(figsize=image_size)
+                    rst.set_subplot_size(fig)
+                    data = np.zeros((self.sample_size, len(method_idx)))
+                    for k in range(len(method_idx)):
+                        data[:, k] = self.get_final_value_over_samples(
+                            group_idx=j, config_idx=i,
+                            method_idx=method_idx[k], measure=measure[0])
+                        axes = fig.add_subplot(nrows, ncols, k+1)
+                        normalitiyplot(data[:, k], axes, method_names[k])
+                    plt.suptitle('c%d' % i + 'g%d - ' % j
+                                 + get_title(measure[0]))
+                    if show:
+                        plt.show()
+                    else:
+                        plt.savefig(file_path + self.name + '_normality_'
+                                    + 'c%d' % i + 'g%d' % j + '_'
+                                    + measure[0] + '.' + file_format,
+                                    format=file_format)
+                        plt.close()
+
+                else:
+
+                    nplots = len(method_idx)
+                    nrows = int(np.sqrt(nplots))
+                    ncols = int(np.ceil(nplots/nrows))
+                    image_size = (3.*ncols, 3.*nrows)
+
+                    for mea in measure:
+
+                        fig = plt.figure(figsize=image_size)
+                        rst.set_subplot_size(fig)
+                        data = np.zeros((self.sample_size, len(method_idx)))
+                        for k in range(len(method_idx)):
+                            data[:, k] = self.get_final_value_over_samples(
+                                group_idx=j, config_idx=i, measure=mea,
+                                method_idx=method_idx[k])
+                            axes = fig.add_subplot(nrows, ncols, k+1)
+                            normalitiyplot(data[:, k], axes, method_names[k])
+                        plt.suptitle('c%d' % i + 'g%d - ' % j + get_title(mea))
+                        if show:
+                            plt.show()
+                        else:
+                            plt.savefig(file_path + self.name + '_normality_'
+                                        + 'c%d' % i + 'g%d' % j + '_'
+                                        + measure[0] + '.' + file_format,
+                                        format=file_format)
+                            plt.close()
 
     def __str__(self):
         """Print the object information."""
@@ -1087,7 +1320,8 @@ class Experiment:
         else:
             message = (message + '\nMaximum Contrast: '
                        + str(self.maximum_contrast))
-        if all(i == self.maximum_object_size[0] for i in self.maximum_object_size):
+        if all(i == self.maximum_object_size[0]
+               for i in self.maximum_object_size):
             message = (message + '\nMaximum Object Size: %.1f [lambda]'
                        % self.maximum_object_size[0])
         else:
@@ -1285,6 +1519,22 @@ class Experiment:
         return measures
 
 
+def normalitiyplot(data, axes=None, title=None):
+    if axes is None:
+        fig = plt.figure()
+        axes = rst.get_single_figure_axes(fig)
+    else:
+        fig = None
+
+    pg.qqplot(data, dist='norm', ax=axes)
+
+    if title is not None:
+        axes.set_title(title)
+    plt.grid()
+
+    return fig
+
+
 def confintplot(data, axes=None, xlabel=None, ylabel=None, title=None):
     if type(data) is np.ndarray:
         y = []
@@ -1456,7 +1706,7 @@ def run_scenarios(method, scenarios, parallelization=False):
             copies.append(cp.deepcopy(method))
         output = (Parallel(n_jobs=num_cores)(
             delayed(copies[i].solve)
-            (scenarios[i],print_info=False) for i in range(len(scenarios))
+            (scenarios[i], print_info=False) for i in range(len(scenarios))
         ))
     for m in range(len(scenarios)):
         if parallelization:
