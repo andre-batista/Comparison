@@ -687,10 +687,10 @@ class Experiment:
                                                       measure=measures[i])
                 )
             axes = figure.add_subplot(nrows, ncols, n)
-            boxplot(data, axes=axes, labels=method_names, xlabel='Methods',
-                    ylabel=get_label(measures[i]),
-                    title=get_title(measures[i]), show=show,
-                    file_path=file_path, file_format=file_format)
+            violinplot(data, axes=axes, labels=method_names, xlabel='Methods',
+                       ylabel=get_label(measures[i]),
+                       title=get_title(measures[i]), show=show,
+                       file_path=file_path, file_format=file_format)
             n += 1
 
         if show:
@@ -750,15 +750,125 @@ class Experiment:
                     figure.suptitle(get_title(measure))
                 else:
                     title = get_title(measure)
-                boxplot(data, axes=axes, labels=labels, xlabel='Methods',
-                        ylabel=ylabel, title=title, show=show,
-                        file_path=file_path, file_format=file_format)
+                violinplot(data, axes=axes, labels=labels, xlabel='Methods',
+                           ylabel=ylabel, title=title, show=show,
+                           file_path=file_path, file_format=file_format)
         if show:
             plt.show()
         else:
             plt.savefig(file_path + self.name + '_' + measure + '.'
                         + file_format, format=file_format)
             plt.close()
+
+    def evolution_boxplot(self, group_idx=[0], config_idx=[0],
+                          measure=None, method_idx=[0], show=False,
+                          file_path='', file_format='eps'):
+        if type(group_idx) is int:
+            group_idx = [group_idx]
+        if type(config_idx) is int:
+            config_idx = [config_idx]
+        if measure is None:
+            none_measure = True
+        else:
+            none_measure = False
+        method_names = []
+        for m in method_idx:
+            method_names.append(self.methods[m].alias)
+        colors = ['cornflowerblue', 'indianred', 'seagreen', 'mediumorchid',
+                  'chocolate', 'palevioletred', 'teal', 'rosybrown', 'tan',
+                  'crimson']
+
+        if len(group_idx) > 1:
+
+            labels = []
+            for j in group_idx:
+                labels.append('g%d' % j)
+            
+            for i in config_idx:
+                if none_measure:
+                    measure = self.get_measure_set(i)
+                if len(measure) == 1:
+                    figure = plt.figure()
+                    axes = rst.get_single_figure_axes(figure)
+                else:
+                    nplots = len(measure)
+                    nrows = int(np.sqrt(nplots))
+                    ncols = int(np.ceil(nplots/nrows))
+                    image_size = (3.*ncols, 3.*nrows)
+                    figure = plt.figure(figsize=image_size)
+                    rst.set_subplot_size(figure)
+                k = 1
+                for mea in measure:
+                    if len(measure) > 1:
+                        axes = figure.add_subplot(nrows, ncols, k)
+                    n = 0
+                    for m in method_idx:
+                        data = []
+                        for j in group_idx:
+                            data.append(self.get_final_value_over_samples(
+                                group_idx=j, config_idx=i, method_idx=m,
+                                measure=mea
+                            ))
+                        boxplot(data, axes=axes, meanline=True, labels=labels,
+                                xlabel='Groups', ylabel=get_label(mea),
+                                color=colors[n], legend=method_names[n],
+                                title=get_title(mea))
+                        n += 1
+                    k += 1
+                plt.suptitle('Con. ' + self.configurations[i].name)
+
+                if show:
+                    plt.show()
+                else:
+                    plt.savefig(file_path + self.name + '_evolution_c%d' % i
+                                + '.' + file_format, format=file_format)
+                    plt.close()
+
+        else:
+
+            labels = []
+            for i in config_idx:
+                labels.append('c%d' % i)
+            j = group_idx[0]
+
+            if none_measure:
+                measure = self.get_measure_set(config_idx[0])
+            if len(measure) == 1:
+                figure = plt.figure()
+                axes = rst.get_single_figure_axes(figure)
+            else:
+                nplots = len(measure)
+                nrows = int(np.sqrt(nplots))
+                ncols = int(np.ceil(nplots/nrows))
+                image_size = (3.*ncols, 3.*nrows)
+                figure = plt.figure(figsize=image_size)
+                rst.set_subplot_size(figure)
+            k = 1
+            for mea in measure:
+                if len(measure) > 1:
+                    axes = figure.add_subplot(nrows, ncols, k)
+                n = 0
+                for m in method_idx:
+                    data = []
+                    for i in config_idx:
+                        data.append(self.get_final_value_over_samples(
+                            group_idx=j, config_idx=i, method_idx=m,
+                            measure=mea
+                        ))
+                    boxplot(data, axes=axes, meanline=True, labels=labels,
+                            xlabel='Configuration', ylabel=get_label(mea),
+                            color=colors[n], legend=method_names[n],
+                            title=get_title(mea))
+                    n += 1
+                k += 1
+            plt.suptitle('Group %d' % j)
+
+            if show:
+                plt.show()
+            else:
+                plt.savefig(file_path + self.name + '_evolution_c%d' % i
+                            + '.' + file_format, format=file_format)
+                plt.close()
 
     def plot_sampleset_results(self, group_idx=[0], config_idx=[0],
                                method_idx=[0], show=False, file_path='',
@@ -1572,10 +1682,44 @@ def confintplot(data, axes=None, xlabel=None, ylabel=None, title=None):
     return fig
 
 
-def boxplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
-            title=None, show=False, file_name=None, file_path='',
-            file_format='eps'):
-    plot_opts = {'violin_fc': 'b',
+def boxplot(data, axes=None, meanline=False, labels=None, xlabel=None,
+            ylabel=None, color='b', legend=None, title=None):
+    if axes is None:
+        fig = plt.figure()
+        axes = rst.get_single_figure_axes(fig)
+
+    bplot = axes.boxplot(data, patch_artist=True, labels=labels)
+    for i in range(len(data)):
+        bplot['boxes'][i].set_facecolor(color)
+
+    if meanline:
+        M = len(data)
+        x = np.array([0.5, M+.5])
+        means = np.zeros(M)
+        for m in range(M):
+            means[m] = np.mean(data[m])
+        a, b = scipy.stats.linregress(np.arange(1, M+1), means)[:2]
+        if legend is not None:
+            axes.plot(x, a*x + b, '--', color=color, label=legend)
+            plt.legend()
+        else:
+            axes.plot(x, a*x + b, '--', color=color)
+
+    plt.grid(True)
+    if xlabel is not None:
+        axes.set_xlabel(xlabel)
+    if ylabel is not None:
+        axes.set_ylabel(ylabel)
+    if title is not None:
+        axes.set_title(title)
+
+    return axes
+
+
+def violinplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
+               color='b', title=None, show=False, file_name=None, file_path='',
+               file_format='eps'):
+    plot_opts = {'violin_fc': color,
                  'violin_ec': 'w',
                  'violin_alpha': .2}
 
@@ -1583,7 +1727,7 @@ def boxplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
         sm.graphics.violinplot(data,
                                ax=axes,
                                labels=labels,
-                               plot_opts=plot_opts)
+                               plot_opts=plot_opts)            
 
         if xlabel is not None:
             axes.set_xlabel(xlabel)
