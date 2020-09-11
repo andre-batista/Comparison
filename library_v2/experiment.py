@@ -58,7 +58,7 @@ from statsmodels import stats
 import scipy
 import pingouin as pg
 import warnings
-
+from numba import jit
 
 # Developed libraries
 import error
@@ -1898,7 +1898,8 @@ def create_scenario(name, configuration, resolution, map_pattern,
         sigma = sigma_b*np.ones(resolution)
         chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                    omega)
-        while contrast_density(chi) <= .8*maximum_contrast_density:
+        while (contrast_density(chi)/np.abs(maximum_contrast) 
+               <= .9*maximum_contrast_density):
             radius = minimum_object_size + (maximum_object_size
                                             - minimum_object_size)*rnd.rand()
             epsilon_ro = min_epsilon_r + (max_epsilon_r
@@ -1916,6 +1917,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
             )
             chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                        omega)
+            print(contrast_density(chi)/np.abs(maximum_contrast))
 
     elif map_pattern == SURFACES_PATTERN:
         if rnd.rand() < .5:
