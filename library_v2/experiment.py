@@ -1075,7 +1075,7 @@ class Experiment:
                     if write or printscreen:
                         subtitle = 'Configuration %d' % i + ', Group %d' % j
                         text = (text + '\n' + subtitle + '\n'
-                                + ''.join(['#' for _ in range(len(subtitle))])
+                                + ''.join(['=' for _ in range(len(subtitle))])
                                 + '\n')
 
                     figure = plt.figure(figsize=image_size)
@@ -1090,7 +1090,7 @@ class Experiment:
                         if write or printscreen:
                             subsubtitle = 'Measure: ' + mea
                             text = (text + '\n' + subsubtitle + '\n'
-                                    + ''.join(['*'
+                                    + ''.join(['-'
                                                for _ in range(len(subtitle))])
                                     + '\n')
 
@@ -1149,7 +1149,7 @@ class Experiment:
             if write or printscreen:
                 subsubtitle = 'Measure: ' + mea
                 text = (text + '\n' + subsubtitle + '\n'
-                        + ''.join(['#' for _ in range(len(subsubtitle))])
+                        + ''.join(['=' for _ in range(len(subsubtitle))])
                         + '\n')
 
             if len(group_idx) == 1 and len(config_idx) == 1:
@@ -1159,7 +1159,7 @@ class Experiment:
                 if write or printscreen:
                     subtitle = 'Configuration %d' % i + ', Group %d' % j
                     text = (text + '\n' + subtitle + '\n'
-                            + ''.join(['*' for _ in range(len(subtitle))])
+                            + ''.join(['-' for _ in range(len(subtitle))])
                             + '\n')
 
                 for m in method_idx:
@@ -1211,7 +1211,7 @@ class Experiment:
                     if write or printscreen:
                         subtitle = 'Configuration %d' % i + ', Group %d' % j
                         text = (text + '\n' + subtitle + '\n'
-                                + ''.join(['*' for _ in range(len(subtitle))])
+                                + ''.join(['=' for _ in range(len(subtitle))])
                                 + '\n')
 
                     y = np.zeros((self.sample_size, len(method_idx)))
@@ -1271,7 +1271,7 @@ class Experiment:
                             subtitle = ('Configuration %d' % i
                                         + ', Group %d' % j)
                             text = (text + '\n' + subtitle + '\n'
-                                    + ''.join(['*'
+                                    + ''.join(['='
                                                for _ in range(len(subtitle))])
                                     + '\n')
 
@@ -1325,6 +1325,12 @@ class Experiment:
     def plot_normality(self, measure=None, group_idx=[0], config_idx=[0],
                        method_idx=[0], show=False, file_path='',
                        file_format='eps'):
+        if type(group_idx) is int:
+            group_idx = [group_idx]
+        if type(config_idx) is int:
+            config_idx = [config_idx]
+        if type(measure) is str:
+            measure = [measure]
         if measure is None:
             none_measure = True
         else:
@@ -1418,6 +1424,204 @@ class Experiment:
                                         + measure[0] + '.' + file_format,
                                         format=file_format)
                             plt.close()
+
+    def compare_two_methods(self, measure=None, group_idx=[0], config_idx=[0],
+                            method_idx=[0, 1], printscreen=False, write=False,
+                            file_path=''):
+        if type(group_idx) is int:
+            group_idx = [group_idx]
+        if type(config_idx) is int:
+            config_idx = [config_idx]
+        if measure is None:
+            none_measure = True
+        else:
+            none_measure = False
+        method_names = []
+        for m in method_idx:
+            method_names.append(self.methods[m].alias)
+
+        if write or printscreen:
+            title = 'Paired Study - *' + self.name + '*'
+            subtitle = 'Methods: ' + method_names[0] + ', ' + method_names[1]
+            text = ''.join(['*' for _ in range(len(title))])
+            text = text + '\n' + title + '\n' + text + '\n\n'
+            aux = ''.join(['#' for _ in range(len(subtitle))])
+            text = text + subtitle + '\n' + aux + '\n\n'
+            text = text + 'Significance level: %.2f\n' % 0.05
+            text = text + 'Power: %.2f\n\n' % 0.8
+        else:
+            text = ''
+
+        results = []
+        for i in config_idx:
+            if none_measure:
+                measure = self.get_measure_set(i)
+
+            if write or printscreen:
+                section = 'Configuration ' + self.configurations[i].name
+                aux = ''.join(['=' for _ in range(len(section))])
+                text = text + section + '\n' + aux + '\n\n'
+
+            results.append(list())
+            for j in group_idx:
+
+                if write or printscreen:
+                    subsection = 'Group %d' % j
+                    aux = ''.join(['-' for _ in range(len(subsection))])
+                    text = text + subsection + '\n' + aux + '\n'
+
+                results[-1].append(list())
+                for k in range(len(measure)):
+
+                    y1 = self.get_final_value_over_samples(
+                        group_idx=j, config_idx=i, method_idx=method_idx[0],
+                        measure=measure[k]
+                    )
+                    y2 = self.get_final_value_over_samples(
+                        group_idx=j, config_idx=i, method_idx=method_idx[1],
+                        measure=measure[k]
+                    )
+
+                    if write or printscreen:
+                        topic = '* ' + measure[k]
+                        text = text + topic
+
+                    if scipy.stats.shapiro(y1-y2)[1] > .05:
+                        pvalue, lower, upper = stats.weightstats.ttost_paired(
+                            y1, y2, 0, 0
+                        )
+                        delta = stats.power.tt_solve_power(
+                            nobs=self.sample_size, alpha=0.05, power=.80
+                        ) / np.std(y1-y2)
+
+                        result, text = self._pairedtest_result(pvalue, lower,
+                                                               upper,
+                                                               method_names,
+                                                               delta,
+                                                               text + ': ')
+
+                    elif scipy.stats.shapiro(np.log(y1)
+                                                    - np.log(y2))[1] > .05:
+                        pvalue, lower, upper = stats.weightstats.ttost_paired(
+                            np.log(y1), np.log(y2), 0, 0
+                        )
+                        delta = stats.power.tt_solve_power(
+                            nobs=self.sample_size, alpha=0.05, power=.80
+                        ) / np.std(np.log(y1)-np.log(y2))
+
+                        result, text = self._pairedtest_result(
+                            pvalue, lower, upper, method_names, delta,
+                            text + ' (Log Transformation): '
+                        )
+
+                    elif scipy.stats.shapiro(np.sqrt(y1)
+                                                    - np.sqrt(y2))[1] > .05:
+                        pvalue, lower, upper = stats.weightstats.ttost_paired(
+                            np.log(y1), np.log(y2), 0, 0
+                        )
+                        delta = stats.power.tt_solve_power(
+                            nobs=self.sample_size, alpha=0.05, power=.80
+                        ) / np.std(np.sqrt(y1)-np.sqrt(y2))
+
+                        result, text = self._pairedtest_result(
+                            pvalue, lower, upper, method_names, delta, text
+                            + ' (Square-root Transformation): '
+                        )
+
+                    else:
+                        pvalue = scipy.stats.wilcoxon(y1, y2)[1]
+                        text = text + ' (Welch-Test): '
+                        if pvalue > .05:
+                            text = (text + 'Equality hypothesis not rejected '
+                                    '(pvalue: %.2e)' % pvalue + '\n')
+                            result = '1=2'
+                        else:
+                            text = (text + 'Equality hypothesis rejected '
+                                    '(pvalue: %.2e)' % pvalue + '\n')
+                            _, lower = scipy.stats.wilcoxon(
+                                y1, y2, alternative='less'
+                            )
+                            _, upper = scipy.stats.wilcoxon(
+                                y1, y2, alternative='greater'
+                            )
+                            if lower < .05:
+                                text = (text + '  Better performance of '
+                                        + method_names[0]
+                                        + ' has been detected (pvalue: %.2e).'
+                                        % lower + '\n')
+                                result = '1<2'
+                            if upper < .05:
+                                text = (text + '  Better performance of '
+                                        + method_names[1]
+                                        + ' has been detected (pvalue: %.2e).'
+                                        % upper + '\n')
+                                result = '1>2'
+
+                    results[-1][-1].append(result)
+
+                if write or printscreen:
+                    text = text + '\n'
+
+        mtd1, mtd2, equal = 0, 0, 0
+        for i in range(len(results)):
+            for j in range(len(results[i])):
+                for k in range(len(results[i][j])):
+                    if results[i][j][k] == '1=2':
+                        equal += 1
+                    elif results[i][j][k] == '1<2':
+                        mtd1 += 1
+                    else:
+                        mtd2 += 2
+
+        if printscreen or write:
+            text = (text + 'Number of equality results: %d ' % equal
+                    + '(%.1f%%)\n' % (equal/(equal+mtd1+mtd2)*100))
+            text = (text + 'Number of times than ' + method_names[0]
+                    + ' outperformed ' + method_names[1] + ': %d ' % mtd1
+                    + '(%.1f%%)\n' % (mtd1/(equal+mtd1+mtd2)*100))
+            text = (text + 'Number of times than ' + method_names[1]
+                    + ' outperformed ' + method_names[0] + ': %d ' % mtd2
+                    + '(%.1f%%)\n' % (mtd2/(equal+mtd1+mtd2)*100))
+
+        if printscreen:
+            print(text)
+        if write:
+            file = open(file_path + self.name + '_compare2mtd_%d'
+                        % method_idx[0] + '_%d_' % method_idx[1] + '.txt', 'w')
+            file.write(text)
+            file.close()
+
+        return results, mtd1, mtd2, equal
+
+    def _pairedtest_result(self, pvalue, lower, upper, method_names,
+                           effect_size=None, text=None):
+        if text is None:
+            text = ''
+
+        if effect_size is None:
+            aux = ''
+        else:
+            aux = ', effect size: %.3e' % effect_size
+
+        if pvalue < .05:
+            text = (text + 'Difference hypothesis rejected (pvalue: %.2e'
+                    % pvalue + aux + ').\n')
+            result = '1=2'
+        else:
+            text = (text + 'No evidence against difference in performance '
+                    + '(pvalue: %.2e' % pvalue + aux + ').\n')
+
+            if lower[2] > .05:
+                text = (text + '  No evidence against a better performance of '
+                        + method_names[0] + ' (pvalue: %.2e).' % lower[2]
+                        + '\n')
+                result = '1<2'
+            else:
+                text = (text + '  No evidence against a better performance of '
+                        + method_names[1] + ' (pvalue: %.2e).' % upper[2]
+                        + '\n')
+                result = '1>2'
+        return result, text   
 
     def __str__(self):
         """Print the object information."""
