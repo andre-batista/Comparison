@@ -55,6 +55,9 @@ import multiprocessing
 from matplotlib import pyplot as plt
 from statsmodels import api as sm
 from statsmodels import stats
+from statsmodels.stats import oneway
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+from statsmodels import sandbox as snd
 import scipy
 import pingouin as pg
 import warnings
@@ -1530,7 +1533,7 @@ class Experiment:
 
                     else:
                         pvalue = scipy.stats.wilcoxon(y1, y2)[1]
-                        text = text + ' (Welch-Test): '
+                        text = text + ' (Wilcoxon-Test): '
                         if pvalue > .05:
                             text = (text + 'Equality hypothesis not rejected '
                                     '(pvalue: %.2e)' % pvalue + '\n')
@@ -1592,6 +1595,100 @@ class Experiment:
             file.close()
 
         return results, mtd1, mtd2, equal
+
+    def compare_multiple_methods(self, measure=None, group_idx=[0],
+                                 config_idx=[0], method_idx=[0, 1],
+                                 printscreen=False, write=False, file_path='',
+                                 all2all=True, one2all=None):
+        if type(group_idx) is int:
+            group_idx = [group_idx]
+        if type(config_idx) is int:
+            config_idx = [config_idx]
+        if measure is None:
+            none_measure = True
+        else:
+            none_measure = False
+        method_names = []
+        for m in method_idx:
+            method_names.append(self.methods[m].alias)
+
+        for i in config_idx:
+
+            if none_measure:
+                measure = self.get_measure_set(i)
+
+            for j in config_idx:
+                k = 0
+                for mea in measure:
+                    data = []
+                    for m in method_idx:
+                        data.append(self.get_final_value_over_samples(j, i, m,
+                                                                      mea))
+                    residuals = np.zeros((len(method_idx), self.sample_size))
+                    for p in range(len(method_idx)):
+                        for q in range(self.sample_size):
+                            residuals[i, j] = data[i][j]-np.mean(data[i])
+                    if scipy.stats.shapiro(residuals.flatten())[1] < .05:
+                        output = data_transformation(residuals.flatten())
+                        if output is None:
+                            message = 'Not normal data'
+                            continue
+                        else:
+                            for m in range(len(method_idx)):
+                                if output[1] == 'log':
+                                    data[m] = np.log(data[m])
+                                elif output[1] == 'sqrt':
+                                    data[m] = np.sqrt(data[m])
+                    if scipy.stats.fligner(*data)[1] > .05:
+                        output = oneway.anova_oneway(data, use_var='equal')
+                        homoscedasticity = True
+                    else:
+                        output = oneway.anova_oneway(data, use_var='unequal')
+                        homoscedasticity = False
+
+                    if output.pvalue > .05:
+                        message = 'Fails to reject null hypothesis of equality of means'
+                    else:
+                        message = 'Reject equality of means'
+                        if all2all:
+                                data2 = np.zeros(residuals.shape)
+                                groups = []
+                                for m in range(len(method_idx)):
+                                    data2[m, :] = data[m]
+                                    groups = groups + [method_names[m]] * self.sample_size
+                                data2 = data2.flatten()
+                                output = snd.stats.multicomp.MultiComparison(data, groups).tukeyhsd()
+                                message = message + '\n' + str(output)
+
+""" VER SE EU CONSIGO IMPLEMENTAR O TESTE DE DUNNET (WIKIPEDIA) PARA CASOS 
+DE HOMOCEDASTICIDADE E O TESTE DE WELCH PARA CASOS DE NAO-HOMOCEDASTICIDADE."""
+
+                        if one2all is not None:
+                            p = one2all
+                            alpha = .05/(len(method_idx)-1)
+                            for m in method_idx:
+                                if m == p:
+                                    continue
+                                y1 = self.get_final_value_over_samples(j, i, p, mea)
+                                y2 = self.get_final_value_over_samples(j, i, m, mea)
+                                if scipy.stats.shapiro(y1-y2)[1] < .05:
+                                        output = data_transformation(y1-y2)
+                                        if output is None:
+                                            message = message + 'not normal data'
+                                            continue
+                                        elif output[1] == 'log':
+                                            y1, y2 = np.log(y1), np.log(y2)
+                                        elif output[1] == 'sqrt':
+                                            y1, y2 = np.sqrt(y1), np.sqrt(y2)
+
+                                        pvalue, lower, upper = stats.weightstats.ttost_paired(
+                                            y1, y2, 0, 0
+                                        )
+                                        delta = stats.power.tt_solve_power(
+                                            nobs=self.sample_size, alpha=0.05, power=.80
+                                        ) / np.std(y1-y2)
+                                        _, message = self._pairedtest_result(pvalue, lower, upper, method_names[np.ix_([p, m])], delta, message)
+
 
     def _pairedtest_result(self, pvalue, lower, upper, method_names,
                            effect_size=None, text=None):
@@ -1831,6 +1928,15 @@ class Experiment:
             measures.append('zeta_tfmpad')
             measures.append('zeta_tfppad')
         return measures
+
+
+def data_transformation(data):
+    if scipy.stats.shapiro(np.log(data))[1] > .05:
+        return np.log(data), 'log'
+    elif scipy.stats.shapiro(np.sqrt(data))[1] > .05:
+        return np.sqrt(data), 'sqrt'
+    else:
+        return None
 
 
 def normalitiyplot(data, axes=None, title=None):
