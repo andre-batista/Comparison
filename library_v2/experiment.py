@@ -62,6 +62,7 @@ import scipy
 import pingouin as pg
 import warnings
 from numba import jit
+from scipy.optimize import curve_fit
 
 # Developed libraries
 import error
@@ -1628,29 +1629,31 @@ class Experiment:
                     for p in range(len(method_idx)):
                         for q in range(self.sample_size):
                             residuals[i, j] = data[i][j]-np.mean(data[i])
+                    not_normal = False
                     if scipy.stats.shapiro(residuals.flatten())[1] < .05:
                         output = data_transformation(residuals.flatten())
                         if output is None:
                             message = 'Not normal data'
-                            continue
+                            not_normal = True
                         else:
                             for m in range(len(method_idx)):
                                 if output[1] == 'log':
                                     data[m] = np.log(data[m])
                                 elif output[1] == 'sqrt':
                                     data[m] = np.sqrt(data[m])
-                    if scipy.stats.fligner(*data)[1] > .05:
-                        output = oneway.anova_oneway(data, use_var='equal')
-                        homoscedasticity = True
-                    else:
-                        output = oneway.anova_oneway(data, use_var='unequal')
-                        homoscedasticity = False
+                    if not not_normal:
+                        if scipy.stats.fligner(*data)[1] > .05:
+                            output = oneway.anova_oneway(data, use_var='equal')
+                            homoscedasticity = True
+                        else:
+                            output = oneway.anova_oneway(data, use_var='unequal')
+                            homoscedasticity = False
 
-                    if output.pvalue > .05:
-                        message = 'Fails to reject null hypothesis of equality of means'
-                    else:
-                        message = 'Reject equality of means'
-                        if all2all:
+                        if output.pvalue > .05:
+                            message = 'Fails to reject null hypothesis of equality of means'
+                        else:
+                            message = 'Reject equality of means'
+                            if all2all and homoscedasticity:
                                 data2 = np.zeros(residuals.shape)
                                 groups = []
                                 for m in range(len(method_idx)):
@@ -1659,36 +1662,74 @@ class Experiment:
                                 data2 = data2.flatten()
                                 output = snd.stats.multicomp.MultiComparison(data, groups).tukeyhsd()
                                 message = message + '\n' + str(output)
+                            elif all2all and not homoscedasticity:
+                                a = len(method_idx)
+                                alpha = 0.05/(a*(a-1)/2)
+                                for i in range(len(method_idx)-1):
+                                    for j in range(i, len(method_idx)):
+                                        y1, y2 = data[i], data[j]
+                                        if ttest_ind_nonequalvar(y1, y2, alpha):
+                                            message = message + '\nNo difference between' + method_names[i] + ' and ' + method_names[j]
+                                        else:
+                                            message = message + '\nEvidence for difference between' + method_names[i] + ' and ' + method_names[j]
 
-""" VER SE EU CONSIGO IMPLEMENTAR O TESTE DE DUNNET (WIKIPEDIA) PARA CASOS 
-DE HOMOCEDASTICIDADE E O TESTE DE WELCH PARA CASOS DE NAO-HOMOCEDASTICIDADE."""
+                            if one2all is not None and homoscedasticity:
+                                y0 = data[one2all]
+                                y = []
+                                j = []
+                                for m in range(len(method_idx)):
+                                    if method_idx[m] != one2all:
+                                        y.append(data[m])
+                                        j.append(m)
+                                output = dunnettest(y0, y)
+                                for i in range(len(output)):
+                                    if output[i]:
+                                        message = message + '\nNo difference between' + method_names[one2all] + ' and ' + method_names[j[i]]
+                                    else:
+                                        message = message + '\nEvidence for difference between' + method_names[one2all] + ' and ' + method_names[j[i]]
 
-                        if one2all is not None:
-                            p = one2all
-                            alpha = .05/(len(method_idx)-1)
-                            for m in method_idx:
-                                if m == p:
-                                    continue
-                                y1 = self.get_final_value_over_samples(j, i, p, mea)
-                                y2 = self.get_final_value_over_samples(j, i, m, mea)
-                                if scipy.stats.shapiro(y1-y2)[1] < .05:
-                                        output = data_transformation(y1-y2)
-                                        if output is None:
-                                            message = message + 'not normal data'
-                                            continue
-                                        elif output[1] == 'log':
-                                            y1, y2 = np.log(y1), np.log(y2)
-                                        elif output[1] == 'sqrt':
-                                            y1, y2 = np.sqrt(y1), np.sqrt(y2)
+                            elif one2all is not None and not homoscedasticity:
+                                a = len(method_idx)
+                                alpha = 0.05/(a-1)
+                                y0 = data[one2all]
+                                y = []
+                                j = []
+                                for m in range(len(method_idx)):
+                                    if method_idx[m] != one2all:
+                                        y.append(data[m])
+                                        j.append(m)
+                                for i in range(a-1):
+                                    if ttest_ind_nonequalvar(y0, y[i], alpha):
+                                        message = message + '\nNo difference between' + method_names[one2all] + ' and ' + method_names[j[i]]
+                                    else:
+                                        message = message + '\nEvidence for difference between' + method_names[one2all] + ' and ' + method_names[j[i]]
 
-                                        pvalue, lower, upper = stats.weightstats.ttost_paired(
-                                            y1, y2, 0, 0
-                                        )
-                                        delta = stats.power.tt_solve_power(
-                                            nobs=self.sample_size, alpha=0.05, power=.80
-                                        ) / np.std(y1-y2)
-                                        _, message = self._pairedtest_result(pvalue, lower, upper, method_names[np.ix_([p, m])], delta, message)
-
+                    else:
+                        _, pvalue = scipy.stats.kruskal(*data)
+                        if pvalue > 0.05:
+                            message += '\nEqual distributions not reject!'
+                        else:
+                            if all2all:
+                                for i in range(len(method_idx)-1):
+                                    for j in range(i, len(method_idx)):
+                                        y1, y2 = data[i], data[j]
+                                        if scipy.stats.mannwhitneyu(y1, y2):
+                                            message = message + '\nThe probability of ' + method_names[i] + ' having a better performance than ' + method_names[j] + ' is the same of otherwise.'
+                                        else:
+                                            message = message + '\nThe probability of ' + method_names[i] + ' having a better performance than ' + method_names[j] + ' is NOT the same of otherwise.'
+                            if one2all is not None:
+                                y0 = data[one2all]
+                                y = []
+                                j = []
+                                for m in range(len(method_idx)):
+                                    if method_idx[m] != one2all:
+                                        y.append(data[m])
+                                        j.append(m)
+                                for i in range(a-1):
+                                    if scipy.stats.mannwhitneyu(y0, y[i]):
+                                        message = message + '\nThe probability of ' + method_names[one2all] + ' having a better performance than ' + method_names[j[i]] + ' is the same of otherwise.'
+                                    else:
+                                        message = message + '\nThe probability of ' + method_names[one2all] + ' having a better performance than ' + method_names[j[i]] + ' is NOT the same of otherwise.'
 
     def _pairedtest_result(self, pvalue, lower, upper, method_names,
                            effect_size=None, text=None):
@@ -1928,6 +1969,101 @@ DE HOMOCEDASTICIDADE E O TESTE DE WELCH PARA CASOS DE NAO-HOMOCEDASTICIDADE."""
             measures.append('zeta_tfmpad')
             measures.append('zeta_tfppad')
         return measures
+
+
+def ttest_ind_nonequalvar(y1, y2, alpha=0.05):
+    n1, n2 = y1.size, y2.size
+    y1h, y2h = np.mean(y1), np.mean(y2)
+    S12, S22 = np.sum((y1-y1h)**2)/(n1-1), np.sum((y2-y2h)**2)/(n2-1)
+    t0 = (y1h-y2h)/np.sqrt(S12/n1 + S22/n2)
+    nu = (S12/n1 + S22/n2)**2/((S12/n1)**2/(n1-1) + (S22/n2)**2/(n2-1))
+    ta, tb = sc.stats.t.ppf(alpha/2, nu), sc.stats.t.ppf(1-alpha/2, nu)
+    if ta > t0 or tb < t0:
+        return False
+    else:
+        return True
+
+
+def dunnettest(y0, y):
+    """alpha = 0.05"""
+    warnings.filterwarnings('ignore', message='Covariance of the parameters '
+                            + 'could not be estimated')
+    Am1 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    F = np.array([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                  16, 17, 18, 19, 20, 24, 30, 40, 60, 120, 1e20])
+    D = np.array([[2.57, 3.03, 3.29, 3.48, 3.62, 3.73, 3.82, 3.90, 3.97],
+                  [2.45, 2.86, 3.10, 3.26, 3.39, 3.49, 3.57, 3.64, 3.71],
+                  [2.36, 2.75, 2.97, 3.12, 3.24, 3.33, 3.41, 3.47, 3.53],
+                  [2.31, 2.67, 2.88, 3.02, 3.13, 3.22, 3.29, 3.35, 3.41],
+                  [2.26, 2.61, 2.81, 2.95, 3.05, 3.14, 3.20, 3.26, 3.32],
+                  [2.23, 2.57, 2.76, 2.89, 2.99, 3.07, 3.14, 3.19, 3.24],
+                  [2.20, 2.53, 2.72, 2.84, 2.94, 3.02, 3.08, 3.14, 3.19],
+                  [2.18, 2.50, 2.68, 2.81, 2.90, 2.98, 3.04, 3.09, 3.14],
+                  [2.16, 2.48, 2.65, 2.78, 2.87, 2.94, 3.00, 3.06, 3.10],
+                  [2.14, 2.46, 2.63, 2.75, 2.84, 2.91, 2.97, 3.02, 3.07],
+                  [2.13, 2.44, 2.61, 2.73, 2.82, 2.89, 2.95, 3.00, 3.04],
+                  [2.12, 2.42, 2.59, 2.71, 2.80, 2.87, 2.92, 2.97, 3.02],
+                  [2.11, 2.41, 2.58, 2.69, 2.78, 2.85, 2.90, 2.95, 3.00],
+                  [2.10, 2.40, 2.56, 2.68, 2.76, 2.83, 2.89, 2.94, 2.98],
+                  [2.09, 2.39, 2.55, 2.66, 2.75, 2.81, 2.87, 2.92, 2.96],
+                  [2.09, 2.38, 2.54, 2.65, 2.73, 2.80, 2.86, 2.90, 2.95],
+                  [2.06, 2.35, 2.51, 2.61, 2.70, 2.76, 2.81, 2.86, 2.90],
+                  [2.04, 2.32, 2.47, 2.58, 2.66, 2.72, 2.77, 2.82, 2.86],
+                  [2.02, 2.29, 2.44, 2.54, 2.62, 2.68, 2.73, 2.77, 2.81],
+                  [2.00, 2.27, 2.41, 2.51, 2.58, 2.64, 2.69, 2.73, 2.77],
+                  [1.98, 2.24, 2.38, 2.47, 2.55, 2.60, 2.65, 2.69, 2.73],
+                  [1.96, 2.21, 2.35, 2.44, 2.51, 2.57, 2.61, 2.65, 2.69]])
+
+    if type(y) is list:
+        a = 1 + len(y)
+        N = y0.size
+        n = []
+        for i in range(len(y)):
+            N += y[i].size
+            n.append(y[i].size)
+        SSE = np.sum((y0-np.mean(y0))**2)
+        yh = np.zeros(len(y))
+        for i in range(len(y)):
+            yh[i] = np.mean(y[i])
+            SSE += np.sum((y[i]-yh[i])**2)
+    else:
+        a = 1 + y.shape[0]
+        N = y0.size + y.size
+        SSE = np.sum((y0-np.mean(y0))**2)
+        yh = np.zeros(y.shape[0])
+        n = y.shape[1]*np.ones(y.shape[0])
+        for i in range(y.shape[0]):
+            yh[i] = np.mean(y[i, :])
+            SSE += np.sum((y[i, :]-yh[i])**2)
+    MSE = SSE/(N-a)
+    f = N-a
+
+    if a-1 < 10:
+        popt, _ = curve_fit(fittedcurve, F[:], D[:, a-1],
+                            p0=[4.132, -1.204, 1.971],
+                            absolute_sigma=False, maxfev=20000)
+        d = fittedcurve(f, popt[0], popt[1], popt[2])
+    else:
+        for i in range(F.size):
+            if F-f >= 0:
+                break
+        popt, _ = curve_fit(fittedcurve, Am1, D[i, :],
+                            absolute_sigma=False, maxfev=20000)
+        d = fittedcurve(a-1, popt[0], popt[1], popt[2])
+
+    null_hypothesis = []
+    y0h = np.mean(y0)
+    na = y0.size
+    for i in range(a-1):
+        if np.abs(yh[i]-y0h) > d*np.sqrt(MSE*(1/n[i]+1/na)):
+            null_hypothesis.append(False)
+        else:
+            null_hypothesis.append(True)
+    return null_hypothesis
+
+
+def fittedcurve(x, a, b, c):
+    return a*x**b+c
 
 
 def data_transformation(data):
