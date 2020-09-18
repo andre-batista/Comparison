@@ -1504,8 +1504,7 @@ class Experiment:
                                                                delta,
                                                                text + ': ')
 
-                    elif scipy.stats.shapiro(np.log(y1)
-                                                    - np.log(y2))[1] > .05:
+                    elif scipy.stats.shapiro(np.log(y1) - np.log(y2))[1] > .05:
                         pvalue, lower, upper = stats.weightstats.ttost_paired(
                             np.log(y1), np.log(y2), 0, 0
                         )
@@ -1519,7 +1518,7 @@ class Experiment:
                         )
 
                     elif scipy.stats.shapiro(np.sqrt(y1)
-                                                    - np.sqrt(y2))[1] > .05:
+                                             - np.sqrt(y2))[1] > .05:
                         pvalue, lower, upper = stats.weightstats.ttost_paired(
                             np.log(y1), np.log(y2), 0, 0
                         )
@@ -1613,123 +1612,296 @@ class Experiment:
         for m in method_idx:
             method_names.append(self.methods[m].alias)
 
+        title = 'Multile Comparison - *' + self.name + '*'
+        subtitle = 'Methods: '
+        for i in range(len(method_names)-1):
+            subtitle += method_names[i] + ', '
+        subtitle += method_names[-1]
+        text = ''.join(['*' for _ in range(len(title))])
+        text = text + '\n' + title + '\n' + text + '\n\n'
+        aux = ''.join(['#' for _ in range(len(subtitle))])
+        text = text + subtitle + '\n' + aux + '\n\n'
+        text = text + 'Significance level: %.2f\n\n' % 0.05
+
         for i in config_idx:
 
             if none_measure:
                 measure = self.get_measure_set(i)
 
+            section = 'Configuration ' + self.configurations[i].name
+            aux = ''.join(['=' for _ in range(len(section))])
+            text = text + section + '\n' + aux + '\n\n'
+
             for j in config_idx:
+
+                subsection = 'Group %d' % j
+                aux = ''.join(['-' for _ in range(len(subsection))])
+                text = text + subsection + '\n' + aux + '\n'
+
                 k = 0
                 for mea in measure:
+
+                    text += '* ' + measure[k]
                     data = []
                     for m in method_idx:
                         data.append(self.get_final_value_over_samples(j, i, m,
                                                                       mea))
+
                     residuals = np.zeros((len(method_idx), self.sample_size))
                     for p in range(len(method_idx)):
                         for q in range(self.sample_size):
-                            residuals[i, j] = data[i][j]-np.mean(data[i])
-                    not_normal = False
+                            residuals[p, q] = data[p][q]-np.mean(data[p])
+
+                    normal_data = True
                     if scipy.stats.shapiro(residuals.flatten())[1] < .05:
-                        output = data_transformation(residuals.flatten())
+                        output = data_transformation(data, residuals=True)
                         if output is None:
-                            message = 'Not normal data'
-                            not_normal = True
+                            normal_data = False
                         else:
-                            for m in range(len(method_idx)):
-                                if output[1] == 'log':
-                                    data[m] = np.log(data[m])
-                                elif output[1] == 'sqrt':
-                                    data[m] = np.sqrt(data[m])
-                    if not not_normal:
+                            data = output[0]
+                            if output[1] == 'log':
+                                text += ' (Log transformation)'
+                            elif output[1] == 'sqrt':
+                                text += ' (Square-root transformation)'
+
+                    if normal_data:
+
                         if scipy.stats.fligner(*data)[1] > .05:
-                            output = oneway.anova_oneway(data, use_var='equal')
                             homoscedasticity = True
+                            output = oneway.anova_oneway(data,
+                                                         use_var='equal')
+                            try:
+                                delta = (
+                                    stats.power.FTestAnovaPower().solve_power(
+                                        nobs=self.sample_size, alpha=.05,
+                                        power=.8, k_groups=len(method_idx)
+                                    ) / np.std(data[0])
+                                )
+                            except Exception:
+                                delta = None
+
                         else:
-                            output = oneway.anova_oneway(data, use_var='unequal')
+                            delta = None
                             homoscedasticity = False
+                            text += ' (unequal variances)'
+                            output = oneway.anova_oneway(data,
+                                                         use_var='unequal')
+
+                        if delta is not None:
+                            aux = ', effect-size for 0.8 power: %.3e' % delta
+                        else:
+                            aux = ''
 
                         if output.pvalue > .05:
-                            message = 'Fails to reject null hypothesis of equality of means'
+                            text += (': Equality of means hypothesis NOT '
+                                     + 'rejected (p-value: %.3e'
+                                     % output.pvalue + aux + ' ).')
+
                         else:
-                            message = 'Reject equality of means'
+                            text += (': Equality of means hypothesis rejected'
+                                     '(p-value: %.3e' % output.pvalue + aux
+                                     + ').')
+
                             if all2all and homoscedasticity:
                                 data2 = np.zeros(residuals.shape)
                                 groups = []
                                 for m in range(len(method_idx)):
                                     data2[m, :] = data[m]
-                                    groups = groups + [method_names[m]] * self.sample_size
+                                    groups += ([method_names[m]]
+                                               * self.sample_size)
                                 data2 = data2.flatten()
-                                output = snd.stats.multicomp.MultiComparison(data, groups).tukeyhsd()
-                                message = message + '\n' + str(output)
+                                output = snd.stats.multicomp.MultiComparison(
+                                    data2, groups
+                                ).tukeyhsd()
+                                text += ('\n  - All-to-all comparison '
+                                         + '(Tukey HSD):')
+                                pair_comparison = []
+                                for p in range(len(method_idx)-1):
+                                    for q in range(p, len(method_idx)):
+                                        pair_comparison.append(
+                                            [method_names[p], method_names[q]]
+                                        )
+                                for p in range(len(output.reject)):
+                                    text += ('\n    * '
+                                             + pair_comparison[p][0] + ' and '
+                                             + pair_comparison[p][1] + ': ')
+                                    if output.reject[p]:
+                                        text += ('Not enough evidence for '
+                                                 + 'difference in performance')
+                                    else:
+                                        text += ('Detected evidence for '
+                                                 'difference in performance')
+                                    text += (' (p-value: %.3e), '
+                                             % output.pvalues[p]
+                                             + 'Confi. Inter.: (%.2e, '
+                                             % output.confint[p][0] + '%.2e).'
+                                             % output.confint[p][1])
+
                             elif all2all and not homoscedasticity:
+                                text += ('\n  - All-to-all comparison '
+                                         + '(unequal variances):')
                                 a = len(method_idx)
                                 alpha = 0.05/(a*(a-1)/2)
-                                for i in range(len(method_idx)-1):
-                                    for j in range(i, len(method_idx)):
-                                        y1, y2 = data[i], data[j]
-                                        if ttest_ind_nonequalvar(y1, y2, alpha):
-                                            message = message + '\nNo difference between' + method_names[i] + ' and ' + method_names[j]
+                                for p in range(len(method_idx)-1):
+                                    for q in range(i, len(method_idx)):
+                                        y1, y2 = data[p], data[q]
+                                        H0, _, pvalue, _, cf = (
+                                            ttest_ind_nonequalvar(y1, y2,
+                                                                  alpha)
+                                        )
+                                        text += ('\n    * ' + method_names[p]
+                                                 + ' and ' + method_names[q]
+                                                 + ': ')
+                                        if H0 is True:
+                                            text += ('Not enough evidence for'
+                                                     + ' difference in '
+                                                     + 'performance')
                                         else:
-                                            message = message + '\nEvidence for difference between' + method_names[i] + ' and ' + method_names[j]
+                                            text += ('Detected evidence for'
+                                                     + ' difference in '
+                                                     + 'performance')
+                                        text += (' (p-value: %.3e), ' % pvalue
+                                                 + 'Confi. Inter. (%.2e, '
+                                                 % cf[0] + '%.2e).' % cf[1])
 
                             if one2all is not None and homoscedasticity:
-                                y0 = data[one2all]
-                                y = []
-                                j = []
+
+                                p = np.argwhere(np.array(method_idx)
+                                                == one2all)[0][0]
+                                text += ('\n  - One-to-all comparison '
+                                         + "(Dunnet's test) - "
+                                         + method_names[p] + ':')
+
+                                y0, y, q = data[p], [], []
                                 for m in range(len(method_idx)):
-                                    if method_idx[m] != one2all:
+                                    if method_idx[m] != p:
                                         y.append(data[m])
-                                        j.append(m)
+                                        q.append(m)
+
                                 output = dunnettest(y0, y)
                                 for i in range(len(output)):
+                                    text += ('\n    * ' + method_names[p]
+                                             + ' and ' + method_names[q[i]]
+                                             + ': ')
                                     if output[i]:
-                                        message = message + '\nNo difference between' + method_names[one2all] + ' and ' + method_names[j[i]]
+                                        text += ('Not enough evidence for '
+                                                 + 'difference in'
+                                                 + 'performance.')
                                     else:
-                                        message = message + '\nEvidence for difference between' + method_names[one2all] + ' and ' + method_names[j[i]]
+                                        text += ('Detected evidence for '
+                                                 + 'difference in'
+                                                 + 'performance.')
 
                             elif one2all is not None and not homoscedasticity:
+
+                                p = np.argwhere(np.array(method_idx)
+                                                == one2all)[0][0]
+                                text += ('\n  - One-to-all comparison '
+                                         + "(unequal variances) - "
+                                         + method_names[p] + ':')
+
                                 a = len(method_idx)
                                 alpha = 0.05/(a-1)
-                                y0 = data[one2all]
-                                y = []
-                                j = []
+                                y0, y, q = data[p], [], []
                                 for m in range(len(method_idx)):
-                                    if method_idx[m] != one2all:
+                                    if method_idx[m] != p:
                                         y.append(data[m])
-                                        j.append(m)
+                                        q.append(m)
+
                                 for i in range(a-1):
-                                    if ttest_ind_nonequalvar(y0, y[i], alpha):
-                                        message = message + '\nNo difference between' + method_names[one2all] + ' and ' + method_names[j[i]]
+                                    H0, _, pvalue, _, cf = (
+                                        ttest_ind_nonequalvar(y0, y[i], alpha)
+                                    )
+                                    text += ('\n    * ' + method_names[p]
+                                             + ' and ' + method_names[q[i]]
+                                             + ': ')
+                                    if H0 is True:
+                                        text += ('Not enough evidence for'
+                                                 + ' difference in '
+                                                 + 'performance')
                                     else:
-                                        message = message + '\nEvidence for difference between' + method_names[one2all] + ' and ' + method_names[j[i]]
+                                        text += ('Detected evidence for'
+                                                 + ' difference in '
+                                                 + 'performance')
+                                    text += (' (p-value: %.3e), ' % pvalue
+                                             + 'Confi. Inter. (%.2e, '
+                                             % cf[0] + '%.2e).' % cf[1])
 
                     else:
+                        text += ' (Non Normal Data): '
                         _, pvalue = scipy.stats.kruskal(*data)
+
                         if pvalue > 0.05:
-                            message += '\nEqual distributions not reject!'
+                            text += ('Not enough evidence against difference'
+                                     + ' in performance (p-value: %.3e).'
+                                     % pvalue)
                         else:
+                            text += ('Not enough evidence against difference'
+                                     + ' in performance (p-value: %.3e).'
+                                     % pvalue)
+
                             if all2all:
-                                for i in range(len(method_idx)-1):
-                                    for j in range(i, len(method_idx)):
-                                        y1, y2 = data[i], data[j]
-                                        if scipy.stats.mannwhitneyu(y1, y2):
-                                            message = message + '\nThe probability of ' + method_names[i] + ' having a better performance than ' + method_names[j] + ' is the same of otherwise.'
+                                text += ('\n  - All-to-all comparison '
+                                         + '(Mann-Whitney Rank Test):')
+                                for p in range(len(method_idx)-1):
+                                    for q in range(p, len(method_idx)):
+                                        _, pvalue = scipy.stats.mannwhitneyu(
+                                            data[p], data[q]
+                                        )
+                                        text += ('\n    * ' + method_names[p]
+                                                 + ' and ' + method_names[q]
+                                                 + ': ')
+                                        if pvalue > 0.05:
+                                            text += ('Not enough evidence '
+                                                     + 'against the hypothesis'
+                                                     + ' of same probability '
+                                                     + 'of superiority')
                                         else:
-                                            message = message + '\nThe probability of ' + method_names[i] + ' having a better performance than ' + method_names[j] + ' is NOT the same of otherwise.'
+                                            text += ('Evidence detected for '
+                                                     + 'difference in '
+                                                     + 'probability of '
+                                                     + 'superiorit')
+                                        text += ' (p-value: %.3e).' % pvalue
+
                             if one2all is not None:
-                                y0 = data[one2all]
-                                y = []
-                                j = []
+                                p = np.argwhere(np.array(method_idx)
+                                                == one2all)[0][0]
+                                text += ('\n  - One-to-all comparison '
+                                         + '(Mann-Whitney Rank Test) - '
+                                         + method_names[p] + ':')
+                                y0, y, q = data[p], [], []
                                 for m in range(len(method_idx)):
-                                    if method_idx[m] != one2all:
+                                    if method_idx[m] != p:
                                         y.append(data[m])
-                                        j.append(m)
+                                        q.append(m)
                                 for i in range(a-1):
-                                    if scipy.stats.mannwhitneyu(y0, y[i]):
-                                        message = message + '\nThe probability of ' + method_names[one2all] + ' having a better performance than ' + method_names[j[i]] + ' is the same of otherwise.'
+                                    _, pvalue = scipy.stats.mannwhitneyu(y0,
+                                                                         y[i])
+                                    text += ('\n    * ' + method_names[p]
+                                             + ' and ' + method_names[q[i]]
+                                             + ': ')
+                                    if pvalue > 0.05:
+                                        text += ('Not enough evidence '
+                                                 + 'against the hypothesis'
+                                                 + ' of same probability '
+                                                 + 'of superiority')
                                     else:
-                                        message = message + '\nThe probability of ' + method_names[one2all] + ' having a better performance than ' + method_names[j[i]] + ' is NOT the same of otherwise.'
+                                        text += ('Evidence detected for '
+                                                 + 'difference in '
+                                                 + 'probability of '
+                                                 + 'superiorit')
+                                    text += ' (p-value: %.3e).' % pvalue
+
+                    text += '\n'
+                    k += 1
+
+        if printscreen:
+            print(text)
+        if write:
+            file = open(file_path + self.name + '_multiple_comparisons.txt',
+                        'w')
+            file.write(text)
+            file.close()
 
     def _pairedtest_result(self, pvalue, lower, upper, method_names,
                            effect_size=None, text=None):
@@ -1759,7 +1931,7 @@ class Experiment:
                         + method_names[1] + ' (pvalue: %.2e).' % upper[2]
                         + '\n')
                 result = '1>2'
-        return result, text   
+        return result, text
 
     def __str__(self):
         """Print the object information."""
@@ -1977,11 +2149,12 @@ def ttest_ind_nonequalvar(y1, y2, alpha=0.05):
     S12, S22 = np.sum((y1-y1h)**2)/(n1-1), np.sum((y2-y2h)**2)/(n2-1)
     t0 = (y1h-y2h)/np.sqrt(S12/n1 + S22/n2)
     nu = (S12/n1 + S22/n2)**2/((S12/n1)**2/(n1-1) + (S22/n2)**2/(n2-1))
-    ta, tb = sc.stats.t.ppf(alpha/2, nu), sc.stats.t.ppf(1-alpha/2, nu)
-    if ta > t0 or tb < t0:
-        return False
-    else:
-        return True
+    ta, tb = scipy.stats.t.ppf(alpha/2, nu), scipy.stats.t.ppf(1-alpha/2, nu)
+    confint = (y1h-y2h-ta*np.sqrt(S12/n1 + S22/n2),
+               y1h-y2h+tb*np.sqrt(S12/n1 + S22/n2))
+    pvalue = 2*scipy.stats.t.cdf(-np.abs(t0), nu)
+    null_hypothesis = ta > t0 or tb < t0
+    return null_hypothesis, t0, pvalue, nu, confint
 
 
 def dunnettest(y0, y):
@@ -2039,10 +2212,14 @@ def dunnettest(y0, y):
     f = N-a
 
     if a-1 < 10:
-        popt, _ = curve_fit(fittedcurve, F[:], D[:, a-1],
-                            p0=[4.132, -1.204, 1.971],
-                            absolute_sigma=False, maxfev=20000)
-        d = fittedcurve(f, popt[0], popt[1], popt[2])
+        if np.any(F-f == 0):
+            j = np.argwhere(F-f == 0)[0][0]
+            d = D[j, a-2]
+        else:
+            popt, _ = curve_fit(fittedcurve, F[:], D[:, a-1],
+                                p0=[4.132, -1.204, 1.971],
+                                absolute_sigma=False, maxfev=20000)
+            d = fittedcurve(f, popt[0], popt[1], popt[2])
     else:
         for i in range(F.size):
             if F-f >= 0:
@@ -2066,13 +2243,44 @@ def fittedcurve(x, a, b, c):
     return a*x**b+c
 
 
-def data_transformation(data):
-    if scipy.stats.shapiro(np.log(data))[1] > .05:
-        return np.log(data), 'log'
-    elif scipy.stats.shapiro(np.sqrt(data))[1] > .05:
-        return np.sqrt(data), 'sqrt'
+def data_transformation(data, residuals=False):
+
+    if not residuals:
+        if scipy.stats.shapiro(np.log(data))[1] > .05:
+            return np.log(data), 'log'
+        elif scipy.stats.shapiro(np.sqrt(data))[1] > .05:
+            return np.sqrt(data), 'sqrt'
+        else:
+            return None
     else:
-        return None
+        N = 0
+        for m in range(len(data)):
+            N += data[m].size
+
+        res = np.zeros(N)
+        i = 0
+        for m in range(len(data)):
+            res[i:i+data[m].size] = np.log(data[m])-np.mean(np.log(data[m]))
+            i += data[m].size
+
+        if scipy.stats.shapiro(res)[1] > .05:
+            for m in range(len(data)):
+                data[m] = np.log(data[m])
+            return data, 'log'
+
+        res = np.zeros(N)
+        i = 0
+        for m in range(len(data)):
+            res[i:i+data[m].size] = np.sqrt(data[m])-np.mean(np.sqrt(data[m]))
+            i += data[m].size
+
+        if scipy.stats.shapiro(res)[1] > .05:
+            for m in range(len(data)):
+                data[m] = np.sqrt(data[m])
+            return data, 'sqrt'
+
+        else:
+            return None
 
 
 def normalitiyplot(data, axes=None, title=None):
