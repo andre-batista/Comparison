@@ -306,12 +306,27 @@ class Experiment:
     @map_pattern.setter
     def map_pattern(self, map_pattern):
         """Set the map pattern."""
-        if map_pattern == GEOMETRIC_PATTERN or map_pattern == SURFACES_PATTERN:
-            self._map_pattern = map_pattern
+        if type(map_pattern) is str:
+            if (map_pattern == GEOMETRIC_PATTERN
+                    or map_pattern == SURFACES_PATTERN):
+                self._map_pattern = [map_pattern]
+            else:
+                raise error.WrongValueInput('Experiment', 'map_pattern',
+                                            GEOMETRIC_PATTERN + ' or '
+                                            + SURFACES_PATTERN, map_pattern)
+        elif type(map_pattern) is list:
+            self._map_pattern = []
+            for i in range(len(map_pattern)):
+                if (map_pattern == GEOMETRIC_PATTERN
+                        or map_pattern == SURFACES_PATTERN):
+                    self._map_pattern.append(map_pattern[i])
+                else:
+                    raise error.WrongValueInput('Experiment', 'map_pattern',
+                                                GEOMETRIC_PATTERN + ' or '
+                                                + SURFACES_PATTERN,
+                                                map_pattern[i])
         else:
-            raise error.WrongValueInput('Experiment', 'map_pattern',
-                                        GEOMETRIC_PATTERN + ' or '
-                                        + SURFACES_PATTERN, map_pattern)
+            self._map_pattern = None
 
     def __init__(self, name=None, maximum_contrast=None,
                  maximum_object_size=None, maximum_contrast_density=None,
@@ -376,45 +391,65 @@ class Experiment:
         if (len(self.maximum_contrast) == len(self.maximum_object_size)
                 and len(self.maximum_object_size)
                 == len(self.maximum_contrast_density)
-                and len(self.maximum_contrast_density) == len(self.noise)):
+                and len(self.maximum_contrast_density) == len(self.noise)
+                and len(self.noise) == len(self.map_pattern)):
             pass
         elif (len(self.maximum_contrast) > 1
                 and len(self.maximum_object_size) == 1
                 and len(self.maximum_contrast_density) == 1
-                and len(self.noise) == 1):
+                and len(self.noise) == 1
+                and len(self.map_pattern) == 1):
             N = len(self.maximum_contrast)
             self.maximum_object_size = N * self.maximum_object_size
             self.maximum_contrast_density = N * self.maximum_contrast_density
             self.noise = N * self.noise
+            self.map_pattern = N * self.map_pattern
         elif (len(self.maximum_contrast) == 1
                 and len(self.maximum_object_size) > 1
                 and len(self.maximum_contrast_density) == 1
-                and len(self.noise) == 1):
+                and len(self.noise) == 1
+                and len(self.map_pattern) == 1):
             N = len(self.maximum_object_size)
             self.maximum_contrast = N * self.maximum_contrast
             self.maximum_contrast_density = N * self.maximum_contrast_density
             self.noise = N * self.noise
+            self.map_pattern = N * self.map_pattern
         elif (len(self.maximum_contrast) == 1
                 and len(self.maximum_object_size) == 1
                 and len(self.maximum_contrast_density) > 1
-                and len(self.noise) == 1):
+                and len(self.noise) == 1
+                and len(self.map_pattern) == 1):
             N = len(self.maximum_contrast_density)
             self.maximum_contrast = N*self.maximum_contrast
             self.maximum_object_size = N*self.maximum_object_size
             self.noise = N * self.noise
+            self.map_pattern = N * self.map_pattern
         elif (len(self.maximum_contrast) == 1
                 and len(self.maximum_object_size) == 1
                 and len(self.maximum_contrast_density) == 1
-                and len(self.noise) > 1):
+                and len(self.noise) > 1
+                and len(self.map_pattern) == 1):
             N = len(self.noise)
             self.maximum_contrast = N*self.maximum_contrast
             self.maximum_object_size = N*self.maximum_object_size
             self.maximum_contrast_density = N * self.maximum_contrast_density
+            self.map_pattern = N * self.map_pattern
+        elif (len(self.maximum_contrast) == 1
+                and len(self.maximum_object_size) == 1
+                and len(self.maximum_contrast_density) == 1
+                and len(self.noise) == 1
+                and len(self.map_pattern) > 1):
+            N = len(self.map_pattern)
+            self.maximum_contrast = N*self.maximum_contrast
+            self.maximum_object_size = N*self.maximum_object_size
+            self.maximum_contrast_density = N * self.maximum_contrast_density
+            self.noise = N * self.noise
         else:
             raise error.WrongValueInput('Experiment.__init__',
                                         'maximum_contrast and ' +
                                         'maximum_object_size and ' +
-                                        'maximum_contrast_density',
+                                        'maximum_contrast_density' +
+                                        'noise and map_pattern',
                                         'all float/complex or ' +
                                         'one list and float/complex',
                                         'More than one are list')
@@ -1903,6 +1938,165 @@ class Experiment:
             file.write(text)
             file.close()
 
+    def factor_study(self, method_idx, measure=None, group_idx=None,
+                     config_idx=None, printscreen=False, write=False,
+                     file_path=''):
+        if group_idx is None:
+            group_idx = range(len(self.maximum_contrast))
+        if config_idx is None:
+            config_idx = range(len(self.configurations))
+
+        nfactors = 0
+        which_factors = []
+        if len(config_idx) > 1:
+            nfactors += 1
+            which_factors.append('configuration')
+        for i in group_idx[:-2]:
+            if (self.maximum_contrast[i]
+                != self.maximum_contrast[group_idx[-1]]):
+                nfactors += 1
+                which_factors.append('maximum_contrast')
+                break
+        for i in group_idx[:-2]:
+            if (self.maximum_object_size[i]
+                != self.maximum_object_size[group_idx[-1]]):
+                nfactors += 1
+                which_factors.append('maximum_object_size')
+                break
+        for i in group_idx[:-2]:
+            if (self.maximum_contrast_density[i]
+                != self.maximum_contrast_density[group_idx[-1]]):
+                nfactors += 1
+                which_factors.append('maximum_contrast_density')
+                break
+        for i in group_idx[:-2]:
+            if (self.noise[i] != self.noise[group_idx[-1]]):
+                nfactors += 1
+                which_factors.append('noise')
+                break
+        for i in group_idx[:-2]:
+            if (self.map_pattern[i] != self.map_pattern[group_idx[-1]]):
+                nfactors += 1
+                which_factors.append('map_pattern')
+                break
+
+        if nfactors != 2 and nfactors != 3:
+            return None
+
+        if measure is None:
+            measure = self.get_measure_set(config_idx[0])
+
+        for i in range(len(measure)):
+
+            nlevels = []
+            levels = []
+            levels_idx = []
+            for j in range(len(which_factors)):
+                if which_factors[j] == 'configuration':
+                    nlevels.append(len(config_idx))
+                    levels.append(config_idx)
+                    levels_idx.append(range(len(config_idx)))
+                elif which_factors[j] == 'maximum_contrast':
+                    values, idx = np.unique(
+                        self.maximum_contrast[np.ix_(group_idx)],
+                        return_index=True, return_inverse=True
+                    )
+                    nlevels.append(len(values))
+                    levels.append(values)
+                    levels_idx.append(idx)
+                elif which_factors[j] == 'maximum_object_size':
+                    values, idx = np.unique(
+                        self.maximum_object_size[np.ix_(group_idx)],
+                        return_index=True, return_inverse=True
+                    )
+                    nlevels.append(len(values))
+                    levels.append(values)
+                    levels_idx.append(idx)
+                elif which_factors[j] == 'maximum_contrast_density':
+                    values, idx = np.unique(
+                        self.maximum_contrast_density[np.ix_(group_idx)],
+                        return_index=True, return_inverse=True
+                    )
+                    nlevels.append(len(values))
+                    levels.append(values)
+                    levels_idx.append(idx)
+                elif which_factors[j] == 'noise':
+                    values, idx = np.unique(self.noise[np.ix_(group_idx)],
+                                            return_index=True,
+                                            return_inverse=True)
+                    nlevels.append(len(values))
+                    levels.append(values)
+                    levels_idx.append(idx)
+                elif which_factors[j] == 'map_pattern':
+                    values, idx = np.unique(
+                        self.map_pattern[np.ix_(group_idx)], return_index=True,
+                        return_inverse=True
+                    )
+                    nlevels.append(len(values))
+                    levels_idx.append(idx)
+                    levels.append(values)
+
+            if nfactors == 2:
+                data = np.zeros((nlevels[0], nlevels[1], self.sample_size))
+
+                for m in range(nlevels[0]):
+
+                    if which_factors[0] == 'configuration':
+                        levela = ('configuration', levels[0][m])
+                    elif which_factors[0] == 'maximum_contrast':
+                        levela = ('maximum_contrast', levels[0][m])
+                    elif which_factors[0] == 'maximum_object_size':
+                        levela = ('maximum_object_size', levels[0][m])
+                    elif which_factors[0] == 'maximum_contrast_density':
+                        levela = ('maximum_contrast_density', levels[0][m])
+                    elif which_factors[0] == 'noise':
+                        levela = ('noise', levels[0][m])
+                    elif which_factors[0] == 'map_pattern':
+                        levela = ('map_pattern', levels[0][m])
+
+                    for n in range(nlevels[1]):
+
+                        if which_factors[1] == 'configuration':
+                            levelb = ('configuration', levels[1][n])
+                        elif which_factors[1] == 'maximum_contrast':
+                            levelb = ('maximum_contrast', levels[1][n])
+                        elif which_factors[1] == 'maximum_object_size':
+                            levelb = ('maximum_object_size', levels[1][n])
+                        elif which_factors[1] == 'maximum_contrast_density':
+                            levelb = ('maximum_contrast_density', levels[1][n])
+                        elif which_factors[1] == 'noise':
+                            levelb = ('noise', levels[1][n])
+                        elif which_factors[1] == 'map_pattern':
+                            levelb = ('map_pattern', levels[1][n])
+
+                        if levela[0] == 'configuration':
+                            p = levela[1]
+                        elif levelb[0] == 'configuration':
+                            p = levelb[1]
+                        else:
+                            p = config_idx
+
+                        if levela[0] == 'configuration':
+                            q = group_idx[n]
+                        elif levelb[0] == 'configuration':
+                            q = group_idx[m]
+                        else:
+                            q = group_idx[
+                                np.logical_and(
+                                    levels[0][levels_idx[0]] == levela[1],
+                                    levels[1][levels_idx[1]] == levelb[1])[0]
+                            ]
+
+                        data[m, n, :] = self.get_final_value_over_samples(
+                            group_idx=q, config_idx=p, method_idx=method_idx,
+                            measure=measure[i]
+                        )
+
+            elif nfactors == 3:
+                data = np.zeros((nlevels[0], nlevels[1], nlevels[2],
+                                 self.sample_size))
+
+
     def _pairedtest_result(self, pvalue, lower, upper, method_names,
                            effect_size=None, text=None):
         if text is None:
@@ -2143,6 +2337,204 @@ class Experiment:
         return measures
 
 
+def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
+    NF = data.ndim-1
+
+    if NF == 2:
+
+        a, b, n = data.shape
+
+        res = np.zeros((a, b, n))
+        samples = []
+        for i in range(a):
+            for j in range(b):
+                res[i, j, :] = data[i, j, :] - np.mean(data[i, j, :])
+                samples.append(data[i, j, :])
+
+        if scipy.stats.shapiro(res.flatten())[1] < .05:
+
+            if np.amin(res) <= 0 and np.amin(res) < np.amin(data):
+                delta = -np.amin(res) + 1
+            elif np.amin(data) <= 0 and np.amin(data) <= np.amin(res):
+                delta = -np.amin(data) + 1
+            else:
+                delta = 0
+
+            _, lmbda = scipy.stats.boxcox(res.flatten() + delta)
+            y = scipy.stats.boxcox(data.flatten() + delta, lmbda=lmbda)
+            y = y.reshape((a, b, n))
+            transformation = 'boxcox, lambda=%.3e' % lmbda
+            res = np.zeros((a, b, n))
+            samples = []
+            for i in range(a):
+                for j in range(b):
+                    res[i, j, :] = y[i, j, :] - np.mean(y[i, j, :])
+                    samples.append(y[i, j, :])
+        else:
+            y = np.copy(data)
+            transformation = None
+
+        _, shapiro_pvalue = scipy.stats.shapiro(res.flatten())
+        _, fligner_pvalue = scipy.stats.fligner(*samples)
+
+        fig = plt.figure(figsize=rst.IMAGE_SIZE_1x2)
+        rst.set_subplot_size(fig)
+        axes = fig.add_subplot(1, 2, 1)
+        normalitiyplot(res.flatten(), axes=axes)
+        axes = fig.add_subplot(1, 2, 2)
+        homoscedasticityplot(y, axes=axes, title='Homocedascity',
+                             ylabel=ylabel, names=group_names)
+
+        yhi = np.sum(y, axis=(1, 2))/(b*n)
+        yhj = np.sum(y, axis=(0, 2))/(a*n)
+        yhij = np.sum(y, axis=2)/n
+        yh = np.sum(y)/(a*b*n)
+
+        SSA = b*n*np.sum((yhi-yh)**2)
+        SSB = a*n*np.sum((yhj-yh)**2)
+        SSAB = 0
+        SSE = 0
+        for i in range(a):
+            for j in range(b):
+                SSAB += n*(yhij[i, j] - yhi[i] - yhj[j] + yh)**2
+                SSE += np.sum((y[i, j, :]-yhij[i, j])**2)
+
+        dfA, dfB, dfAB, dfE = a-1, b-1, (a-1)*(b-1), a*b*(n-1)
+
+        MSA = SSA/(a-1)
+        MSB = SSB/(b-1)
+        MSAB = SSAB/(a-1)/(b-1)
+        MSE = SSE/(a*b)/(n-1)
+
+        F0A, F0B, F0AB = MSA/MSE, MSB/MSE, MSAB/MSE
+
+        FCA = scipy.stats.f.ppf(1-alpha, dfA, dfE)
+        FCB = scipy.stats.f.ppf(1-alpha, dfB, dfE)
+        FCAB = scipy.stats.f.ppf(1-alpha, dfAB, dfE)
+
+        null_hypothesis = [F0A < FCA, F0B < FCB, F0AB < FCAB]
+
+        pvalue_a = 1-scipy.stats.f.cdf(F0A, dfA, dfE)
+        pvalue_b = 1-scipy.stats.f.cdf(F0B, dfB, dfE)
+        pvalue_ab = 1-scipy.stats.f.cdf(F0AB, dfAB, dfE)
+
+        return (null_hypothesis, [pvalue_a, pvalue_b, pvalue_ab],
+                shapiro_pvalue, fligner_pvalue, fig, transformation)
+
+    elif NF == 3:
+        a, b, c, n = data.shape
+
+        res = np.zeros((a, b, c, n))
+        samples = []
+        for i in range(a):
+            for j in range(b):
+                for k in range(c):
+                    res[i, j, k, :] = (data[i, j, k, :]
+                                       - np.mean(data[i, j, k, :]))
+                    samples.append(data[i, j, k, :])
+
+        if scipy.stats.shapiro(res.flatten())[1] < .05:
+
+            if np.amin(res) <= 0 and np.amin(res) < np.amin(data):
+                delta = -np.amin(res) + 1
+            elif np.amin(data) <= 0 and np.amin(data) <= np.amin(res):
+                delta = -np.amin(data) + 1
+            else:
+                delta = 0
+
+            _, lmbda = scipy.stats.boxcox(res.flatten() + delta)
+            y = scipy.stats.boxcox(data.flatten() + delta, lmbda=lmbda)
+            y = y.reshape((a, b, c, n))
+            transformation = 'boxcox, lambda=%.3e' % lmbda
+            res = np.zeros((a, b, c, n))
+            samples = []
+            for i in range(a):
+                for j in range(b):
+                    for k in range(c):
+                        res[i, j, k, :] = (y[i, j, k, :]
+                                           - np.mean(y[i, j, k, :]))
+                        samples.append(y[i, j, k, :])
+
+        else:
+            y = np.copy(data)
+            transformation = None
+
+        _, shapiro_pvalue = scipy.stats.shapiro(res.flatten())
+        _, fligner_pvalue = scipy.stats.fligner(*samples)
+
+        fig = plt.figure(figsize=rst.IMAGE_SIZE_1x2)
+        rst.set_subplot_size(fig)
+        axes = fig.add_subplot(1, 2, 1)
+        normalitiyplot(res.flatten(), axes=axes)
+        axes = fig.add_subplot(1, 2, 2)
+        homoscedasticityplot(y, axes=axes, title='Homocedascity',
+                             ylabel=ylabel, names=group_names)
+
+        ydddd = np.sum(y)
+        yiddd = np.sum(y, axis=(1, 2, 3))
+        ydjdd = np.sum(y, axis=(0, 2, 3))
+        yddkd = np.sum(y, axis=(0, 1, 3))
+        yijdd = np.sum(y, axis=(2, 3))
+        yidkd = np.sum(y, axis=(1, 3))
+        ydjkd = np.sum(y, axis=(0, 3))
+        yijkd = np.sum(y, axis=3)
+
+        SST = np.sum(y**2) - ydddd**2/(a*b*c*n)
+        SSA = 1/(b*c*n)*np.sum(yiddd**2) - ydddd**2/(a*b*c*n)
+        SSB = 1/(a*c*n)*np.sum(ydjdd**2) - ydddd**2/(a*b*c*n)
+        SSC = 1/(a*b*n)*np.sum(yddkd**2) - ydddd**2/(a*b*c*n)
+        SSAB = 1/(c*n)*np.sum(yijdd**2) - ydddd**2/(a*b*c*n)-SSA-SSB
+        SSAC = 1/(b*n)*np.sum(yidkd**2) - ydddd**2/(a*b*c*n)-SSA-SSC
+        SSBC = 1/(a*n)*np.sum(ydjkd**2) - ydddd**2/(a*b*c*n)-SSB-SSC
+        SSABC = (1/n*np.sum(yijkd**2)-ydddd**2/(a*b*c*n)-SSA-SSB-SSC-SSAB-SSAC
+                 - SSBC)
+        SSE = SST-SSABC-SSA-SSB-SSC-SSAB-SSAC-SSBC
+
+        dfA, dfB, dfAB, dfE = a-1, b-1, (a-1)*(b-1), a*b*(n-1)
+
+        MSA = SSA/(a-1)
+        MSB = SSB/(b-1)
+        MSC = SSC/(c-1)
+        MSAB = SSAB/(a-1)/(b-1)
+        MSAC = SSAC/(a-1)/(c-1)
+        MSBC = SSBC/(b-1)/(c-1)
+        MSABC = SSABC/(a-1)/(b-1)/(c-1)
+        MSE = SSE/(a*b*c)/(n-1)
+
+        F0A, F0B, F0C = MSA/MSE, MSB/MSE, MSC/MSE
+        F0AB, F0AC, F0BC, F0ABC = MSAB/MSE, MSAC/MSE, MSBC/MSE, MSABC/MSE
+
+        dfA, dfB, dfC = a-1, b-1, c-1
+        dfAB, dfAC, dfBC = dfA*dfB, dfA*dfC, dfB*dfC
+        dfABC, dfE = dfA*dfB*dfC, a*b*c*(n-1)
+
+        FCA = scipy.stats.f.ppf(1-alpha, dfA, dfE)
+        FCB = scipy.stats.f.ppf(1-alpha, dfB, dfE)
+        FCC = scipy.stats.f.ppf(1-alpha, dfC, dfE)
+        FCAB = scipy.stats.f.ppf(1-alpha, dfAB, dfE)
+        FCAC = scipy.stats.f.ppf(1-alpha, dfAC, dfE)
+        FCBC = scipy.stats.f.ppf(1-alpha, dfBC, dfE)
+        FCABC = scipy.stats.f.ppf(1-alpha, dfABC, dfE)
+
+        null_hypothesis = [F0A < FCA, F0B < FCB, F0C < FCC, F0AB < FCAB,
+                           F0AC < FCAC, F0BC < FCBC, F0ABC < FCABC]
+
+        pvalue_a = 1-scipy.stats.f.cdf(F0A, dfA, dfE)
+        pvalue_b = 1-scipy.stats.f.cdf(F0B, dfB, dfE)
+        pvalue_c = 1-scipy.stats.f.cdf(F0C, dfC, dfE)
+        pvalue_ab = 1-scipy.stats.f.cdf(F0AB, dfAB, dfE)        
+        pvalue_ac = 1-scipy.stats.f.cdf(F0AC, dfAC, dfE)
+        pvalue_bc = 1-scipy.stats.f.cdf(F0BC, dfBC, dfE)
+        pvalue_abc = 1-scipy.stats.f.cdf(F0ABC, dfABC, dfE)
+
+        return (null_hypothesis, [pvalue_a, pvalue_b, pvalue_c, pvalue_ab,
+                                  pvalue_ac, pvalue_bc, pvalue_abc],
+                shapiro_pvalue, fligner_pvalue, fig, transformation)
+
+    else:
+        return None
+
+
 def ttest_ind_nonequalvar(y1, y2, alpha=0.05):
     n1, n2 = y1.size, y2.size
     y1h, y2h = np.mean(y1), np.mean(y2)
@@ -2297,6 +2689,47 @@ def normalitiyplot(data, axes=None, title=None):
     plt.grid()
 
     return fig
+
+
+def homoscedasticityplot(data, axes=None, title=None, ylabel=None, names=None):
+    if axes is None:
+        fig = plt.figure()
+        axes = rst.get_single_figure_axes(fig)
+    else:
+        fig = None
+
+    if type(data) is list:
+        for i in range(len(data)):
+            if names is None:
+                axes.plot(np.mean(data[i])*np.ones(data[i].size),
+                          data[i]-np.mean(data[i]), 'o')
+            else:
+                axes.plot(np.mean(data[i])*np.ones(data[i].size),
+                          data[i]-np.mean(data[i]), 'o', label=names[i])
+
+    else:
+        for i in range(data.shape[0]):
+            if names is None:
+                axes.plot(np.mean(data[i, :])*np.ones(data.shape[1]),
+                          data[i, :]-np.mean(data[i, :]), 'o')
+            else:
+                axes.plot(np.mean(data[i, :])*np.ones(data.shape[1]),
+                          data[i, :]-np.mean(data[i, :]), 'o', label=names[i])
+
+    plt.grid()
+    axes.set_xlabel('Means')
+    if ylabel is not None:
+        axes.set_ylabel(ylabel)
+    if title is not None:
+        axes.set_title(title)
+    if names is not None:
+        plt.legend()
+
+    if title is not None:
+        axes.set_title(title)
+    plt.grid()
+
+    return axes
 
 
 def confintplot(data, axes=None, xlabel=None, ylabel=None, title=None):
