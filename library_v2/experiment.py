@@ -76,7 +76,8 @@ import mom_cg_fft as mom
 # Constants
 STANDARD_SYNTHETIZATION_RESOLUTION = 25
 STANDARD_RECOVER_RESOLUTION = 20
-GEOMETRIC_PATTERN = 'geometric'
+RANDOM_POLYGONS_PATTERN = 'random_polygons'
+REGULAR_POLYGONS_PATTERN = 'regular_polygons'
 SURFACES_PATTERN = 'surfaces'
 LABEL_INSTANCE = 'Instance Index'
 
@@ -307,23 +308,25 @@ class Experiment:
     def map_pattern(self, map_pattern):
         """Set the map pattern."""
         if type(map_pattern) is str:
-            if (map_pattern == GEOMETRIC_PATTERN
+            if (map_pattern == RANDOM_POLYGONS_PATTERN
+                    or map_pattern == REGULAR_POLYGONS_PATTERN
                     or map_pattern == SURFACES_PATTERN):
                 self._map_pattern = [map_pattern]
             else:
                 raise error.WrongValueInput('Experiment', 'map_pattern',
-                                            GEOMETRIC_PATTERN + ' or '
+                                            RANDOM_POLYGONS_PATTERN + ' or '
                                             + SURFACES_PATTERN, map_pattern)
         elif type(map_pattern) is list:
             self._map_pattern = []
             for i in range(len(map_pattern)):
-                if (map_pattern == GEOMETRIC_PATTERN
-                        or map_pattern == SURFACES_PATTERN):
+                if (map_pattern[i] == RANDOM_POLYGONS_PATTERN
+                        or map_pattern == REGULAR_POLYGONS_PATTERN
+                        or map_pattern[i] == SURFACES_PATTERN):
                     self._map_pattern.append(map_pattern[i])
                 else:
                     raise error.WrongValueInput('Experiment', 'map_pattern',
-                                                GEOMETRIC_PATTERN + ' or '
-                                                + SURFACES_PATTERN,
+                                                RANDOM_POLYGONS_PATTERN
+                                                + ' or ' + SURFACES_PATTERN,
                                                 map_pattern[i])
         else:
             self._map_pattern = None
@@ -571,8 +574,9 @@ class Experiment:
                 num_cores = multiprocessing.cpu_count()
                 output = Parallel(n_jobs=num_cores)(delayed(create_scenario)(
                     'rand' + '%d' % i + '%d' % j + '%d' % k,
-                    self.configurations[j], resolution[i][j], self.map_pattern,
-                    self.maximum_contrast[i], self.maximum_contrast_density[i],
+                    self.configurations[j], resolution[i][j],
+                    self.map_pattern[i], self.maximum_contrast[i],
+                    self.maximum_contrast_density[i],
                     maximum_object_size=self.maximum_object_size[i],
                     noise=self.noise[i],
                     compute_residual_error=self.study_residual,
@@ -1940,162 +1944,346 @@ class Experiment:
 
     def factor_study(self, method_idx, measure=None, group_idx=None,
                      config_idx=None, printscreen=False, write=False,
-                     file_path=''):
+                     file_path='', show=False, figure_format='eps'):
         if group_idx is None:
-            group_idx = range(len(self.maximum_contrast))
+            group_idx = np.arange(len(self.maximum_contrast))
         if config_idx is None:
-            config_idx = range(len(self.configurations))
+            config_idx = np.array([0])
 
         nfactors = 0
         which_factors = []
+        levels = []
+        levels_idx = []
+        nlevels = []
         if len(config_idx) > 1:
             nfactors += 1
             which_factors.append('configuration')
+            levels.append([self.configurations[i].name for i in config_idx])
+            levels_idx.append(config_idx)
+            nlevels.append(len(config_idx))
         for i in group_idx[:-2]:
             if (self.maximum_contrast[i]
-                != self.maximum_contrast[group_idx[-1]]):
+                    != self.maximum_contrast[group_idx[-1]]):
                 nfactors += 1
                 which_factors.append('maximum_contrast')
+                unique, unique_inverse = np.unique(
+                    [self.maximum_contrast[j] for j in group_idx],
+                    return_inverse=True
+                )
+                levels.append(unique)
+                nlevels.append(unique.size)
+                levels_idx.append(unique_inverse)
                 break
         for i in group_idx[:-2]:
             if (self.maximum_object_size[i]
-                != self.maximum_object_size[group_idx[-1]]):
+                    != self.maximum_object_size[group_idx[-1]]):
                 nfactors += 1
                 which_factors.append('maximum_object_size')
+                unique, unique_inverse = np.unique(
+                    [self.maximum_object_size[j] for j in group_idx],
+                    return_inverse=True
+                )
+                levels.append(unique)
+                nlevels.append(unique.size)
+                levels_idx.append(unique_inverse)
                 break
         for i in group_idx[:-2]:
             if (self.maximum_contrast_density[i]
-                != self.maximum_contrast_density[group_idx[-1]]):
+                    != self.maximum_contrast_density[group_idx[-1]]):
                 nfactors += 1
                 which_factors.append('maximum_contrast_density')
+                unique, unique_inverse = np.unique(
+                    [self.maximum_contrast_density[j] for j in group_idx],
+                    return_inverse=True
+                )
+                levels.append(unique)
+                nlevels.append(unique.size)
+                levels_idx.append(unique_inverse)
                 break
         for i in group_idx[:-2]:
             if (self.noise[i] != self.noise[group_idx[-1]]):
                 nfactors += 1
                 which_factors.append('noise')
+                unique, unique_inverse = np.unique(
+                    [self.noise[j] for j in group_idx],
+                    return_inverse=True
+                )
+                levels.append(unique)
+                nlevels.append(unique.size)
+                levels_idx.append(unique_inverse)
                 break
         for i in group_idx[:-2]:
             if (self.map_pattern[i] != self.map_pattern[group_idx[-1]]):
                 nfactors += 1
                 which_factors.append('map_pattern')
+                unique, unique_inverse = np.unique(
+                    [self.map_pattern[j] for j in group_idx],
+                    return_inverse=True
+                )
+                levels.append(unique)
+                nlevels.append(unique.size)
+                levels_idx.append(unique_inverse)
                 break
 
         if nfactors != 2 and nfactors != 3:
             return None
+
+        title = 'Factor Study - *' + self.name + '*'
+        subtitle = 'Method: ' + self.methods[method_idx].alias
+        text = ''.join(['*' for _ in range(len(title))])
+        text = text + '\n' + title + '\n' + text + '\n\n'
+        aux = ''.join(['#' for _ in range(len(subtitle))])
+        text = text + subtitle + '\n' + aux + '\n\n'
+        text = text + 'Significance level: %.2f\n' % 0.05
+        text += 'Factors: '
+        for i in range(nfactors):
+            text += which_factors[i] + ' (levels: '
+            if type(levels[i][0]) is str or type(levels[i][0]) is np.str_:
+                for j in range(len(levels[i])-1):
+                    text += levels[i][j] + ', '
+                text += levels[i][-1] + ')'
+            elif type(levels[i][0]) is int:
+                for j in range(len(levels[i])-1):
+                    text += '%d, ' % levels[i][j]
+                text += '%d)' % levels[i][-1]
+            elif min([abs(j) for j in levels[i]]) > 1e-2:
+                for j in range(len(levels[i])-1):
+                    text += '%.2f, ' % levels[i][j]
+                text += '%.2f)' % levels[i][-1]
+            else:
+                for j in range(len(levels[i])-1):
+                    text += '%.1e, ' % levels[i][j]
+                text += '%.1e)' % levels[i][-1]
+            if i != nfactors-1:
+                text += ', '
+        text += '\n\n'
 
         if measure is None:
             measure = self.get_measure_set(config_idx[0])
 
         for i in range(len(measure)):
 
-            nlevels = []
-            levels = []
-            levels_idx = []
-            for j in range(len(which_factors)):
-                if which_factors[j] == 'configuration':
-                    nlevels.append(len(config_idx))
-                    levels.append(config_idx)
-                    levels_idx.append(range(len(config_idx)))
-                elif which_factors[j] == 'maximum_contrast':
-                    values, idx = np.unique(
-                        self.maximum_contrast[np.ix_(group_idx)],
-                        return_index=True, return_inverse=True
-                    )
-                    nlevels.append(len(values))
-                    levels.append(values)
-                    levels_idx.append(idx)
-                elif which_factors[j] == 'maximum_object_size':
-                    values, idx = np.unique(
-                        self.maximum_object_size[np.ix_(group_idx)],
-                        return_index=True, return_inverse=True
-                    )
-                    nlevels.append(len(values))
-                    levels.append(values)
-                    levels_idx.append(idx)
-                elif which_factors[j] == 'maximum_contrast_density':
-                    values, idx = np.unique(
-                        self.maximum_contrast_density[np.ix_(group_idx)],
-                        return_index=True, return_inverse=True
-                    )
-                    nlevels.append(len(values))
-                    levels.append(values)
-                    levels_idx.append(idx)
-                elif which_factors[j] == 'noise':
-                    values, idx = np.unique(self.noise[np.ix_(group_idx)],
-                                            return_index=True,
-                                            return_inverse=True)
-                    nlevels.append(len(values))
-                    levels.append(values)
-                    levels_idx.append(idx)
-                elif which_factors[j] == 'map_pattern':
-                    values, idx = np.unique(
-                        self.map_pattern[np.ix_(group_idx)], return_index=True,
-                        return_inverse=True
-                    )
-                    nlevels.append(len(values))
-                    levels_idx.append(idx)
-                    levels.append(values)
+            section = 'Measure: ' + measure[i]
+            aux = ''.join(['=' for _ in range(len(section))])
+            text = text + section + '\n' + aux + '\n\n'
 
             if nfactors == 2:
+
                 data = np.zeros((nlevels[0], nlevels[1], self.sample_size))
 
                 for m in range(nlevels[0]):
 
-                    if which_factors[0] == 'configuration':
-                        levela = ('configuration', levels[0][m])
-                    elif which_factors[0] == 'maximum_contrast':
-                        levela = ('maximum_contrast', levels[0][m])
-                    elif which_factors[0] == 'maximum_object_size':
-                        levela = ('maximum_object_size', levels[0][m])
-                    elif which_factors[0] == 'maximum_contrast_density':
-                        levela = ('maximum_contrast_density', levels[0][m])
-                    elif which_factors[0] == 'noise':
-                        levela = ('noise', levels[0][m])
-                    elif which_factors[0] == 'map_pattern':
-                        levela = ('map_pattern', levels[0][m])
-
                     for n in range(nlevels[1]):
 
-                        if which_factors[1] == 'configuration':
-                            levelb = ('configuration', levels[1][n])
-                        elif which_factors[1] == 'maximum_contrast':
-                            levelb = ('maximum_contrast', levels[1][n])
-                        elif which_factors[1] == 'maximum_object_size':
-                            levelb = ('maximum_object_size', levels[1][n])
-                        elif which_factors[1] == 'maximum_contrast_density':
-                            levelb = ('maximum_contrast_density', levels[1][n])
-                        elif which_factors[1] == 'noise':
-                            levelb = ('noise', levels[1][n])
-                        elif which_factors[1] == 'map_pattern':
-                            levelb = ('map_pattern', levels[1][n])
-
-                        if levela[0] == 'configuration':
-                            p = levela[1]
-                        elif levelb[0] == 'configuration':
-                            p = levelb[1]
+                        if which_factors[0] == 'configuration':
+                            p = config_idx[m]
+                            q = np.argwhere(levels_idx[1] == n)[0][0]
+                            q = group_idx[q]
+                        elif which_factors[1] == 'configuration':
+                            p = config_idx[n]
+                            q = np.argwhere(levels_idx[0] == m)[0][0]
+                            q = group_idx[q]
                         else:
-                            p = config_idx
-
-                        if levela[0] == 'configuration':
-                            q = group_idx[n]
-                        elif levelb[0] == 'configuration':
-                            q = group_idx[m]
-                        else:
+                            p = config_idx[0]
                             q = group_idx[
-                                np.logical_and(
-                                    levels[0][levels_idx[0]] == levela[1],
-                                    levels[1][levels_idx[1]] == levelb[1])[0]
-                            ]
+                                np.logical_and(levels_idx[0] == m,
+                                               levels_idx[1] == n)
+                            ][0]
 
                         data[m, n, :] = self.get_final_value_over_samples(
                             group_idx=q, config_idx=p, method_idx=method_idx,
                             measure=measure[i]
                         )
 
+                output = factorial_analysis(data, group_names=which_factors,
+                                            ylabel=get_label(measure[i]))
+                text += '* ' + which_factors[0] + ' (main effect): '
+                if output[0][0]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'equality between levels ')
+                else:
+                    text += 'detected difference between levels '
+                text += '(p-value: %.3e).\n' % output[1][1]
+
+                text += '* ' + which_factors[1] + ' (main effect): '
+                if output[0][1]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'equality between levels ')
+                else:
+                    text += 'detected difference between levels '
+                text += '(p-value: %.3e).\n' % output[1][1]
+
+                text += '* Interaction effect: '
+                if output[0][2]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'no-iteraction effect between factors ')
+                else:
+                    text += 'detected iteraction effect between factors '
+                text += '(p-value: %.3e).\n' % output[1][2]
+
+                if output[-1] is not None:
+                    text += '* Data transformation: ' + output[-1] + '\n'
+
+                text += "* Normality assumption (Shapiro-Wilk's test): "
+                if output[2] > 0.05:
+                    text += 'not rejected '
+                else:
+                    text += 'rejected '
+                text += ' (p-value: %.3e).\n' % output[2]
+
+                text += "* Homoscedascity assumption (Fligner-Killen's Test): "
+                if output[3] > 0.05:
+                    text += 'not rejected '
+                else:
+                    text += 'rejected '
+                text += ' (p-value: %.3e).\n\n' % output[3]
+
+                if show:
+                    plt.show()
+                else:
+                    plt.savefig(file_path + self.name + '_factorialanalysis_'
+                                + measure[i] + '.' + figure_format,
+                                format=figure_format)
+                    plt.close()
+
             elif nfactors == 3:
+
                 data = np.zeros((nlevels[0], nlevels[1], nlevels[2],
                                  self.sample_size))
 
+                for k in range(nlevels[0]):
+                    for m in range(nlevels[1]):
+                        for n in range(nlevels[2]):
+
+                            if which_factors[0] == 'configuration':
+                                p = config_idx[k]
+                                q = group_idx[
+                                    np.logical_and(levels_idx[1] == m,
+                                                   levels_idx[2] == n)
+                                ][0]
+
+                            elif which_factors[1] == 'configuration':
+                                p = config_idx[m]
+                                q = group_idx[
+                                    np.logical_and(levels_idx[0] == k,
+                                                   levels_idx[2] == n)
+                                ][0]
+
+                            elif which_factors[2] == 'configuration':
+                                p = config_idx[n]
+                                q = group_idx[
+                                    np.logical_and(levels_idx[0] == k,
+                                                   levels_idx[1] == m)
+                                ][0]
+                            else:
+                                p = config_idx[0]
+                                q = group_idx[
+                                    np.logical_and(
+                                        levels_idx[0] == k,
+                                        np.logical_and(levels_idx[1] == m,
+                                                       levels_idx[2] == n)
+                                    )
+                                ][0]
+
+                            data[k, m, n, :] = (
+                                self.get_final_value_over_samples(
+                                    group_idx=q, config_idx=p,
+                                    method_idx=method_idx, measure=measure[i]
+                                )
+                            )
+
+                output = factorial_analysis(data, group_names=which_factors,
+                                            ylabel=get_label(measure[i]))
+                text += '* ' + which_factors[0] + ' (main effect): '
+                if output[0][0]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'equality between levels ')
+                else:
+                    text += 'detected difference between levels '
+                text += '(p-value: %.3e).\n' % output[1][1]
+
+                text += '* ' + which_factors[1] + ' (main effect): '
+                if output[0][1]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'equality between levels ')
+                else:
+                    text += 'detected difference between levels '
+                text += '(p-value: %.3e).\n' % output[1][1]
+
+                text += '* ' + which_factors[2] + ' (main effect): '
+                if output[0][2]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'equality between levels ')
+                else:
+                    text += 'detected difference between levels '
+                text += '(p-value: %.3e).\n' % output[1][2]
+
+                text += ('* Interaction effect between ' + which_factors[0]
+                         + ' and ' + which_factors[1] + ': ')
+                if output[0][3]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'no-iteraction effect between these factors ')
+                else:
+                    text += 'detected iteraction effect between these factors '
+                text += '(p-value: %.3e).\n' % output[1][3]
+
+                text += ('* Interaction effect between ' + which_factors[0]
+                         + ' and ' + which_factors[2] + ': ')
+                if output[0][4]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'no-iteraction effect between these factors ')
+                else:
+                    text += 'detected iteraction effect between these factors '
+                text += '(p-value: %.3e).\n' % output[1][4]
+
+                text += ('* Interaction effect between ' + which_factors[1]
+                         + ' and ' + which_factors[2] + ': ')
+                if output[0][5]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'no-iteraction effect between these factors ')
+                else:
+                    text += 'detected iteraction effect between these factors '
+                text += '(p-value: %.3e).\n' % output[1][5]
+
+                text += '* Interaction effect between among all factors: '
+                if output[0][6]:
+                    text += ('failure in rejecting the hypothesis of '
+                             + 'no-iteraction effect among all factors ')
+                else:
+                    text += 'detected iteraction effect among all factors '
+                text += '(p-value: %.3e).\n' % output[1][6]
+
+                if output[-1] is not None:
+                    text += '* Data transformation: ' + output[-1] + '\n'
+
+                text += "* Normality assumption (Shapiro-Wilk's test): "
+                if output[2] > 0.05:
+                    text += 'not rejected '
+                else:
+                    text += 'rejected '
+                text += ' (p-value: %.3e).\n' % output[2]
+
+                text += "* Homoscedascity assumption (Fligner-Killen's Test): "
+                if output[3] > 0.05:
+                    text += 'not rejected '
+                else:
+                    text += 'rejected '
+                text += ' (p-value: %.3e).\n\n' % output[3]
+
+                if show:
+                    plt.show()
+                else:
+                    plt.savefig(file_path + self.name + '_factorialanalysis_'
+                                + measure[i] + '.' + figure_format,
+                                format=figure_format)
+                    plt.close()
+
+        if printscreen:
+            print(text)
+        if write:
+            file = open(file_path + self.name + '_factorialanalysis.txt', 'w')
+            file.write(text)
+            file.close()
 
     def _pairedtest_result(self, pvalue, lower, upper, method_names,
                            effect_size=None, text=None):
@@ -2159,7 +2347,11 @@ class Experiment:
             message = message + '\nNoise levels: %.1e' % self.noise[0]
         else:
             message = message + '\nNoise levels: ' + str(self.noise)
-        message = message + '\nMap pattern: ' + self.map_pattern
+        if all(i == self.map_pattern[0]
+               for i in self.map_pattern):
+            message = (message + '\nMap pattern: ' + self.map_pattern[0])
+        else:
+            message = (message + '\nMap pattern: ' + str(self.map_pattern))
         if self.sample_size is not None:
             message = message + '\nSample Size: %d' % self.sample_size
         message = message + 'Study residual error: ' + str(self.study_residual)
@@ -2338,12 +2530,83 @@ class Experiment:
 
 
 def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
+    r"""Perform factorial analysis.
+
+    Given a data set with some amount of factors and levels, the method
+    performs the factorial analysis in order to find evidences for
+    impact of single factors (main effects) and combination among them
+    (interaction effects) [1]_.
+
+    In this current version, it only supports two or three factors and
+    balanced data.
+
+    Parameters
+    ----------
+        data : :class:`numpy.ndarray`
+            The data set in array format in which each dimension
+            represents a factor and the number of elements represents
+            the number of levels of respective factor. The shape must be
+            either (a, b, n), for two-factors, or (a, b, c, n), for
+            three factors.  *Obs.*: the last dimension is the number of
+            samples for each combination of factors-levels.
+
+        alpha : float, default: 0.05
+            Significance level.
+
+        group_names : list, default: None
+            Factor names for plot purposes.
+
+        ylabel : str
+            Y-axis label for plot purposes (meaning of the data).
+
+    Returns
+    -------
+        null_hypothesis : list
+            The list with the results of the null hypothesis of the
+            statistic tests. If `True`, means that the test failed to
+            reject the null hypothesis; if `False`, means the null
+            hypothesis was rejected. For two-factor anaylsis, the each
+            element represents the test on the following factors
+            `[A, B, AB]`. For three-factor,
+            `[A, B, C, AB, AC, BC, ABC]`.
+
+        pvalues : list
+            The list with the p-values of each test. The order follows
+            the same defined for `null_hypothesis`.
+
+        shapiro_pvalue: float
+            The p-value of the Shapiro-Wilk's test for normality of
+            residuals assumption. A p-value less than 0.05 means the
+            rejection of the assumption.
+
+        fligner_pvalue: float
+            The p-value of the Fligner-Killen's test for homoscedascity
+            (variance equality) of samples. A p-value less than 0.05
+            means the rejection of the assumption.
+
+        fig : :class:`matplotlib.figure.Figure`
+            A plot showing the normality and homoscedascity assumption.
+            The graphic way to anaylise the assumptions.
+
+        transformation : None or str
+            If `None`, no transformation was applied on the data in
+            order to fix it for following the assumption. Otherwise,
+            it is a string saying the type of transformation. 
+
+    References
+    ----------
+    .. [1] Montgomery, Douglas C. Design and analysis of experiments.
+       John wiley & sons, 2017.
+    """
     NF = data.ndim-1
 
+    # Two-Factor Analysis
     if NF == 2:
 
+        # Number of levels and samples
         a, b, n = data.shape
 
+        # Computing residuals and separing samples
         res = np.zeros((a, b, n))
         samples = []
         for i in range(a):
@@ -2351,8 +2614,10 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
                 res[i, j, :] = data[i, j, :] - np.mean(data[i, j, :])
                 samples.append(data[i, j, :])
 
+        # Check normality assumption
         if scipy.stats.shapiro(res.flatten())[1] < .05:
 
+            # For Box-Cox transformation, it is required positive data.
             if np.amin(res) <= 0 and np.amin(res) < np.amin(data):
                 delta = -np.amin(res) + 1
             elif np.amin(data) <= 0 and np.amin(data) <= np.amin(res):
@@ -2360,6 +2625,8 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
             else:
                 delta = 0
 
+            # In case of non-normality, the Box-Cox transformation
+            # is performed.
             _, lmbda = scipy.stats.boxcox(res.flatten() + delta)
             y = scipy.stats.boxcox(data.flatten() + delta, lmbda=lmbda)
             y = y.reshape((a, b, n))
@@ -2374,22 +2641,26 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
             y = np.copy(data)
             transformation = None
 
+        # Save results of assumptions.
         _, shapiro_pvalue = scipy.stats.shapiro(res.flatten())
         _, fligner_pvalue = scipy.stats.fligner(*samples)
 
+        # Plot normality and homoscedascity
         fig = plt.figure(figsize=rst.IMAGE_SIZE_1x2)
         rst.set_subplot_size(fig)
         axes = fig.add_subplot(1, 2, 1)
         normalitiyplot(res.flatten(), axes=axes)
         axes = fig.add_subplot(1, 2, 2)
-        homoscedasticityplot(y, axes=axes, title='Homocedascity',
+        homoscedasticityplot(y, axes=axes, title='Homoscedascity',
                              ylabel=ylabel, names=group_names)
 
+        # Means
         yhi = np.sum(y, axis=(1, 2))/(b*n)
         yhj = np.sum(y, axis=(0, 2))/(a*n)
         yhij = np.sum(y, axis=2)/n
         yh = np.sum(y)/(a*b*n)
 
+        # Square sums
         SSA = b*n*np.sum((yhi-yh)**2)
         SSB = a*n*np.sum((yhj-yh)**2)
         SSAB = 0
@@ -2399,21 +2670,27 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
                 SSAB += n*(yhij[i, j] - yhi[i] - yhj[j] + yh)**2
                 SSE += np.sum((y[i, j, :]-yhij[i, j])**2)
 
+        # Degrees of freedom
         dfA, dfB, dfAB, dfE = a-1, b-1, (a-1)*(b-1), a*b*(n-1)
 
+        # Means of square sums
         MSA = SSA/(a-1)
         MSB = SSB/(b-1)
         MSAB = SSAB/(a-1)/(b-1)
         MSE = SSE/(a*b)/(n-1)
 
+        # Statistics
         F0A, F0B, F0AB = MSA/MSE, MSB/MSE, MSAB/MSE
 
+        # Critical values
         FCA = scipy.stats.f.ppf(1-alpha, dfA, dfE)
         FCB = scipy.stats.f.ppf(1-alpha, dfB, dfE)
         FCAB = scipy.stats.f.ppf(1-alpha, dfAB, dfE)
 
+        # Hypothesis tests
         null_hypothesis = [F0A < FCA, F0B < FCB, F0AB < FCAB]
 
+        # P-value computation
         pvalue_a = 1-scipy.stats.f.cdf(F0A, dfA, dfE)
         pvalue_b = 1-scipy.stats.f.cdf(F0B, dfB, dfE)
         pvalue_ab = 1-scipy.stats.f.cdf(F0AB, dfAB, dfE)
@@ -2421,9 +2698,13 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
         return (null_hypothesis, [pvalue_a, pvalue_b, pvalue_ab],
                 shapiro_pvalue, fligner_pvalue, fig, transformation)
 
+    # Three-factor analysis
     elif NF == 3:
+
+        # Number of levels and samples
         a, b, c, n = data.shape
 
+        # Computing residuals and separing samples
         res = np.zeros((a, b, c, n))
         samples = []
         for i in range(a):
@@ -2433,8 +2714,10 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
                                        - np.mean(data[i, j, k, :]))
                     samples.append(data[i, j, k, :])
 
+        # Check normality assumption
         if scipy.stats.shapiro(res.flatten())[1] < .05:
 
+            # For Box-Cox transformation, it is required positive data.
             if np.amin(res) <= 0 and np.amin(res) < np.amin(data):
                 delta = -np.amin(res) + 1
             elif np.amin(data) <= 0 and np.amin(data) <= np.amin(res):
@@ -2442,6 +2725,8 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
             else:
                 delta = 0
 
+            # In case of non-normality, the Box-Cox transformation
+            # is performed.
             _, lmbda = scipy.stats.boxcox(res.flatten() + delta)
             y = scipy.stats.boxcox(data.flatten() + delta, lmbda=lmbda)
             y = y.reshape((a, b, c, n))
@@ -2459,9 +2744,11 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
             y = np.copy(data)
             transformation = None
 
+        # Save results of assumptions.
         _, shapiro_pvalue = scipy.stats.shapiro(res.flatten())
         _, fligner_pvalue = scipy.stats.fligner(*samples)
 
+        # Plot normality and homoscedascity
         fig = plt.figure(figsize=rst.IMAGE_SIZE_1x2)
         rst.set_subplot_size(fig)
         axes = fig.add_subplot(1, 2, 1)
@@ -2470,6 +2757,7 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
         homoscedasticityplot(y, axes=axes, title='Homocedascity',
                              ylabel=ylabel, names=group_names)
 
+        # Sums
         ydddd = np.sum(y)
         yiddd = np.sum(y, axis=(1, 2, 3))
         ydjdd = np.sum(y, axis=(0, 2, 3))
@@ -2479,6 +2767,7 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
         ydjkd = np.sum(y, axis=(0, 3))
         yijkd = np.sum(y, axis=3)
 
+        # Square sums
         SST = np.sum(y**2) - ydddd**2/(a*b*c*n)
         SSA = 1/(b*c*n)*np.sum(yiddd**2) - ydddd**2/(a*b*c*n)
         SSB = 1/(a*c*n)*np.sum(ydjdd**2) - ydddd**2/(a*b*c*n)
@@ -2490,8 +2779,7 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
                  - SSBC)
         SSE = SST-SSABC-SSA-SSB-SSC-SSAB-SSAC-SSBC
 
-        dfA, dfB, dfAB, dfE = a-1, b-1, (a-1)*(b-1), a*b*(n-1)
-
+        # Means of square sums
         MSA = SSA/(a-1)
         MSB = SSB/(b-1)
         MSC = SSC/(c-1)
@@ -2501,13 +2789,16 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
         MSABC = SSABC/(a-1)/(b-1)/(c-1)
         MSE = SSE/(a*b*c)/(n-1)
 
+        # Statistics
         F0A, F0B, F0C = MSA/MSE, MSB/MSE, MSC/MSE
         F0AB, F0AC, F0BC, F0ABC = MSAB/MSE, MSAC/MSE, MSBC/MSE, MSABC/MSE
 
+        # Degrees of freedom
         dfA, dfB, dfC = a-1, b-1, c-1
         dfAB, dfAC, dfBC = dfA*dfB, dfA*dfC, dfB*dfC
         dfABC, dfE = dfA*dfB*dfC, a*b*c*(n-1)
 
+        # Critical values
         FCA = scipy.stats.f.ppf(1-alpha, dfA, dfE)
         FCB = scipy.stats.f.ppf(1-alpha, dfB, dfE)
         FCC = scipy.stats.f.ppf(1-alpha, dfC, dfE)
@@ -2516,9 +2807,11 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
         FCBC = scipy.stats.f.ppf(1-alpha, dfBC, dfE)
         FCABC = scipy.stats.f.ppf(1-alpha, dfABC, dfE)
 
+        # Hypothesis tests
         null_hypothesis = [F0A < FCA, F0B < FCB, F0C < FCC, F0AB < FCAB,
                            F0AC < FCAC, F0BC < FCBC, F0ABC < FCABC]
 
+        # P-value computation
         pvalue_a = 1-scipy.stats.f.cdf(F0A, dfA, dfE)
         pvalue_b = 1-scipy.stats.f.cdf(F0B, dfB, dfE)
         pvalue_c = 1-scipy.stats.f.cdf(F0C, dfC, dfE)
@@ -2531,21 +2824,78 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
                                   pvalue_ac, pvalue_bc, pvalue_abc],
                 shapiro_pvalue, fligner_pvalue, fig, transformation)
 
+    # Future implementations will address more factors.
     else:
         return None
 
 
 def ttest_ind_nonequalvar(y1, y2, alpha=0.05):
+    r"""Perform T-Test on independent samples with non-equal variances.
+
+    Statistic test which compares two independent sample without
+    assuming variance equality [1]_. The *two-sided* test is performed.
+
+    Parameters
+    ----------
+        y1, y2 : :class:`numpy.ndarray`
+            1-d arrays representing the samples.
+
+        alpha : float, default: 0.05
+            Significance level.
+
+    Returns
+    -------
+        null_hypothesis : bool
+            Result of the null hypothesis test. If `True`, it means that
+            the test has failed to reject the null hypothesis. If
+            `False`, it means that the null hypothesis has been rejected
+            at 1-`alpha` confidence level.
+
+        t0 : float
+            T statistic.
+
+        pvalue: float
+
+        nu : float
+            Degrees of freedom.
+
+        confint : tuple of 2-float
+            Confidence interval (lower and upper bounds) of the true
+            mean difference.
+
+    References
+    ----------
+    .. [1] Montgomery, Douglas C. Design and analysis of experiments.
+       John wiley & sons, 2017.
+    """
+    # Samples sizes
     n1, n2 = y1.size, y2.size
+
+    # Estimated means
     y1h, y2h = np.mean(y1), np.mean(y2)
+
+    # Estimated variances
     S12, S22 = np.sum((y1-y1h)**2)/(n1-1), np.sum((y2-y2h)**2)/(n2-1)
+
+    # T-statistics
     t0 = (y1h-y2h)/np.sqrt(S12/n1 + S22/n2)
+
+    # Degrees of freedom
     nu = (S12/n1 + S22/n2)**2/((S12/n1)**2/(n1-1) + (S22/n2)**2/(n2-1))
+
+    # Critical values
     ta, tb = scipy.stats.t.ppf(alpha/2, nu), scipy.stats.t.ppf(1-alpha/2, nu)
+
+    # Hypothesis test
+    null_hypothesis = ta > t0 or tb < t0
+
+    # Confidence level
     confint = (y1h-y2h-ta*np.sqrt(S12/n1 + S22/n2),
                y1h-y2h+tb*np.sqrt(S12/n1 + S22/n2))
+
+    # P-value computation
     pvalue = 2*scipy.stats.t.cdf(-np.abs(t0), nu)
-    null_hypothesis = ta > t0 or tb < t0
+
     return null_hypothesis, t0, pvalue, nu, confint
 
 
@@ -2973,7 +3323,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
         max_epsilon_r = cfg.get_relative_permittivity(maximum_contrast,
                                                       epsilon_rb)
 
-    if map_pattern == GEOMETRIC_PATTERN:
+    if map_pattern == RANDOM_POLYGONS_PATTERN:
         homogeneous_objects = True
         if maximum_object_size is None:
             maximum_object_size = .4*min([Lx, Ly])/2
@@ -3002,6 +3352,197 @@ def create_scenario(name, configuration, resolution, map_pattern,
                 object_conductivity=sigma_o, center=center,
                 relative_permittivity_map=epsilon_r, conductivity_map=sigma
             )
+            chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
+                                       omega)
+            print(contrast_density(chi)/np.abs(maximum_contrast))
+
+    elif map_pattern == REGULAR_POLYGONS_PATTERN:
+        homogeneous_objects = True
+        if maximum_object_size is None:
+            maximum_object_size = .4*min([Lx, Ly])/2
+        dx, dy = Lx/resolution[0], Ly/resolution[1]
+        minimum_object_size = 8*max([dx, dy])
+        xmin, xmax = cfg.get_bounds(Lx)
+        ymin, ymax = cfg.get_bounds(Ly)
+        epsilon_r = epsilon_rb*np.ones(resolution)
+        sigma = sigma_b*np.ones(resolution)
+        chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
+                                   omega)
+        while (contrast_density(chi)/np.abs(maximum_contrast)
+               <= .9*maximum_contrast_density):
+            radius = minimum_object_size + (maximum_object_size
+                                            - minimum_object_size)*rnd.rand()
+            epsilon_ro = min_epsilon_r + (max_epsilon_r
+                                          - min_epsilon_r)*rnd.rand()
+            sigma_o = min_sigma + (max_sigma-min_sigma)*rnd.rand()
+            center = [xmin+radius + (xmax-radius-(xmin+radius))*rnd.rand(),
+                      ymin+radius + (ymax-radius-(ymin+radius))*rnd.rand()]
+
+            shape = rnd.randint(15)
+
+            if shape == 0:
+                epsilon_r, sigma = draw_square(
+                    2*radius, axis_length_x=Lx, axis_length_y=Ly,
+                    background_relative_permittivity=epsilon_rb,
+                    rotate=rnd.rand()*180,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 1:
+                epsilon_r, sigma = draw_triangle(
+                    2*radius, axis_length_x=Lx, axis_length_y=Ly,
+                    background_relative_permittivity=epsilon_rb,
+                    rotate=rnd.rand()*180,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 2:
+                epsilon_r, sigma = draw_circle(
+                    radius, axis_length_x=Lx, axis_length_y=Ly,
+                    background_relative_permittivity=epsilon_rb,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 3:
+                epsilon_r, sigma = draw_ring(
+                    rnd.rand()*radius, radius, axis_length_x=Lx,
+                    axis_length_y=Ly,
+                    background_relative_permittivity=epsilon_rb,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 4:
+                epsilon_r, sigma = draw_ellipse(
+                    rnd.rand()*radius, radius, axis_length_x=Lx,
+                    axis_length_y=Ly, rotate=rnd.rand()*180,
+                    background_relative_permittivity=epsilon_rb,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 5:
+                epsilon_r, sigma = draw_4star(
+                    radius, axis_length_x=Lx, axis_length_y=Ly,
+                    background_relative_permittivity=epsilon_rb,
+                    rotate=rnd.rand()*180,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 6:
+                epsilon_r, sigma = draw_5star(
+                    radius, axis_length_x=Lx, axis_length_y=Ly,
+                    background_relative_permittivity=epsilon_rb,
+                    rotate=rnd.rand()*180,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 7:
+                epsilon_r, sigma = draw_6star(
+                    radius, axis_length_x=Lx, axis_length_y=Ly,
+                    background_relative_permittivity=epsilon_rb,
+                    rotate=rnd.rand()*180,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 8:
+                epsilon_r, sigma = draw_rhombus(
+                    2*radius, axis_length_x=Lx, axis_length_y=Ly,
+                    background_relative_permittivity=epsilon_rb,
+                    rotate=rnd.rand()*180,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 9:
+                epsilon_r, sigma = draw_trapezoid(
+                    rnd.rand()*radius, radius, radius, axis_length_x=Lx,
+                    axis_length_y=Ly, rotate=rnd.rand()*360,
+                    background_relative_permittivity=epsilon_rb,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 10:
+                epsilon_r, sigma = draw_parallelogram(
+                    radius, (.5+.5*rnd.rand())*radius, 30 + 30*rnd.rand(),
+                    axis_length_x=Lx, axis_length_y=Ly, rotate=rnd.rand()*360,
+                    background_relative_permittivity=epsilon_rb,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 11:
+                epsilon_r, sigma = draw_polygon(
+                    5+rnd.randint(6), radius,
+                    axis_length_x=Lx, axis_length_y=Ly, rotate=rnd.rand()*180,
+                    background_relative_permittivity=epsilon_rb,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 12:
+                epsilon_r, sigma = draw_polygon(
+                    5+rnd.randint(6), radius,
+                    axis_length_x=Lx, axis_length_y=Ly, rotate=rnd.rand()*180,
+                    background_relative_permittivity=epsilon_rb,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 13:
+                epsilon_r, sigma = draw_cross(
+                    radius, (0.5 + 0.5*rnd.rand())*radius, .1*radius,
+                    axis_length_x=Lx, axis_length_y=Ly, rotate=rnd.rand()*180,
+                    background_relative_permittivity=epsilon_rb,
+                    background_conductivity=sigma_b,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
+            elif shape == 14:
+                epsilon_r, sigma = draw_line(
+                    radius, .1*radius, axis_length_x=Lx, axis_length_y=Ly,
+                    background_relative_permittivity=epsilon_rb,
+                    background_conductivity=sigma_b, rotate=rnd.rand()*180,
+                    object_relative_permittivity=epsilon_ro,
+                    object_conductivity=sigma_o, center=center,
+                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
+                )
+
             chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                        omega)
             print(contrast_density(chi)/np.abs(maximum_contrast))
