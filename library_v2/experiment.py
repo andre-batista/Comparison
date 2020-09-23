@@ -458,7 +458,23 @@ class Experiment:
                                         'More than one are list')
 
     def run(self, configurations=None, scenarios=None, methods=None):
-        """Summarize the method."""
+        """Run experiment.
+
+        This routine run the experiment without analysing the results.
+        This may be accomplished latter with the specific methods.
+
+        The arguments are options in case these parameters were not
+        given when building the object.
+
+        Paremeters
+        ----------
+            configurations : list of :class:`configuration.Configuration`
+
+            scenarios : list of :class:`inputdata.InputData`
+
+            methods : list of :class:`solver.Solver`
+        """
+        # Check required attributes
         if self.configurations is None and configurations is None:
             raise error.MissingInputError('Experiment.run', 'configurations')
         elif configurations is not None:
@@ -470,47 +486,88 @@ class Experiment:
         if scenarios is not None:
             self.scenarios = scenarios
 
+        # Screen introduction
+        print('Experiment: ' + self.name)
+
+        # Define resolution of the maps for data synthesization
+        print('Check resolution for synthesized data...', end=' ')
         if self.synthetization_resolution is None:
+            print('defining...', end=' ')
             self.define_synthetization_resolution()
+        print('ok!')
 
+        # Define resolution of the recovered maps
+        print('Check resolution for data reconstruction...', end=' ')
         if self.recover_resolution is None:
+            print('defining...', end=' ')
             self.define_recover_resolution()
+        print('ok!')
 
+        # Build scenarios if it has not been given
+        print('Check scenarios...', end=' ')
         if self.scenarios is None:
+            print('building...', end=' ')
             self.randomize_scenarios(self.synthetization_resolution)
-
+        print('ok!')
+        
+        # Check forward solver for data synthesization
+        print('Check forward solver for data synthesization...', end=' ')
         if self.forward_solver is None:
+            print('setting MoM-CG-FFT...', end=' ')
             self.forward_solver = mom.MoM_CG_FFT(self.configurations[0])
+        print('ok!')
 
+        # Synthesize the scattered field
         self.synthesize_scattered_field()
 
+        # Solving scenarios
         self.solve_scenarios()
 
     def define_synthetization_resolution(self):
         """Set synthetization resolution attribute."""
+        # Check required attributes
         if self.maximum_contrast is None:
             raise error.MissingAttributesError('Experiment',
                                                'maximum_contrast')
         if self.configurations is None or len(self.configurations) == 0:
             raise error.MissingAttributesError('Experiment',
                                                'configurations')
+
+        # The attribute will be a list with two dimensions. The first
+        # dimension is the groups of samples and the second is the set
+        # of configurations.add()
         self.synthetization_resolution = []
+
+        k = 0
+        N = len(self.maximum_contrast)*len(self.configurations)
         for i in range(len(self.maximum_contrast)):
             self.synthetization_resolution.append(list())
             for j in range(len(self.configurations)):
+
+                k += 1
+                message = 'Resolution %d/' % k + '%d' % N
+                print(message, end='\b'*len(message), flush=True)
+
+                # Maximum relative permittivity
                 epsilon_rd = cfg.get_relative_permittivity(
                     self.maximum_contrast[i],
                     self.configurations[j].epsilon_rb
                 )
+
+                # Maximum conductivity
                 sigma_d = cfg.get_conductivity(
                     self.maximum_contrast[i],
                     self.configurations[j].epsilon_rb,
                     2*pi*self.configurations[j].f,
                     self.configurations[j].sigma_b
                 )
+
+                # Maximum wavelength
                 lam_d = cfg.compute_wavelength(self.configurations[j].f,
                                                epsilon_r=epsilon_rd,
                                                sigma=sigma_d)
+
+                # Computing resolution with standard value
                 resolution = compute_resolution(
                     lam_d, self.configurations[j].Ly,
                     self.configurations[j].Lx,
@@ -518,31 +575,53 @@ class Experiment:
                 )
                 self.synthetization_resolution[i].append(resolution)
 
+        print('Resolution %d/' % N + '%d' % N, end=' ', flush=True)
+
     def define_recover_resolution(self):
         """Set recover resolution variable."""
+        # Check required attributes
         if self.maximum_contrast is None:
             raise error.MissingAttributesError('Experiment',
                                                'maximum_contrast')
         if self.configurations is None or len(self.configurations) == 0:
             raise error.MissingAttributesError('Experiment',
                                                'configurations')
+
+        # The attribute will be a list with two dimensions. The first
+        # dimension is the groups of samples and the second is the set
+        # of configurations.add()
         self.recover_resolution = []
+
+        k = 0
+        N = len(self.maximum_contrast)*len(self.configurations)
         for i in range(len(self.maximum_contrast)):
             self.recover_resolution.append(list())
             for j in range(len(self.configurations)):
+
+                k += 1
+                message = 'Resolution %d/' % k + '%d' % N
+                print(message, end='\b'*len(message), flush=True)
+
+                # Maximum relative permittivity
                 epsilon_rd = cfg.get_relative_permittivity(
                     self.maximum_contrast[i],
                     self.configurations[j].epsilon_rb
                 )
+
+                # Maximum conductivity
                 sigma_d = cfg.get_conductivity(
                     self.maximum_contrast[i],
                     self.configurations[j].epsilon_rb,
                     2*pi*self.configurations[j].f,
                     self.configurations[j].sigma_b
                 )
+
+                # Maximum wavelength
                 lam_d = cfg.compute_wavelength(self.configurations[j].f,
                                                epsilon_r=epsilon_rd,
                                                sigma=sigma_d)
+
+                # Computing resolution with standard value
                 resolution = compute_resolution(
                     lam_d, self.configurations[j].Ly,
                     self.configurations[j].Lx,
@@ -550,8 +629,17 @@ class Experiment:
                 )
                 self.recover_resolution[i].append(resolution)
 
+        print('Resolution %d/' % N + '%d' % N, end=' ', flush=True)
+
     def randomize_scenarios(self, resolution=None):
-        """Create random scenarios."""
+        """Create random scenarios.
+
+        Parameters
+        ----------
+            resolution : 2-tuple of int, optional
+                Y- and X-axis amount of pixels, respectively.
+        """
+        # Check required attributes
         if self.maximum_contrast is None:
             raise error.MissingAttributesError('Experiment',
                                                'maximum_contrast')
@@ -566,11 +654,27 @@ class Experiment:
                                                'configurations')
         if resolution is None:
             resolution = self.synthetization_resolution
+
+        # The attribute will be a list with 3 dimensions. The first
+        # dimension stands for the group of factors (maximum_contrast
+        # etc); the second stands for the set of configurations; the
+        # third is sample, i.e., each scenario created.
         self.scenarios = []
+
+        n = 0
+        N = (len(self.maximum_contrast) * len(self.configurations)
+             * self.sample_size)
         for i in range(len(self.maximum_contrast)):
             self.scenarios.append(list())
             for j in range(len(self.configurations)):
                 self.scenarios[i].append(list())
+
+                # Print information
+                message = 'Scenarios %d/' % n + '%d' % N
+                print(message, end='\b'*len(message), flush=True)
+                k += self.sample_size
+
+                # Create the sample parallely
                 num_cores = multiprocessing.cpu_count()
                 output = Parallel(n_jobs=num_cores)(delayed(create_scenario)(
                     'rand' + '%d' % i + '%d' % j + '%d' % k,
@@ -583,11 +687,19 @@ class Experiment:
                     compute_map_error=self.study_map,
                     compute_totalfield_error=self.study_internfield
                 ) for k in range(self.sample_size))
+
+                # Append scenarios into the list
                 for k in range(self.sample_size):
                     new_scenario = output[k]
                     self.scenarios[i][j].append(cp.deepcopy(new_scenario))
 
-    def synthesize_scattered_field(self, PRINT_INFO=True):
+        # Print information
+        message = 'Scenarios %d/' % n + '%d' % N
+        print(message, end=' ', flush=True)
+
+    def synthesize_scattered_field(self):
+        """Run forward problem to synthesize scattered field."""
+        # Check required attributes
         if self.maximum_contrast is None:
             raise error.MissingAttributesError('Experiment',
                                                'maximum_contrast')
@@ -603,28 +715,42 @@ class Experiment:
             SAVE_INTERN_FIELD = True
         else:
             SAVE_INTERN_FIELD = False
-        N = (len(self.maximum_contrast)*len(self.configurations)
+
+        # Number of executions
+        N = (len(self.maximum_contrast) * len(self.configurations)
              * self.sample_size)
         n = 0
+
         for i in range(len(self.maximum_contrast)):
             for j in range(len(self.configurations)):
                 self.forward_solver.configuration = self.configurations[j]
                 for k in range(self.sample_size):
-                    if PRINT_INFO:
-                        print('Synthesizing scattered field: %d' % (n+1)
-                              + ' of %d' % N + ' scenarios', end='\r',
-                              flush=True)
+
+                    # Print information
+                    message = 'Solved %d/' % n + '%d' % N
+                    print(message, end='\b'*len(message), flush=True)
+                    n += 1
+
+                    # Solve forward problem
                     self.forward_solver.solve(
                         self.scenarios[i][j][k],
                         noise=self.scenarios[i][j][k].noise,
                         SAVE_INTERN_FIELD=SAVE_INTERN_FIELD
                     )
-                    n += 1
-        print('Synthesizing scattered field: %d' % N + ' of %d' % N
-              + ' scenarios')
+
+        # Print final information
+        message = 'Solved %d/' % N '%d' % N
+        print(message, end=' ', flush=True)
 
     def solve_scenarios(self, parallelization=False):
-        """Run inverse solvers."""
+        """Run methods for each scenario.
+
+        Parameter
+        ---------
+            parallelization : bool
+                If the methods may run in parallel.
+        """
+        # Check required attributes
         if self.maximum_contrast is None:
             raise error.MissingAttributesError('Experiment',
                                                'maximum_contrast')
@@ -636,22 +762,47 @@ class Experiment:
             raise error.MissingAttributesError('Experiment', 'methods')
         if self.scenarios is None:
             raise error.MissingAttributesError('Experiment', 'scenarios')
+
+        # The results list with have 4 dimensions: (i) group of factors;
+        # (ii) configuration; (iii) sample; (iv) method.
         self.results = []
+
+        # Number of executions
+        N = (len(self.maximum_contrast) * len(self.configurations)
+             * len(self.methods) * self.sample_size)
+        n = 0
+
         for i in range(len(self.maximum_contrast)):
             self.results.append(list())
             for j in range(len(self.configurations)):
                 self.results[i].append(list())
+
+                # Set the current configuration for each method
                 for m in range(len(self.methods)):
                     self.methods[m].configuration = self.configurations[j]
+
                 for k in range(self.sample_size):
                     self.results[i][j].append(list())
+
+                    # Set the recovering resolution
                     self.scenarios[i][j][k].resolution = (
                         self.recover_resolution[i][j]
                     )
+
+                    # Print info
+                    message = 'Executions %d/' %n + '%d' % N
+                    print(message, end='\b'*len(message), flush=True)
+                    n += len(self.methods)
+
+                    # Run methods
                     self.results[i][j][k] = (
                         run_methods(self.methods, self.scenarios[i][j][k],
                                     parallelization=parallelization)
                     )
+
+        # Print info
+        message = 'Executions %d/' %N + '%d' % N
+        print(message, end=' ', flush=True)
 
     def fixed_sampleset_plot(self, group_idx=0, config_idx=0, method_idx=0,
                              show=False, file_path='', file_format='eps'):
@@ -1817,7 +1968,7 @@ class Experiment:
                                         y.append(data[m])
                                         q.append(m)
 
-                                output = dunnettest(y0, y)
+                                output = dunnetttest(y0, y)
                                 for i in range(len(output)):
                                     text += ('\n    * ' + method_names[p]
                                              + ' and ' + method_names[q[i]]
@@ -2899,13 +3050,51 @@ def ttest_ind_nonequalvar(y1, y2, alpha=0.05):
     return null_hypothesis, t0, pvalue, nu, confint
 
 
-def dunnettest(y0, y):
-    """alpha = 0.05"""
+def dunnetttest(y0, y):
+    r"""Perform all-to-one comparisons through Dunnett's test.
+
+    The Dunnett's test is a procedure for comparing a set of :math:`a-1`
+    treatments against a single one called the control group [1]_. The
+    test is a modification of the usual t-test where, in each
+    comparison, the null hypothesis is the equality of means. The
+    significance level is fixed in 0.05.
+    
+    Parameters
+    ----------
+        y0 : :class:`numpy.ndarray`
+            Control sample (1-d array).
+
+        y : list or :class:`numpy.ndarray`
+            :math:`a-1` treatments to be compared. The argument must be
+            either a list of Numpy arrays or a matrix with shape
+            (a-1, n).
+
+    Returns
+    -------
+        null_hypothesis : list of bool
+            List of boolean values indicating the result of the null
+            hypothesis. If `True`, it means that the test has failed in
+            rejecting the null hypothesis. If `False`, then the null
+            hypothesis of equality of means for the respective
+            comparison has been reject at a 0.05 significance level.
+
+    References
+    ----------
+    .. [1] Montgomery, Douglas C. Design and analysis of experiments.
+       John wiley & sons, 2017.
+    """
+    # Avoiding insignificant messages for the analysis
     warnings.filterwarnings('ignore', message='Covariance of the parameters '
                             + 'could not be estimated')
+
+    # Columns of the statistic table (a-1 predefined values)
     Am1 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+    # Rows of the statistic table (predefined degrees of freedom)
     F = np.array([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
                   16, 17, 18, 19, 20, 24, 30, 40, 60, 120, 1e20])
+
+    # Critical values for Dunnett's Test for 0.05 significance level
     D = np.array([[2.57, 3.03, 3.29, 3.48, 3.62, 3.73, 3.82, 3.90, 3.97],
                   [2.45, 2.86, 3.10, 3.26, 3.39, 3.49, 3.57, 3.64, 3.71],
                   [2.36, 2.75, 2.97, 3.12, 3.24, 3.33, 3.41, 3.47, 3.53],
@@ -2929,6 +3118,7 @@ def dunnettest(y0, y):
                   [1.98, 2.24, 2.38, 2.47, 2.55, 2.60, 2.65, 2.69, 2.73],
                   [1.96, 2.21, 2.35, 2.44, 2.51, 2.57, 2.61, 2.65, 2.69]])
 
+    # Compute the sum of square for both input types
     if type(y) is list:
         a = 1 + len(y)
         N = y0.size
@@ -2950,9 +3140,16 @@ def dunnettest(y0, y):
         for i in range(y.shape[0]):
             yh[i] = np.mean(y[i, :])
             SSE += np.sum((y[i, :]-yh[i])**2)
+
+    # Mean square error and degrees of freedom
     MSE = SSE/(N-a)
     f = N-a
 
+    # If the number of comparisons is equal to one of the columns of the
+    # table of critical values, then we check if the number of degrees
+    # of freedom is also available. If isn't, we approximate a value
+    # by curve fitting procedure with the closest number of degrees of 
+    # freedom.
     if a-1 < 10:
         if np.any(F-f == 0):
             j = np.argwhere(F-f == 0)[0][0]
@@ -2962,6 +3159,9 @@ def dunnettest(y0, y):
                                 p0=[4.132, -1.204, 1.971],
                                 absolute_sigma=False, maxfev=20000)
             d = fittedcurve(f, popt[0], popt[1], popt[2])
+
+    # If the number of comparisons is greater than the available, then
+    # we approximate a value through curve fitting.
     else:
         for i in range(F.size):
             if F-f >= 0:
@@ -2973,65 +3173,150 @@ def dunnettest(y0, y):
     null_hypothesis = []
     y0h = np.mean(y0)
     na = y0.size
+
+    # Hypothesis test
     for i in range(a-1):
         if np.abs(yh[i]-y0h) > d*np.sqrt(MSE*(1/n[i]+1/na)):
             null_hypothesis.append(False)
         else:
             null_hypothesis.append(True)
+
     return null_hypothesis
 
 
 def fittedcurve(x, a, b, c):
+    """Standard curve for linear regression in Dunnett's test.
+
+    This routine computes the function :math:`ax^b+c` which is used for
+    curve fitting in Dunnett's test. 
+    """
     return a*x**b+c
 
 
 def data_transformation(data, residuals=False):
+    """Try data transformation for normal distribution assumptions.
 
+    Currently, it only implements the Log and Square-Root
+    transformations. The normality assumption may be tested on the data
+    or in the residuals.
+
+    Parameters
+    ----------
+        data : either :class:`numpy.ndarray` or list
+            If `residuals` is `False`, then the argument must be an 1-d
+            array with the sample to be tested. Otherwise, it must be
+            a list of arrays.
+
+        residuals : bool
+            If `True`, the transformation will be tried over the
+            residuals of the observations. Otherwise, the transformation
+            will be tried over the own sample.
+
+    Returns
+    -------
+        If the transformation succeeds, then it returns the transformed
+        data and a string containing the type of transformation.
+        Otherwise, it returns `None`.
+    """
+    # Try transformation over the data
     if not residuals:
+
+        # Log Transformation
         if scipy.stats.shapiro(np.log(data))[1] > .05:
             return np.log(data), 'log'
+
+        # Square-root transformation
         elif scipy.stats.shapiro(np.sqrt(data))[1] > .05:
             return np.sqrt(data), 'sqrt'
+
+        # If both transformations fail
         else:
             return None
+
+    # Try transformation over the residuals
     else:
+
+        # Compute the number of observations
         N = 0
         for m in range(len(data)):
             N += data[m].size
 
+        # Compute the Log Transformation
         res = np.zeros(N)
         i = 0
         for m in range(len(data)):
             res[i:i+data[m].size] = np.log(data[m])-np.mean(np.log(data[m]))
             i += data[m].size
 
+        # Try Log Transformation
         if scipy.stats.shapiro(res)[1] > .05:
             for m in range(len(data)):
                 data[m] = np.log(data[m])
             return data, 'log'
 
+        # Compute Square-Root Transformation
         res = np.zeros(N)
         i = 0
         for m in range(len(data)):
             res[i:i+data[m].size] = np.sqrt(data[m])-np.mean(np.sqrt(data[m]))
             i += data[m].size
 
+        # Try Square-Root Transformation
         if scipy.stats.shapiro(res)[1] > .05:
             for m in range(len(data)):
                 data[m] = np.sqrt(data[m])
             return data, 'sqrt'
 
+        # If both transformations fail
         else:
             return None
 
 
 def normalitiyplot(data, axes=None, title=None):
+    """Graphic investigation of normality assumption.
+
+    This routine plots a figure comparing a sample to a standard normal
+    distribution for the purpose of investigating the assumption of
+    normality. This routine does not show any plot. It only draws the
+    graphic.
+
+    Parameters
+    ----------
+        data : :class:`numpy.ndarray`
+            An 1-d array representing the sample.
+
+        axes : :class:`matplotlib.Axes.axes`, default: None
+            A specified axes for plotting the graphics. If none is
+            provided, then one will be created and returned.
+
+        title : str, default: None
+            A possible title to the plot.
+
+    Returns
+    -------
+        fig : :class:`matplotlib.figure.Figure`
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> from matplotlib import pyplot as plt
+    >>> y1 = np.random.normal(size=30)
+    >>> y2 = np.random.normal(size=60)
+    >>> fig = plt.figure()
+    >>> axes1 = fig.add_subplot(1, 2, 1)
+    >>> normalityplot(y1, axes=axes1, title='Sample 1')
+    >>> axes2 = fig.add_subplot(1, 2, 1)
+    >>> normalityplot(y2, axes=axes2, title='Sample 2')
+    >>> plt.show()
+    """
+    # If no axes is provided, a figure is created.
     if axes is None:
         fig = plt.figure()
         axes = rst.get_single_figure_axes(fig)
     else:
         fig = None
 
+    # QQ Plot
     pg.qqplot(data, dist='norm', ax=axes)
 
     if title is not None:
@@ -3042,6 +3327,48 @@ def normalitiyplot(data, axes=None, title=None):
 
 
 def homoscedasticityplot(data, axes=None, title=None, ylabel=None, names=None):
+    """Graphic investigation of homoscedasticity assumption.
+
+    This routine plots a figure comparing variance of samples for the
+    purpose of investigating the assumption of homoscedasticity
+    (samples with equal variance). Each samples is positioned in the
+    x-axis in the correspondent value of its own mean. This routine does
+    not show any plot. It only draws the graphic.
+
+    Parameters
+    ----------
+        data : either :class:`numpy.ndarray` or list
+            A 2-d array with the samples in which each row is a single
+            sample or a list of 1-d arrays.
+
+        axes : :class:`matplotlib.Axes.axes`, default: None
+            A specified axes for plotting the graphics. If none is
+            provided, then one will be created and returned.
+
+        title : str, default: None
+            A possible title to the plot.
+
+        ylabel : str, default: None
+            The label of the y-axis which represent the unit of the
+            data.
+
+        names : list of str, default: None
+            A list with the name of the samples for legend purpose.
+
+    Returns
+    -------
+        fig : :class:`matplotlib.figure.Figure`
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> from matplotlib import pyplot as plt
+    >>> y1 = np.random.normal(loc=2., size=30)
+    >>> y2 = np.random.normal(loc=4., size=60)
+    >>> homoscedasticityplot([y1, y2], title='Samples',
+                             names=['Sample 1', 'Sample 2'])
+    >>> plt.show()
+    """
     if axes is None:
         fig = plt.figure()
         axes = rst.get_single_figure_axes(fig)
@@ -3083,6 +3410,48 @@ def homoscedasticityplot(data, axes=None, title=None, ylabel=None, names=None):
 
 
 def confintplot(data, axes=None, xlabel=None, ylabel=None, title=None):
+    """Plot the confidence interval of means.
+
+    This routine plots a figure comparing the confidence interval of
+    means among samples. The confidence intervals are computed at a 
+    0.95 confidence level. This routine does not show any plot. It only
+    draws the graphic.
+
+    Parameters
+    ----------
+        data : either :class:`numpy.ndarray` or list
+            A 2-d array with the samples in which each *column* is a
+            single sample or a list of 1-d arrays.
+
+        axes : :class:`matplotlib.Axes.axes`, default: None
+            A specified axes for plotting the graphics. If none is
+            provided, then one will be created and returned.
+
+        title : str, default: None
+            A possible title to the plot.
+
+        xlabel : str, default: None
+            The label of the x-axis which represent the unit of the
+            data.
+
+        ylabel : list of str, default: None
+            A list with the name of the samples.
+
+    Returns
+    -------
+        fig : :class:`matplotlib.figure.Figure`
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> from matplotlib import pyplot as plt
+    >>> y1 = np.random.normal(loc=2., size=30)
+    >>> y2 = np.random.normal(loc=4., size=60)
+    >>> y3 = np.random.normal(loc=6., size=10)
+    >>> confintplot([y1, y2, y3], title='Samples',
+                    ylabel=['Sample 1', 'Sample 2', 'Sample 3'])
+    >>> plt.show()
+    """
     if type(data) is np.ndarray:
         y = []
         for i in range(data.shape[1]):
@@ -3121,6 +3490,56 @@ def confintplot(data, axes=None, xlabel=None, ylabel=None, title=None):
 
 def boxplot(data, axes=None, meanline=False, labels=None, xlabel=None,
             ylabel=None, color='b', legend=None, title=None):
+    """Improved boxplot routine.
+
+    This routine does not show any plot. It only draws the graphic.
+
+    Parameters
+    ----------
+        data : list of :class:`numpy.ndarray`
+            A list of 1-d arrays meaning the samples.
+
+        axes : :class:`matplotlib.Axes.axes`, default: None
+            A specified axes for plotting the graphics. If none is
+            provided, then one will be created and returned.
+
+        meanline : bool, default: False
+            Draws a line through linear regression of the means among
+            the samples.
+
+        labels : list of str, default: None
+            Names of the samples.
+
+        xlabel : str, default: None
+
+        ylabel : list of str, default: None
+
+        color : str, default: 'b'
+            Color of boxes. Check some `here <https://matplotlib.org/3.1.1/gallery/color/named_colors.html>`_
+
+        legend : str, default: None
+            Label for meanline.
+
+        title : str, default: None
+            A possible title to the plot.
+
+    Returns
+    -------
+        fig : :class:`matplotlib.figure.Figure`
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> from matplotlib import pyplot as plt
+    >>> y1 = np.random.normal(loc=2., size=30)
+    >>> y2 = np.random.normal(loc=4., size=60)
+    >>> y3 = np.random.normal(loc=6., size=10)
+    >>> boxplot([y1, y2, y3], title='Samples',
+                labels=['Sample 1', 'Sample 2', 'Sample 3'],
+                xlabel='Samples', ylabel='Unit', color='tab:blue',
+                meanline=True, legend='Progression')
+    >>> plt.show()
+    """
     if axes is None:
         fig = plt.figure()
         axes = rst.get_single_figure_axes(fig)
@@ -3156,6 +3575,58 @@ def boxplot(data, axes=None, meanline=False, labels=None, xlabel=None,
 def violinplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
                color='b', title=None, show=False, file_name=None, file_path='',
                file_format='eps'):
+    """Improved violinplot routine.
+
+    *Obs*: if no axes is provided, then a figure will be created and
+    showed or saved.
+
+    Parameters
+    ----------
+        data : list of :class:`numpy.ndarray`
+            A list of 1-d arrays meaning the samples.
+
+        axes : :class:`matplotlib.Axes.axes`, default: None
+            A specified axes for plotting the graphics. If none is
+            provided, then one will be created and showed or saved.
+
+        labels : list of str, default: None
+            Names of the samples.
+
+        xlabel : str, default: None
+
+        ylabel : list of str, default: None
+
+        color : str, default: 'b'
+            Color of boxes. Check some `here <https://matplotlib.org/3.1.1/gallery/color/named_colors.html>`_
+
+        title : str, default: None
+            A possible title to the plot.
+
+        show : bool
+            If `True`, then the figure is shown. Otherwise, the figure
+            is saved.
+
+        file_name : str
+            File name when saving the figure.
+
+        file_path : str
+            Path to the saved figure.
+
+        file_format : {'eps', 'png', 'pdf', 'svg'}
+            Format of the saved figure.
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> from matplotlib import pyplot as plt
+    >>> y1 = np.random.normal(loc=2., size=30)
+    >>> y2 = np.random.normal(loc=4., size=60)
+    >>> y3 = np.random.normal(loc=6., size=10)
+    >>> violinplot([y1, y2, y3], title='Samples',
+                   labels=['Sample 1', 'Sample 2', 'Sample 3'],
+                   xlabel='Samples', ylabel='Unit', color='tab:blue',
+                   show=True)
+    """
     plot_opts = {'violin_fc': color,
                  'violin_ec': 'w',
                  'violin_alpha': .2}
@@ -3199,6 +3670,18 @@ def violinplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
 
 
 def get_label(measure):
+    """Quick function for returning the LaTeX label of a measure.
+
+    Parameters
+    ----------
+        measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                   'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                   'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+
+    Returns
+    -------
+        str : the label of the measure
+    """
     if measure == 'zeta_rn':
         return rst.LABEL_ZETA_RN
     elif measure == 'zeta_rpad':
@@ -3230,6 +3713,18 @@ def get_label(measure):
 
 
 def get_title(measure):
+    """Quick function for returning the formal name of a measure.
+
+    Parameters
+    ----------
+        measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                   'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                   'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+
+    Returns
+    -------
+        str : the name of the measure
+    """
     if measure == 'zeta_rn':
         return 'Residual Norm'
     elif measure == 'zeta_rpad':
@@ -3261,7 +3756,23 @@ def get_title(measure):
 
 
 def run_methods(methods, scenario, parallelization=False):
-    """Run methods parallely."""
+    """Run methods for a single scenario.
+
+    Parameters
+    ----------
+        methods : list of :class:`solver.Solver`
+            Methods objects.
+
+        scenario : :class:`inputdata.InputData`
+
+        parallelization : bool
+            If `True`, the methods will run in parallel.
+
+    Returns
+    -------
+        results : list of 'results.Results'
+    """
+    # Parallel Execution
     if parallelization:
         num_cores = multiprocessing.cpu_count()
         output = (Parallel(n_jobs=num_cores)(
@@ -3272,14 +3783,33 @@ def run_methods(methods, scenario, parallelization=False):
     for m in range(len(methods)):
         if parallelization:
             results.append(output[m])
+        # Run single method
         else:
             results.append(methods[m].solve(scenario, print_info=False))
     return results
 
 
 def run_scenarios(method, scenarios, parallelization=False):
-    """Run methods parallely."""
+    """Run multiple inputs for a single method.
+
+    Parameters
+    ----------
+        method : :class:`solver.Solver`
+            Method object.
+
+        scenario : list of :class:`inputdata.InputData`
+            Inputs objects.
+
+        parallelization : bool
+            If `True`, the inputs will run in parallel.
+
+    Returns
+    -------
+        results : list of 'results.Results'
+    """
     results = []
+
+    # Run in parallel
     if parallelization:
         num_cores = multiprocessing.cpu_count()
         copies = []
@@ -3289,9 +3819,11 @@ def run_scenarios(method, scenarios, parallelization=False):
             delayed(copies[i].solve)
             (scenarios[i], print_info=False) for i in range(len(scenarios))
         ))
+
     for m in range(len(scenarios)):
         if parallelization:
             results.append(output[m])
+        # Run sequentially
         else:
             results.append(method.solve(scenarios[i], print_info=False))
     return results
@@ -3301,7 +3833,52 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     maximum_contrast, maximum_contrast_density, noise=None,
                     maximum_object_size=None, compute_residual_error=None,
                     compute_map_error=None, compute_totalfield_error=None):
-    """Summarize this method."""
+    """Create a single input case.
+
+    Parameters
+    ----------
+        name : str
+            The name of the case.
+
+        configuration : :class:`configuration.Configuration`
+
+        resolution : 2-tuple of int
+            Y-X resolution (number of pixels) of the scenario image.
+
+        map_pattern : {'random_polygons', 'regular_polygons', 'surfaces'}
+            Pattern of dielectric information on the image.
+
+        maximum_contrast : complex
+            Upper bound of contrast value in the image.
+
+        maximum_contrast_density : float
+            Maximum value for the mean contrast per pixel normalized by
+            the maximum contrast value. For the case of homogeneous
+            objects, it controls the quantity of objects in the image.
+            When dealing with surfaces, this information is considered
+            for gaussian random functions.
+
+        noise : float, default: None
+            Noise level that will be added into the scattered field.
+
+        maximum_object_size : float, default: .4*min([Lx, Ly])/2
+            Maximum radius size of homogeneous objects in the image.
+
+        compute_residual_error : bool, default: None
+            A flag to save residual error when running the input.
+
+        compute_map_error : bool, default: None
+            A flag to save map error when running the input.
+
+        compute_totalfield_error : bool, default: None
+            A flag to save total field error when running the input.
+
+    Returns
+    -------
+        :class:`inputdata.InputData`
+
+    """
+    # Basic parameters of the model
     Lx = configuration.Lx/configuration.lambda_b
     Ly = configuration.Ly/configuration.lambda_b
     epsilon_rb = configuration.epsilon_rb
@@ -3309,6 +3886,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
     omega = 2*pi*configuration.f
     homogeneous_objects = False
 
+    # Determining bounds of the conductivity values
     if configuration.perfect_dielectric:
         min_sigma = max_sigma = sigma_b
     else:
@@ -3316,6 +3894,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
         max_sigma = cfg.get_conductivity(maximum_contrast, omega, epsilon_rb,
                                          sigma_b)
 
+    # Determining bounds of the relative permittivity values
     if configuration.good_conductor:
         min_epsilon_r = max_epsilon_r = epsilon_rb
     else:
@@ -3323,27 +3902,50 @@ def create_scenario(name, configuration, resolution, map_pattern,
         max_epsilon_r = cfg.get_relative_permittivity(maximum_contrast,
                                                       epsilon_rb)
 
+    # Polygons with random number of edges
     if map_pattern == RANDOM_POLYGONS_PATTERN:
+
+        # In this case, there are only homogeneous objects
         homogeneous_objects = True
+
+        # Defining the maximum object size if it is not defined in the
+        # argument.
         if maximum_object_size is None:
             maximum_object_size = .4*min([Lx, Ly])/2
+
+        # Parameters of the image
         dx, dy = Lx/resolution[0], Ly/resolution[1]
         minimum_object_size = 8*max([dx, dy])
         xmin, xmax = cfg.get_bounds(Lx)
         ymin, ymax = cfg.get_bounds(Ly)
+
+        # Initial map
         epsilon_r = epsilon_rb*np.ones(resolution)
         sigma = sigma_b*np.ones(resolution)
         chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                    omega)
+
+        # Add objects until the density is satisfied
         while (contrast_density(chi)/np.abs(maximum_contrast) 
                <= .9*maximum_contrast_density):
+
+            # Determine the maximum radius of the edges of the polygon (random)
             radius = minimum_object_size + (maximum_object_size
                                             - minimum_object_size)*rnd.rand()
+
+            # Determine randomly the relative permittivity of the object
             epsilon_ro = min_epsilon_r + (max_epsilon_r
                                           - min_epsilon_r)*rnd.rand()
+
+            # Determine randomly the conductivity of the object
             sigma_o = min_sigma + (max_sigma-min_sigma)*rnd.rand()
+
+            # Determine randomly the position of the object
             center = [xmin+radius + (xmax-radius-(xmin+radius))*rnd.rand(),
                       ymin+radius + (ymax-radius-(ymin+radius))*rnd.rand()]
+
+            # Draw the polygon over the current image (random choice of the
+            # number of edges, max: 15)
             epsilon_r, sigma = draw_random(
                 int(np.ceil(15*rnd.rand())), radius, axis_length_x=Lx,
                 axis_length_y=Ly, background_relative_permittivity=epsilon_rb,
@@ -3352,34 +3954,57 @@ def create_scenario(name, configuration, resolution, map_pattern,
                 object_conductivity=sigma_o, center=center,
                 relative_permittivity_map=epsilon_r, conductivity_map=sigma
             )
+
+            # Compute contrast function
             chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                        omega)
-            print(contrast_density(chi)/np.abs(maximum_contrast))
 
+    # Traditional geometric shapes pattern
     elif map_pattern == REGULAR_POLYGONS_PATTERN:
+
+        # In this case, there are only homogeneous objects
         homogeneous_objects = True
+
+        # Defining the maximum object size if it is not defined in the
+        # argument.
         if maximum_object_size is None:
             maximum_object_size = .4*min([Lx, Ly])/2
+
+        # Parameters of the image
         dx, dy = Lx/resolution[0], Ly/resolution[1]
         minimum_object_size = 8*max([dx, dy])
         xmin, xmax = cfg.get_bounds(Lx)
         ymin, ymax = cfg.get_bounds(Ly)
+
+        # Initial map
         epsilon_r = epsilon_rb*np.ones(resolution)
         sigma = sigma_b*np.ones(resolution)
         chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                    omega)
+
+        # Add objects until the density is satisfied
         while (contrast_density(chi)/np.abs(maximum_contrast)
                <= .9*maximum_contrast_density):
+
+            # Determine randomly the maximum radius/length of the shape
             radius = minimum_object_size + (maximum_object_size
                                             - minimum_object_size)*rnd.rand()
+
+            # Determine randomly the relative permittivity of the object
             epsilon_ro = min_epsilon_r + (max_epsilon_r
                                           - min_epsilon_r)*rnd.rand()
+
+            # Determine randomly the conductivity of the object
             sigma_o = min_sigma + (max_sigma-min_sigma)*rnd.rand()
+
+            # Determine randomly the position of the object
             center = [xmin+radius + (xmax-radius-(xmin+radius))*rnd.rand(),
                       ymin+radius + (ymax-radius-(ymin+radius))*rnd.rand()]
 
-            shape = rnd.randint(15)
+            # Choose randomly one of the 14 geometric shapes available
+            shape = rnd.randint(14)
 
+            # Square
             if shape == 0:
                 epsilon_r, sigma = draw_square(
                     2*radius, axis_length_x=Lx, axis_length_y=Ly,
@@ -3391,6 +4016,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Triangle
             elif shape == 1:
                 epsilon_r, sigma = draw_triangle(
                     2*radius, axis_length_x=Lx, axis_length_y=Ly,
@@ -3402,6 +4028,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Circle
             elif shape == 2:
                 epsilon_r, sigma = draw_circle(
                     radius, axis_length_x=Lx, axis_length_y=Ly,
@@ -3412,6 +4039,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Ring
             elif shape == 3:
                 epsilon_r, sigma = draw_ring(
                     rnd.rand()*radius, radius, axis_length_x=Lx,
@@ -3423,6 +4051,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Ellipse
             elif shape == 4:
                 epsilon_r, sigma = draw_ellipse(
                     rnd.rand()*radius, radius, axis_length_x=Lx,
@@ -3434,6 +4063,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # 4-point star
             elif shape == 5:
                 epsilon_r, sigma = draw_4star(
                     radius, axis_length_x=Lx, axis_length_y=Ly,
@@ -3445,6 +4075,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # 5-point star
             elif shape == 6:
                 epsilon_r, sigma = draw_5star(
                     radius, axis_length_x=Lx, axis_length_y=Ly,
@@ -3456,6 +4087,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # 6-point star
             elif shape == 7:
                 epsilon_r, sigma = draw_6star(
                     radius, axis_length_x=Lx, axis_length_y=Ly,
@@ -3467,6 +4099,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Rhombus
             elif shape == 8:
                 epsilon_r, sigma = draw_rhombus(
                     2*radius, axis_length_x=Lx, axis_length_y=Ly,
@@ -3478,6 +4111,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Trapezoid
             elif shape == 9:
                 epsilon_r, sigma = draw_trapezoid(
                     rnd.rand()*radius, radius, radius, axis_length_x=Lx,
@@ -3489,6 +4123,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Parallelogram
             elif shape == 10:
                 epsilon_r, sigma = draw_parallelogram(
                     radius, (.5+.5*rnd.rand())*radius, 30 + 30*rnd.rand(),
@@ -3500,6 +4135,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Regular polygon (pentagon, hexagon, ...)
             elif shape == 11:
                 epsilon_r, sigma = draw_polygon(
                     5+rnd.randint(6), radius,
@@ -3511,18 +4147,8 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Cross
             elif shape == 12:
-                epsilon_r, sigma = draw_polygon(
-                    5+rnd.randint(6), radius,
-                    axis_length_x=Lx, axis_length_y=Ly, rotate=rnd.rand()*180,
-                    background_relative_permittivity=epsilon_rb,
-                    background_conductivity=sigma_b,
-                    object_relative_permittivity=epsilon_ro,
-                    object_conductivity=sigma_o, center=center,
-                    relative_permittivity_map=epsilon_r, conductivity_map=sigma
-                )
-
-            elif shape == 13:
                 epsilon_r, sigma = draw_cross(
                     radius, (0.5 + 0.5*rnd.rand())*radius, .1*radius,
                     axis_length_x=Lx, axis_length_y=Ly, rotate=rnd.rand()*180,
@@ -3533,7 +4159,8 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
-            elif shape == 14:
+            # Line
+            elif shape == 13:
                 epsilon_r, sigma = draw_line(
                     radius, .1*radius, axis_length_x=Lx, axis_length_y=Ly,
                     background_relative_permittivity=epsilon_rb,
@@ -3543,11 +4170,14 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     relative_permittivity_map=epsilon_r, conductivity_map=sigma
                 )
 
+            # Compute contrast function
             chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                        omega)
-            print(contrast_density(chi)/np.abs(maximum_contrast))
 
+    # Random surfaces (waves of gaussian)
     elif map_pattern == SURFACES_PATTERN:
+
+        # Randomly decide between waves or gaussian functions
         if rnd.rand() < .5:
             epsilon_r, sigma = draw_random_waves(
                 int(np.ceil(15*rnd.rand())), 10, resolution=resolution,
@@ -3556,16 +4186,25 @@ def create_scenario(name, configuration, resolution, map_pattern,
                 axis_length_y=Ly, background_relative_permittivity=epsilon_rb,
                 conductivity_map=sigma_b
             )
+
         else:
+
+            # When setting gaussian functions, the maximum object size
+            # is used as a measure of the variance
             if maximum_object_size is None:
                 maximum_object_size = .4*min([Lx, Ly])/2
+
+            # Image parameters
             dx, dy = Lx/resolution[0], Ly/resolution[1]
             minimum_object_size = 8*max([dx, dy])
             epsilon_r = epsilon_rb*np.ones(resolution)
             sigma = sigma_b*np.ones(resolution)
             chi = cfg.get_contrast_map(epsilon_r, sigma, epsilon_rb, sigma_b,
                                        omega)
-            while contrast_density(chi) <= .8*maximum_contrast_density:
+
+            # Add gaussian functions until the density criterion is
+            # satisfied
+            while contrast_density(chi) <= .9*maximum_contrast_density:
                 epsilon_r, sigma = draw_random_gaussians(
                     1, maximum_spread=maximum_object_size,
                     minimum_spread=minimum_object_size,
@@ -3577,12 +4216,14 @@ def create_scenario(name, configuration, resolution, map_pattern,
                     conductivity_map=sigma
                 )
 
+    # Build input object
     scenario = ipt.InputData(name=name,
                              configuration_filename=configuration.name,
                              resolution=resolution,
                              homogeneous_objects=homogeneous_objects,
                              noise=noise)
 
+    # Set flags
     if compute_residual_error is not None:
         scenario.compute_residual_error = compute_residual_error
     if compute_map_error is not None:
@@ -3590,6 +4231,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
     if compute_totalfield_error is not None:
         scenario.compute_totalfield_error = compute_totalfield_error
 
+    # Set maps
     if not configuration.good_conductor:
         scenario.epsilon_r = epsilon_r
     if not configuration.perfect_dielectric:
@@ -3599,13 +4241,38 @@ def create_scenario(name, configuration, resolution, map_pattern,
 
 
 def contrast_density(contrast_map):
-    """Summarize the method."""
+    """Compute the contrast density of a map.
+
+    The contrast density is defined as the mean of the absolute value
+    per pixel.
+
+    Parameters
+    ----------
+        contrast_map : :class:`numpy.ndarray`
+            2-d array.
+    """
     return np.mean(np.abs(contrast_map))
 
 
 def compute_resolution(wavelength, length_y, length_x,
                        proportion_cell_wavelength):
-    """Summarize method."""
+    """Determine a reasonable resolution.
+
+    Compute a reasonable resolution for an image given the wavelength,
+    the size of the image and proportion cell (pixel) per wavelength.
+
+    Parameters
+    ----------
+        wavelength : float
+
+        length_x, length_y : float
+
+        proportion_cell_wavelength : int
+
+    Returns
+    -------
+        NY, NX : int
+    """
     dx = dy = wavelength/proportion_cell_wavelength
     NX = int(np.ceil(length_x/dx))
     NY = int(np.ceil(length_y/dy))
