@@ -509,7 +509,7 @@ class Experiment:
             print('building...', end=' ')
             self.randomize_scenarios(self.synthetization_resolution)
         print('ok!')
-        
+
         # Check forward solver for data synthesization
         print('Check forward solver for data synthesization...', end=' ')
         if self.forward_solver is None:
@@ -672,7 +672,7 @@ class Experiment:
                 # Print information
                 message = 'Scenarios %d/' % n + '%d' % N
                 print(message, end='\b'*len(message), flush=True)
-                k += self.sample_size
+                n += self.sample_size
 
                 # Create the sample parallely
                 num_cores = multiprocessing.cpu_count()
@@ -739,7 +739,7 @@ class Experiment:
                     )
 
         # Print final information
-        message = 'Solved %d/' % N '%d' % N
+        message = 'Solved %d/' % N + '%d' % N
         print(message, end=' ', flush=True)
 
     def solve_scenarios(self, parallelization=False):
@@ -790,7 +790,7 @@ class Experiment:
                     )
 
                     # Print info
-                    message = 'Executions %d/' %n + '%d' % N
+                    message = 'Executions %d/' % n + '%d' % N
                     print(message, end='\b'*len(message), flush=True)
                     n += len(self.methods)
 
@@ -801,30 +801,98 @@ class Experiment:
                     )
 
         # Print info
-        message = 'Executions %d/' %N + '%d' % N
+        message = 'Executions %d/' % N + '%d' % N
         print(message, end=' ', flush=True)
 
     def fixed_sampleset_plot(self, group_idx=0, config_idx=0, method_idx=0,
                              show=False, file_path='', file_format='eps'):
+        """Plot observations of a sample over the x-axis.
+
+        This method takes a specified sample and plot each observation
+        in a different position of x-axis. In this way, results of each
+        scenario may be compared among themselves and methods may be
+        compared scenario by scenario from the same sample. The
+        comparison will be done through all available measures.
+
+        Parameters
+        ----------
+            group_idx : int, default: 0
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int, default: 0
+                Configuration index.
+
+            method_idx : int of list of int, default: 0
+                Method index.
+
+            show : bool, default: False
+                If `True`, the plot is shown. Otherwise, the plot is
+                saved with the name `singlesample` plus the indexes of
+                configuration and group.
+
+            file_path : str, default: ''
+                Path to save the figure.
+
+            file_format : {'eps', 'png', 'pdf', 'svg'}
+                Format of the figure to be saved. Only formats supported
+                by `matplotlib.pyplot.savefig`.
+        """
+        # Check the existence of results
         if self.results is None:
             raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int:
+            raise error.WrongTypeInput('Experiment.fixed_sampleset_plot',
+                                       'group_idx', 'int', type(group_idx))
+        if type(config_idx) is not int:
+            raise error.WrongTypeInput('Experiment.fixed_sampleset_plot',
+                                       'config_idx', 'int', type(config_idx))
+        if type(method_idx) is not int and type(method_idx) is not list:
+            raise error.WrongTypeInput('Experiment.fixed_sampleset_plot',
+                                       'method_idx', 'int', type(method_idx))
+
+        # Fix the format of the method index as list
         if type(method_idx) is int:
             method_idx = [method_idx]
 
+        # Check the values of the inputs
+        if group_idx < 0 or group_idx >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.fixed_sampleset_plot',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if config_idx < 0 or config_idx >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.fixed_sampleset_plot',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.fixed_sampleset_plot',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+
+        # Main variables
         g, c = group_idx, config_idx
         y = np.zeros((self.sample_size, len(method_idx)))
         measures = self.get_measure_set(config_idx)
         nplots = len(measures)
 
+        # Image configuration
         nrows = int(np.sqrt(nplots))
         ncols = int(np.ceil(nplots/nrows))
         image_size = (3.*ncols, 3.*nrows)
         figure = plt.figure(figsize=image_size)
         rst.set_subplot_size(figure)
+
+        # Quick access to method names
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
 
+        # Plotting results
         x = range(1, self.sample_size+1)
         i = 1
         for j in range(len(measures)):
@@ -839,37 +907,103 @@ class Experiment:
                          xticks=x, legend=method_names)
             i += 1
 
+        # Show or save results
         if show:
             plt.show()
         else:
-            plt.savefig(file_path + self.name + '_single.' + file_format,
-                        format=file_format)
+            plt.savefig(file_path + self.name + '_singlesample_%d_' % c + '%d'
+                        % g + '.' + file_format, format=file_format)
             plt.close()
 
-    def fixed_sampleset_boxplot(self, group_idx=0, config_idx=0,
-                                method_idx=[0], show=False,
-                                file_path='', file_format='eps'):
-        """Summarize the class method."""
-        if type(group_idx) is not int:
-            raise error.WrongTypeInput('fixed_sampleset_boxplot', 'group_idx',
-                                       'int', type(group_idx))
-        if type(config_idx) is not int:
-            raise error.WrongTypeInput('fixed_sampleset_boxplot', 'config_idx',
-                                       'int', type(config_idx))
+    def fixed_sampleset_violinplot(self, group_idx=0, config_idx=0,
+                                   method_idx=[0], show=False,
+                                   file_path='', file_format='eps'):
+        """Violin plot for a single sample and multiple methods.
 
+        This method takes a specified sample and multiple methods and
+        compare them considering each measure through violinplot. This
+        graphic may be used to compare each result through
+        characteristics of its distribution.
+
+        Parameters
+        ----------
+            group_idx : int, default: 0
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int, default: 0
+                Configuration index.
+
+            method_idx : int of list of int, default: 0
+                Method index.
+
+            show : bool, default: False
+                If `True`, the plot is shown. Otherwise, the plot is
+                saved with the name `violinplot` plus the indexes of
+                configuration and group.
+
+            file_path : str, default: ''
+                Path to save the figure.
+
+            file_format : {'eps', 'png', 'pdf', 'svg'}
+                Format of the figure to be saved. Only formats supported
+                by `matplotlib.pyplot.savefig`.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int:
+            raise error.WrongTypeInput('Experiment.fixed_sampleset_violinplot',
+                                       'group_idx', 'int', type(group_idx))
+        if type(config_idx) is not int:
+            raise error.WrongTypeInput('Experiment.fixed_sampleset_violinplot',
+                                       'config_idx', 'int', type(config_idx))
+        if type(method_idx) is not int and type(method_idx) is not list:
+            raise error.WrongTypeInput('Experiment.fixed_sampleset_violinplot',
+                                       'method_idx', 'int', type(method_idx))
+
+        # Fix the format of the method index as list
+        if type(method_idx) is int:
+            method_idx = [method_idx]
+
+        # Check the values of the inputs
+        if group_idx < 0 or group_idx >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.fixed_sampleset_'
+                                        + 'violinplot', 'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if config_idx < 0 or config_idx >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.fixed_sampleset_'
+                                        + 'violinplot', 'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.fixed_sampleset_'
+                                        + 'violinplot',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+
+        # Main variables
         g, c = group_idx, config_idx
         measures = self.get_measure_set(config_idx)
         nplots = len(measures)
 
+        # Image configuration
         nrows = int(np.sqrt(nplots))
         ncols = int(np.ceil(nplots/nrows))
         image_size = (3.*ncols, 3.*nrows)
         figure = plt.figure(figsize=image_size)
         rst.set_subplot_size(figure)
+
+        # Quick access to method names
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
 
+        # Plotting results
         n = 1
         for i in range(len(measures)):
             data = []
@@ -887,25 +1021,103 @@ class Experiment:
                        file_path=file_path, file_format=file_format)
             n += 1
 
+        # Show or save results
         if show:
             plt.show()
         else:
-            plt.savefig(file_path + self.name + '_%d' + config_idx + '%d'
-                        + group_idx + '.' + file_format, format=file_format)
+            plt.savefig(file_path + self.name + '_violinplot_%d' % config_idx
+                        + '%d' % group_idx + '.' + file_format,
+                        format=file_format)
             plt.close()
 
-    def fixed_measure_boxplot(self, group_idx=[0], config_idx=[0],
-                              measure=None, method_idx=[0], show=False,
-                              file_path='', file_format='eps'):
-        """Summarize the class method."""
-        if measure is None:
-            raise error.MissingInputError('Experiments.fixed_measure_boxplot',
-                                          'measure')
+    def fixed_measure_violinplot(self, measure, group_idx=[0], config_idx=[0],
+                                 method_idx=[0], show=False, file_path='',
+                                 file_format='eps'):
+        """Violin plot for a single measure and multiple arrangements.
+
+        This method takes a specified measure and compare the results of
+        multiple methods in multiple arrangements of factors and
+        configurations.
+
+        Parameters
+        ----------
+            measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                       'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                String to indicate which measure.
+
+            group_idx : int or list of int, default: [0]
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int or list of int, default: [0]
+                Configuration index.
+
+            method_idx : int of list of int, default: 0
+                Method index.
+
+            show : bool, default: False
+                If `True`, the plot is shown. Otherwise, the plot is
+                saved with the name of the measure.
+
+            file_path : str, default: ''
+                Path to save the figure.
+
+            file_format : {'eps', 'png', 'pdf', 'svg'}
+                Format of the figure to be saved. Only formats supported
+                by `matplotlib.pyplot.savefig`.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int and type(group_idx) is not list:
+            raise error.WrongTypeInput('Experiment.fixed_measure_violinplot',
+                                       'group_idx', 'int/list of int',
+                                       type(group_idx))
+        if type(config_idx) is not int and type(config_idx) is not list:
+            raise error.WrongTypeInput('Experiment.fixed_measure_violinplot',
+                                       'config_idx', 'int', type(config_idx))
+        if type(method_idx) is not int and type(method_idx) is not list:
+            raise error.WrongTypeInput('Experiment.fixed_measure_violinplot',
+                                       'method_idx', 'int', type(method_idx))
+
+        # Fix the format of the method index as list
+        if type(method_idx) is int:
+            method_idx = [method_idx]
         if type(group_idx) is int:
             group_idx = [group_idx]
         if type(config_idx) is int:
             config_idx = [config_idx]
 
+        # Check the values of the inputs
+        if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.fixed_measure_violinplot',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.fixed_measure_violinplot',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.fixed_measure_violinplot',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+        try:
+            get_title(measure)
+        except Exception:
+            raise error.WrongValueInput('Experiments.fixed_measure_violinplot',
+                                        'measure', "{'zeta_rn', 'zeta_rpad',"
+                                        + " 'zeta_epad', 'zeta_ebe', "
+                                        + "'zeta_eoe', 'zeta_sad', 'zeta_sbe',"
+                                        + " 'zeta_soe', 'zeta_tfmpad', "
+                                        + "'zeta_tfppad', 'zeta_be'}", measure)
+
+        # Figure parameters
         ylabel = get_label(measure)
         nplots = len(group_idx)*len(config_idx)
         if nplots > 1:
@@ -917,6 +1129,7 @@ class Experiment:
         else:
             axes = rst.get_single_figure_axes(plt.figure())
 
+        # Plot graphics
         n = 1
         for i in range(len(group_idx)):
             for j in range(len(config_idx)):
@@ -947,6 +1160,8 @@ class Experiment:
                 violinplot(data, axes=axes, labels=labels, xlabel='Methods',
                            ylabel=ylabel, title=title, show=show,
                            file_path=file_path, file_format=file_format)
+
+        # Save or show the figure
         if show:
             plt.show()
         else:
@@ -957,30 +1172,139 @@ class Experiment:
     def evolution_boxplot(self, group_idx=[0], config_idx=[0],
                           measure=None, method_idx=[0], show=False,
                           file_path='', file_format='eps'):
+        """Compare multiples samples to study the behavior of methods.
+
+        This routine intends to plot the behavior of multiple methods
+        when a factor variates (or some parameter of configuration). So,
+        if you want to investigate if the variation of some parameter
+        tends to influence the behavior of an algorithm, then you select
+        the indexes of the corresponding configurations and factor
+        combinations and the routine will show it.
+
+        If one configuration index is provided, then the results will be
+        boxplots will be arranged by factor variation. And vice-versa.
+        Furthermore, if both list of indexes have more than one
+        elements, than there will be one figure per configuration index,
+        i.e., the configuration will be fixed and the factor will vary.
+
+        Parameters
+        ----------
+            group_idx : int or list of int, default: [0]
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int or list of int, default: [0]
+                Configuration index.
+
+            measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                       'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                A string or a list of string to indicate the considered
+                measures. If `None`, then all the available ones will be
+                considered.
+
+            method_idx : int of list of int, default: 0
+                Method index.
+
+            show : bool, default: False
+                If `True`, the plot is shown. Otherwise, the plot is
+                saved with the name 'evolution' plus the indexes of
+                configurations and factor groups.
+
+            file_path : str, default: ''
+                Path to save the figure.
+
+            file_format : {'eps', 'png', 'pdf', 'svg'}
+                Format of the figure to be saved. Only formats supported
+                by `matplotlib.pyplot.savefig`.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int and type(group_idx) is not list:
+            raise error.WrongTypeInput('Experiment.evolution_boxplot',
+                                       'group_idx', 'int/list of int',
+                                       type(group_idx))
+        if type(config_idx) is not int and type(config_idx) is not list:
+            raise error.WrongTypeInput('Experiment.evolution_boxplot',
+                                       'config_idx', 'int', type(config_idx))
+        if type(method_idx) is not int and type(method_idx) is not list:
+            raise error.WrongTypeInput('Experiment.evolution_boxplot',
+                                       'method_idx', 'int', type(method_idx))
+        if (measure is not None and type(measure) is not str
+                and type(measure) is not list):
+            raise error.WrongTypeInput('Experiment.evolution_boxplot',
+                                       'meausre', 'None/str/list',
+                                       type(measure))
+
+        # Fix the format of the method index as list
+        if type(method_idx) is int:
+            method_idx = [method_idx]
         if type(group_idx) is int:
             group_idx = [group_idx]
         if type(config_idx) is int:
             config_idx = [config_idx]
+        if type(measure) is str:
+            measure = [measure]
         if measure is None:
             none_measure = True
         else:
             none_measure = False
+
+        # Check the values of the inputs
+        if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.evolution_boxplot',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.evolution_boxplot',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.evolution_boxplot',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+        if type(measure) is str:
+            try:
+                get_title(measure)
+            except Exception:
+                raise error.WrongValueInput(
+                    'Experiments.compare_two_methods', 'measure',
+                    "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
+                    + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+
+        # Quick access to method names
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
+
+        # Possible colors of boxes. Are you going to need more than 10?
         colors = ['cornflowerblue', 'indianred', 'seagreen', 'mediumorchid',
                   'chocolate', 'palevioletred', 'teal', 'rosybrown', 'tan',
                   'crimson']
 
+        # Fixed configuration
         if len(group_idx) > 1:
 
+            # Group names
             labels = []
             for j in group_idx:
                 labels.append('g%d' % j)
-            
+
+            # One plot per configuration
             for i in config_idx:
+
+                # Different configurations may have different measures
                 if none_measure:
                     measure = self.get_measure_set(i)
+
+                # Plot configurations
                 if len(measure) == 1:
                     figure = plt.figure()
                     axes = rst.get_single_figure_axes(figure)
@@ -991,6 +1315,8 @@ class Experiment:
                     image_size = (3.*ncols, 3.*nrows)
                     figure = plt.figure(figsize=image_size)
                     rst.set_subplot_size(figure)
+
+                # For each measure, a graphic
                 k = 1
                 for mea in measure:
                     if len(measure) > 1:
@@ -1011,6 +1337,7 @@ class Experiment:
                     k += 1
                 plt.suptitle('Con. ' + self.configurations[i].name)
 
+                # Show or save figure
                 if show:
                     plt.show()
                 else:
@@ -1018,15 +1345,20 @@ class Experiment:
                                 + '.' + file_format, format=file_format)
                     plt.close()
 
+        # Fixed factor group
         else:
 
+            # Configuration names
             labels = []
             for i in config_idx:
                 labels.append('c%d' % i)
             j = group_idx[0]
 
+            # We fix the measure set by the first configuration
             if none_measure:
                 measure = self.get_measure_set(config_idx[0])
+
+            # Figure configuration
             if len(measure) == 1:
                 figure = plt.figure()
                 axes = rst.get_single_figure_axes(figure)
@@ -1037,6 +1369,8 @@ class Experiment:
                 image_size = (3.*ncols, 3.*nrows)
                 figure = plt.figure(figsize=image_size)
                 rst.set_subplot_size(figure)
+
+            # A graphic per measure
             k = 1
             for mea in measure:
                 if len(measure) > 1:
@@ -1057,6 +1391,7 @@ class Experiment:
                 k += 1
             plt.suptitle('Group %d' % j)
 
+            # Show or save the figure
             if show:
                 plt.show()
             else:
@@ -1067,23 +1402,92 @@ class Experiment:
     def plot_sampleset_results(self, group_idx=[0], config_idx=[0],
                                method_idx=[0], show=False, file_path='',
                                file_format='eps'):
-        """Summarize the method."""
-        if type(group_idx) is int:
-            group_idx = [group_idx]
+        """Plot the recovered images of a sample set.
+
+        Given a sample (by the indexes of configuration and factor
+        group), it plots all the recovered images. If one method index
+        is provided, than each figure will have all the recovered maps
+        of the sample specified by the configuration and group indexes.
+        Otherwise, one figure will be generated containing the benchmark
+        map and recovered ones by the methods.
+
+        Parameters
+        ----------
+            group_idx : int or list of int, default: [0]
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int or list of int, default: [0]
+                Configuration index.
+
+            method_idx : int of list of int, default: 0
+                Method index.
+
+            show : bool, default: False
+                If `True`, the plot is shown. Otherwise, the plot is
+                saved with the name `recoverd_images` plus the indexes of
+                configuration, group, and scenario.
+
+            file_path : str, default: ''
+                Path to save the figure.
+
+            file_format : {'eps', 'png', 'pdf', 'svg'}
+                Format of the figure to be saved. Only formats supported
+                by `matplotlib.pyplot.savefig`.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int and type(group_idx) is not list:
+            raise error.WrongTypeInput('Experiment.plot_sampleset_results',
+                                       'group_idx', 'int/list of int',
+                                       type(group_idx))
+        if type(config_idx) is not int and type(config_idx) is not list:
+            raise error.WrongTypeInput('Experiment.plot_sampleset_results',
+                                       'config_idx', 'int/list of int',
+                                       type(config_idx))
+        if type(method_idx) is not int and type(method_idx) is not list:
+            raise error.WrongTypeInput('Experiment.plot_sampleset_results',
+                                       'method_idx', 'int/list of int',
+                                       type(method_idx))
+
+        # Fix the format of the method index as list
         if type(config_idx) is int:
             config_idx = [config_idx]
+        if type(group_idx) is int:
+            group_idx = [group_idx]
         if type(method_idx) is int:
             method_idx = [method_idx]
 
+        # Check the values of the inputs
+        if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.plot_sampleset_results',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.plot_sampleset_results',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.plot_sampleset_results',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+
+        # Quick access to method names
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
 
+        # Figure parameters
         if len(method_idx) > 1:
             nplots = 1 + len(method_idx)
         else:
             nplots = self.sample_size
-
         nrows = int(np.sqrt(nplots))
         ncols = int(np.ceil(nplots/nrows))
         image_size = (3.*ncols, 3.*nrows)
@@ -1097,13 +1501,19 @@ class Experiment:
                 epsilon_rb = self.configurations[j].epsilon_rb
                 sigma_b = self.configurations[j].sigma_b
 
+                # If there is only one method, each figure will have all
+                # recovered images.
                 if len(method_idx) == 1:
                     figure = plt.figure(figsize=image_size)
                     rst.set_subplot_size(figure)
                     n = 1
 
+                # One figure for each scenario
                 for k in range(self.sample_size):
 
+                    # If there are more than one method, each figure
+                    # will have the benchmark and recovered maps by the
+                    # methods.
                     if len(method_idx) > 1:
                         figure = plt.figure(figsize=image_size)
                         rst.set_subplot_size(figure)
@@ -1143,7 +1553,9 @@ class Experiment:
                                       colorbar_name=r'$|\chi|$', bounds=bounds,
                                       xlabel=xlabel, ylabel=ylabel)
                         n += 1
+                        p += 1
 
+                    # Save or show the image per scenario
                     if len(method_idx) > 1:
                         if show:
                             plt.show()
@@ -1154,6 +1566,7 @@ class Experiment:
                                         format=file_format)
                             plt.close()
 
+                # Save or show the image per sample set
                 if len(method_idx) == 1:
                     if show:
                         plt.show()
@@ -1166,22 +1579,105 @@ class Experiment:
     def plot_nbest_results(self, n, measure, group_idx=[0], config_idx=[0],
                            method_idx=None, show=False, file_path='',
                            file_format='eps'):
-        if method_idx is None:
-            if len(self.methods) == 1:
-                method_idx = [0]
-            else:
-                method_idx = range(len(self.methods))
-        else:
-            if type(method_idx) is list:
-                pass
-            else:
-                single_method = True
-                method_idx = [method_idx]
+        """Plot the N-best recovered maps given a specified measure.
 
+        Given a specific measure, the routine plots the N-best recovered
+        images by each combination of configuration-group-method.
+
+        Parameters
+        ----------
+            n : int
+                Size of the set of best images.
+
+            measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                       'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                A string to indicate the considered measures. If `None`, then
+                all the available ones will be considered.
+
+            group_idx : int or list of int, default: [0]
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int or list of int, default: [0]
+                Configuration index.
+
+            method_idx : int of list of int, default: None
+                Method index. If `None`, all methods will be considered.
+
+            show : bool, default: False
+                If `True`, the plot is shown. Otherwise, the plot is
+                saved with the name `nbest` plus the indexes of
+                configuration, group, and method.
+
+            file_path : str, default: ''
+                Path to save the figure.
+
+            file_format : {'eps', 'png', 'pdf', 'svg'}
+                Format of the figure to be saved. Only formats supported
+                by `matplotlib.pyplot.savefig`.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int and type(group_idx) is not list:
+            raise error.WrongTypeInput('Experiment.plot_nbest_results',
+                                       'group_idx', 'int/list of int',
+                                       type(group_idx))
+        if type(config_idx) is not int and type(config_idx) is not list:
+            raise error.WrongTypeInput('Experiment.plot_nbest_results',
+                                       'config_idx', 'int/list of int',
+                                       type(config_idx))
+        if (method_idx is not None and type(method_idx) is not int
+                and type(method_idx) is not list):
+            raise error.WrongTypeInput('Experiment.plot_nbest_results',
+                                       'method_idx', 'None/int/list of int',
+                                       type(method_idx))
+
+        # Fix the format of the method index as list
+        if type(config_idx) is int:
+            config_idx = [config_idx]
+        if type(group_idx) is int:
+            group_idx = [group_idx]
+        if type(method_idx) is int:
+            method_idx = [method_idx]
+        elif method_idx is None:
+            method_idx = [i for i in range(len(self.methods))]
+
+        # Check the values of the inputs
+        if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.plot_sampleset_results',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.plot_sampleset_results',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.plot_sampleset_results',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+        try:
+            get_title(measure)
+        except Exception:
+            raise error.WrongValueInput('Experiments.plot_nbest_results',
+                                        'measure', "{'zeta_rn', 'zeta_rpad',"
+                                        + " 'zeta_epad', 'zeta_ebe', "
+                                        + "'zeta_eoe', 'zeta_sad', 'zeta_sbe',"
+                                        + " 'zeta_soe', 'zeta_tfmpad', "
+                                        + "'zeta_tfppad', 'zeta_be'}", measure)
+
+        # Quick access to method names
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
 
+        # Figure configuration
         nplots = n
         nrows = int(np.sqrt(nplots))
         ncols = int(np.ceil(nplots/nrows))
@@ -1198,6 +1694,8 @@ class Experiment:
             for i in group_idx:
                 for m in method_idx:
 
+                    # One figure per each combination of configuration,
+                    # group and method.
                     figure = plt.figure(figsize=image_size)
                     rst.set_subplot_size(figure)
                     y = self.get_final_value_over_samples(group_idx=i,
@@ -1208,6 +1706,8 @@ class Experiment:
 
                     for k in range(nplots):
 
+                        # Plot the contrast function, not the relative
+                        # permittivity or conductivity maps.
                         chi = cfg.get_contrast_map(
                             epsilon_r=self.results[i][j][yi[k]][m].epsilon_r,
                             sigma=self.results[i][j][yi[k]][m].sigma,
@@ -1228,10 +1728,11 @@ class Experiment:
                              + self.methods[m].alias)
                     plt.suptitle(title)
 
+                    # Show or save the figures
                     if show:
                         plt.show()
                     else:
-                        plt.savefig(file_path + self.name + 'nbeast' + str(i)
+                        plt.savefig(file_path + self.name + 'nbest' + str(i)
                                     + str(j) + str(m) + '.' + file_format,
                                     format=file_format)
                         plt.close()
@@ -1239,15 +1740,126 @@ class Experiment:
     def study_single_mean(self, measure=None, group_idx=[0], config_idx=[0],
                           method_idx=[0], show=False, file_path='',
                           file_format='eps', printscreen=False, write=False):
+        """Study confidence interval of means.
+
+        Given a combination of measure-configuration-group, the
+        confidence interval of means among methods is determined. A
+        figure is generated to compare the methods. The results may also
+        be printed on the screen or in a .txt file.
+
+        Parameters
+        ----------
+            measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                       'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                A string or a list of string to indicate the considered
+                measures. If `None`, then all the available ones will be
+                considered.
+
+            group_idx : int or list of int, default: [0]
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int or list of int, default: [0]
+                Configuration index.
+
+            method_idx : int of list of int, default: 0
+                Method index.
+
+            show : bool, default: False
+                If `True`, the plot is shown. Otherwise, the plot is
+                saved with the name 'confint' plus the indexes of
+                configurations and factor groups.
+
+            file_path : str, default: ''
+                Path to save the figure.
+
+            file_format : {'eps', 'png', 'pdf', 'svg'}
+                Format of the figure to be saved. Only formats supported
+                by `matplotlib.pyplot.savefig`.
+
+            printscreen : bool, default: False
+                If `True`, the results for the confidence intervals will
+                be printed on the screen.
+
+            write : bool, default: False
+                If `True`, the results for the confidence intervals will
+                be printed in a .txt file.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int and type(group_idx) is not list:
+            raise error.WrongTypeInput('Experiment.study_single_mean',
+                                       'group_idx', 'int/list of int',
+                                       type(group_idx))
+        if type(config_idx) is not int and type(config_idx) is not list:
+            raise error.WrongTypeInput('Experiment.study_single_mean',
+                                       'config_idx', 'int', type(config_idx))
+        if type(method_idx) is not int and type(method_idx) is not list:
+            raise error.WrongTypeInput('Experiment.study_single_mean',
+                                       'method_idx', 'int', type(method_idx))
+        if (measure is not None and type(measure) is not str
+                and type(measure) is not list):
+            raise error.WrongTypeInput('Experiment.study_single_mean',
+                                       'meausre', 'None/str/list',
+                                       type(measure))
+
+        # Fix the format of the method index as list
+        if type(method_idx) is int:
+            method_idx = [method_idx]
+        if type(group_idx) is int:
+            group_idx = [group_idx]
+        if type(config_idx) is int:
+            config_idx = [config_idx]
+        if type(measure) is str:
+            measure = [measure]
+        if measure is None:
+            none_measure = True
+        else:
+            none_measure = False
+
+        # Check the values of the inputs
+        if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.study_single_mean',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.study_single_mean',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.study_single_mean',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+        if type(measure) is str:
+            try:
+                get_title(measure)
+            except Exception:
+                raise error.WrongValueInput(
+                    'Experiments.study_single_mean', 'measure',
+                    "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
+                    + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure
+                )
+
+        # Quick access to method names
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
 
+        # Title of the written results
         if write or printscreen:
             title = 'Confidence Interval of Means - *' + self.name + '*'
             text = ''.join(['*' for _ in range(len(title))]) + '\n'
             text = text + title + '\n' + text
 
+        # Multiple measures
         if measure is None or (type(measure) is list and len(measure) > 1):
 
             if measure is None:
@@ -1257,6 +1869,7 @@ class Experiment:
 
             for i in config_idx:
 
+                # Figure configuration
                 if none_measure:
                     measure = self.get_measure_set(i)
                 nplots = len(measure)
@@ -1272,6 +1885,7 @@ class Experiment:
                                 + ''.join(['=' for _ in range(len(subtitle))])
                                 + '\n')
 
+                    #  One figure per combination of configuration and group.
                     figure = plt.figure(figsize=image_size)
                     rst.set_subplot_size(figure)
                     k = 1
@@ -1295,6 +1909,7 @@ class Experiment:
                                 method_idx=m
                             )
 
+                            # Normality test
                             if stats.diagnostic.normal_ad(y[:, n])[1] < .05:
                                 message = ('The sample from method '
                                            + method_names[n] + ', config. %d, '
@@ -1312,20 +1927,14 @@ class Experiment:
                                 text = (text + method_names[n] + ': [%.2e, '
                                         % cf[0] + '%.2e]' % cf[1] + '\n')
 
-                    else:
-                        plt.savefig(file_path + self.name + '_confint_'
-                                    + str(i) + str(j) + '.' + file_format,
-                                    format=file_format)
-                        plt.close()
-
                         axes = figure.add_subplot(nrows, ncols, k)
                         confintplot(y, axes=axes, xlabel=get_label(mea),
                                     ylabel=method_names, title=get_title(mea))
-
                         k += 1
 
                     plt.suptitle('c%d' % i + 'g%d' % j)
 
+                    # Plot or show the figure
                     if show:
                         plt.show()
                     else:
@@ -1334,6 +1943,7 @@ class Experiment:
                                     format=file_format)
                         plt.close()
 
+        # Single measure
         else:
             if type(measure) is list:
                 mea = measure[0]
@@ -1346,6 +1956,7 @@ class Experiment:
                         + ''.join(['=' for _ in range(len(subsubtitle))])
                         + '\n')
 
+            # For single combination, one single figure
             if len(group_idx) == 1 and len(config_idx) == 1:
                 i, j = config_idx[0], group_idx[0]
                 y = np.zeros((self.sample_size, len(method_idx)))
@@ -1389,8 +2000,11 @@ class Experiment:
                                 format=file_format)
                     plt.close()
 
+            # For this kind of combination, one single figure with multiple
+            # subplots
             elif len(group_idx) == 1 and len(config_idx) > 1:
 
+                # Figure configuration
                 nplots = len(config_idx)
                 nrows = int(np.sqrt(nplots))
                 ncols = int(np.ceil(nplots/nrows))
@@ -1416,6 +2030,7 @@ class Experiment:
                             method_idx=m
                         )
 
+                        # Test normality
                         if stats.diagnostic.normal_ad(y[:, n])[1] < .05:
                             message = ('The sample from method '
                                        + method_names[n] + ', config. %d, '
@@ -1439,6 +2054,7 @@ class Experiment:
                                 title=self.configurations[i].name)
                     k += 1
 
+                # Show or save the figure
                 if show:
                     plt.show()
                 else:
@@ -1447,8 +2063,10 @@ class Experiment:
                                 format=file_format)
                     plt.close()
 
+            # Otherwise, one figure per configuration
             else:
 
+                # Figure configuration
                 nplots = len(group_idx)
                 nrows = int(np.sqrt(nplots))
                 ncols = int(np.ceil(nplots/nrows))
@@ -1477,6 +2095,7 @@ class Experiment:
                                 method_idx=m
                             )
 
+                            # Test normality
                             if stats.diagnostic.normal_ad(y[:, n])[1] < .05:
                                 message = ('The sample from method '
                                            + method_names[n] + ', config. %d, '
@@ -1491,7 +2110,7 @@ class Experiment:
                             if write or printscreen:
                                 info = stats.weightstats.DescrStatsW(y[:, n])
                                 cf = info.tconfint_mean()
-                                text = (text + '* ' + method_names[m] 
+                                text = (text + '* ' + method_names[m]
                                         + ': [%.2e, ' % cf[0] + '%.2e]' % cf[1]
                                         + '\n')
 
@@ -1501,6 +2120,7 @@ class Experiment:
                                     title='g. %d' % j)
                         k += 1
 
+                    # Show or save the figure
                     if show:
                         plt.show()
                     else:
@@ -1509,6 +2129,7 @@ class Experiment:
                                     format=file_format)
                         plt.close()
 
+        # Print or write results
         if printscreen:
             print(text)
         if write:
@@ -1519,6 +2140,70 @@ class Experiment:
     def plot_normality(self, measure=None, group_idx=[0], config_idx=[0],
                        method_idx=[0], show=False, file_path='',
                        file_format='eps'):
+        """Check normality of samples.
+
+        Given a combination of measure-configuration-group-method, the
+        sample is graphically compared to a standard normal
+        distribution. For single method and multiple measures, each
+        figure will have N subplots where N is the number of measures.
+        And vice-versa. In case of multiple methods and measures,
+        each figure will address a single measure.
+
+        Parameters
+        ----------
+            measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                       'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                A string or a list of string to indicate the considered
+                measures. If `None`, then all the available ones will be
+                considered.
+
+            group_idx : int or list of int, default: [0]
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int or list of int, default: [0]
+                Configuration index.
+
+            method_idx : int of list of int, default: 0
+                Method index.
+
+            show : bool, default: False
+                If `True`, the plot is shown. Otherwise, the plot is
+                saved with the name 'normality' plus the indexes of
+                configurations and factor groups.
+
+            file_path : str, default: ''
+                Path to save the figure.
+
+            file_format : {'eps', 'png', 'pdf', 'svg'}
+                Format of the figure to be saved. Only formats supported
+                by `matplotlib.pyplot.savefig`.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int and type(group_idx) is not list:
+            raise error.WrongTypeInput('Experiment.plot_normality',
+                                       'group_idx', 'int/list of int',
+                                       type(group_idx))
+        if type(config_idx) is not int and type(config_idx) is not list:
+            raise error.WrongTypeInput('Experiment.plot_normality',
+                                       'config_idx', 'int', type(config_idx))
+        if type(method_idx) is not int and type(method_idx) is not list:
+            raise error.WrongTypeInput('Experiment.plot_normality',
+                                       'method_idx', 'int', type(method_idx))
+        if (measure is not None and type(measure) is not str
+                and type(measure) is not list):
+            raise error.WrongTypeInput('Experiment.plot_normality',
+                                       'meausre', 'None/str/list',
+                                       type(measure))
+
+        # Fix the format of the method index as list
+        if type(method_idx) is int:
+            method_idx = [method_idx]
         if type(group_idx) is int:
             group_idx = [group_idx]
         if type(config_idx) is int:
@@ -1530,6 +2215,33 @@ class Experiment:
         else:
             none_measure = False
 
+        # Check the values of the inputs
+        if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.plot_normality',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.plot_normality',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.plot_normality',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+        if type(measure) is str:
+            try:
+                get_title(measure)
+            except Exception:
+                raise error.WrongValueInput(
+                    'Experiments.plot_normality', 'measure',
+                    "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
+                    + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+
+        # Quick access to method names
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
@@ -1541,7 +2253,10 @@ class Experiment:
 
             for j in group_idx:
 
+                # Single method case
                 if len(measure) > 1 and len(method_idx) == 1:
+
+                    # Figure configuration
                     m = method_idx[0]
                     nplots = len(measure)
                     nrows = int(np.sqrt(nplots))
@@ -1550,6 +2265,7 @@ class Experiment:
                     fig = plt.figure(figsize=image_size)
                     rst.set_subplot_size(fig)
                     data = np.zeros((self.sample_size, len(measure)))
+
                     for k in range(len(measure)):
                         data[:, k] = self.get_final_value_over_samples(
                             group_idx=j, config_idx=i, method_idx=m,
@@ -1557,6 +2273,8 @@ class Experiment:
                         axes = fig.add_subplot(nrows, ncols, k+1)
                         normalitiyplot(data[:, k], axes, measure[k])
                     plt.suptitle('c%d' % i + 'g%d - ' % j + method_names[0])
+
+                    # Show or save the figure
                     if show:
                         plt.show()
                     else:
@@ -1566,7 +2284,10 @@ class Experiment:
                                     format=file_format)
                         plt.close()
 
+                # Single measure case
                 elif len(measure) == 1 and len(method_idx) > 1:
+
+                    # Figure configuration
                     nplots = len(method_idx)
                     nrows = int(np.sqrt(nplots))
                     ncols = int(np.ceil(nplots/nrows))
@@ -1574,6 +2295,7 @@ class Experiment:
                     fig = plt.figure(figsize=image_size)
                     rst.set_subplot_size(fig)
                     data = np.zeros((self.sample_size, len(method_idx)))
+
                     for k in range(len(method_idx)):
                         data[:, k] = self.get_final_value_over_samples(
                             group_idx=j, config_idx=i,
@@ -1582,6 +2304,8 @@ class Experiment:
                         normalitiyplot(data[:, k], axes, method_names[k])
                     plt.suptitle('c%d' % i + 'g%d - ' % j
                                  + get_title(measure[0]))
+
+                    # Show or save the figure
                     if show:
                         plt.show()
                     else:
@@ -1591,8 +2315,10 @@ class Experiment:
                                     format=file_format)
                         plt.close()
 
+                # Multiple methods and measures
                 else:
 
+                    # Figure configuration
                     nplots = len(method_idx)
                     nrows = int(np.sqrt(nplots))
                     ncols = int(np.ceil(nplots/nrows))
@@ -1610,6 +2336,8 @@ class Experiment:
                             axes = fig.add_subplot(nrows, ncols, k+1)
                             normalitiyplot(data[:, k], axes, method_names[k])
                         plt.suptitle('c%d' % i + 'g%d - ' % j + get_title(mea))
+
+                        # Show or save the figure
                         if show:
                             plt.show()
                         else:
@@ -1622,18 +2350,133 @@ class Experiment:
     def compare_two_methods(self, measure=None, group_idx=[0], config_idx=[0],
                             method_idx=[0, 1], printscreen=False, write=False,
                             file_path=''):
+        """Paired comparison between two methods.
+
+        Given a measure, configuration and a factor group, the Paired
+        Comparison is performed to compare two algorithms. The results
+        will indicate evidences or not for difference in performance
+        considering the mean case, i.e., mean study. The results may
+        be printed on the screen or recorded in .txt file. The
+        significance level is defined as 0.05 and the effect size is
+        computed for a 0.8 power level.
+
+        Parameters
+        ----------
+            measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                       'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                A string or a list of string to indicate the considered
+                measures. If `None`, then all the available ones will be
+                considered.
+
+            group_idx : int or list of int, default: [0]
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int or list of int, default: [0]
+                Configuration index.
+
+            method_idx : int of list of int, default: 0
+                Method index.
+
+            file_path : str, default: ''
+                Path to save the .txt file.
+
+            printscreen : bool, default: False
+                If `True`, the results for each test will be printed on
+                the screen.
+
+            write : bool, default: False
+                If `True`, the results for each test will be printed in
+                a .txt file.
+
+        Returns
+        -------
+            results : list of str
+                3-d list (configuration-group-measure) containing one
+                of the three options of strings: '1<2' (first method
+                had a better performance), '1>2' (otherwise), '1=2'
+                (no difference detected).
+
+            mtd1 : int
+                Number of times that the first method had a better
+                performance.
+
+            mtd2 : int
+                Number of times that the second method had a better
+                performance.
+
+            equal : int
+                Number of times that no evidence for difference in
+                performance was found.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int and type(group_idx) is not list:
+            raise error.WrongTypeInput('Experiment.compare_two_methods',
+                                       'group_idx', 'int/list of int',
+                                       type(group_idx))
+        if type(config_idx) is not int and type(config_idx) is not list:
+            raise error.WrongTypeInput('Experiment.compare_two_methods',
+                                       'config_idx', 'int', type(config_idx))
+        if type(method_idx) is not int and type(method_idx) is not list:
+            raise error.WrongTypeInput('Experiment.compare_two_methods',
+                                       'method_idx', 'int', type(method_idx))
+        if (measure is not None and type(measure) is not str
+                and type(measure) is not list):
+            raise error.WrongTypeInput('Experiment.compare_two_methods',
+                                       'meausre', 'None/str/list',
+                                       type(measure))
+
+        # Fix the format of the method index as list
+        if type(method_idx) is int:
+            method_idx = [method_idx]
         if type(group_idx) is int:
             group_idx = [group_idx]
         if type(config_idx) is int:
             config_idx = [config_idx]
+        if type(measure) is str:
+            measure = [measure]
         if measure is None:
             none_measure = True
         else:
             none_measure = False
+
+        # Check the values of the inputs
+        if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.compare_two_methods',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.compare_two_methods',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.compare_two_methods',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+        if type(measure) is str:
+            try:
+                get_title(measure)
+            except Exception:
+                raise error.WrongValueInput(
+                    'Experiments.compare_two_methods', 'measure',
+                    "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
+                    + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+
+        # Quick access to method names
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
 
+        # Heading of the results
         if write or printscreen:
             title = 'Paired Study - *' + self.name + '*'
             subtitle = 'Methods: ' + method_names[0] + ', ' + method_names[1]
@@ -1648,9 +2491,12 @@ class Experiment:
 
         results = []
         for i in config_idx:
+
+            # Different configurations may have different measures
             if none_measure:
                 measure = self.get_measure_set(i)
 
+            # The results are divided in sections by the configuration
             if write or printscreen:
                 section = 'Configuration ' + self.configurations[i].name
                 aux = ''.join(['=' for _ in range(len(section))])
@@ -1659,6 +2505,7 @@ class Experiment:
             results.append(list())
             for j in group_idx:
 
+                # The results are divided in subsections by the group
                 if write or printscreen:
                     subsection = 'Group %d' % j
                     aux = ''.join(['-' for _ in range(len(subsection))])
@@ -1667,23 +2514,32 @@ class Experiment:
                 results[-1].append(list())
                 for k in range(len(measure)):
 
+                    # First sample
                     y1 = self.get_final_value_over_samples(
                         group_idx=j, config_idx=i, method_idx=method_idx[0],
                         measure=measure[k]
                     )
+
+                    # Second sample
                     y2 = self.get_final_value_over_samples(
                         group_idx=j, config_idx=i, method_idx=method_idx[1],
                         measure=measure[k]
                     )
 
+                    # Each measure is a topic
                     if write or printscreen:
                         topic = '* ' + measure[k]
                         text = text + topic
 
+                    # If data is normally distributed (required assumption)
                     if scipy.stats.shapiro(y1-y2)[1] > .05:
+
+                        # Paired T-test
                         pvalue, lower, upper = stats.weightstats.ttost_paired(
                             y1, y2, 0, 0
                         )
+
+                        # Effect size calculation
                         delta = stats.power.tt_solve_power(
                             nobs=self.sample_size, alpha=0.05, power=.80
                         ) / np.std(y1-y2)
@@ -1694,10 +2550,16 @@ class Experiment:
                                                                delta,
                                                                text + ': ')
 
+                    # If data is not normally distributed, try Log
+                    # Transformation
                     elif scipy.stats.shapiro(np.log(y1) - np.log(y2))[1] > .05:
+
+                        # Paired T-test
                         pvalue, lower, upper = stats.weightstats.ttost_paired(
                             np.log(y1), np.log(y2), 0, 0
                         )
+
+                        # Effect size calculation
                         delta = stats.power.tt_solve_power(
                             nobs=self.sample_size, alpha=0.05, power=.80
                         ) / np.std(np.log(y1)-np.log(y2))
@@ -1707,11 +2569,16 @@ class Experiment:
                             text + ' (Log Transformation): '
                         )
 
+                    # If data is not normally distributed, try Square-
+                    # Root Transformation
                     elif scipy.stats.shapiro(np.sqrt(y1)
                                              - np.sqrt(y2))[1] > .05:
+                        # Paired T-test
                         pvalue, lower, upper = stats.weightstats.ttost_paired(
                             np.log(y1), np.log(y2), 0, 0
                         )
+
+                        # Effect size calculation
                         delta = stats.power.tt_solve_power(
                             nobs=self.sample_size, alpha=0.05, power=.80
                         ) / np.std(np.sqrt(y1)-np.sqrt(y2))
@@ -1721,28 +2588,41 @@ class Experiment:
                             + ' (Square-root Transformation): '
                         )
 
+                    # Paired test for non-normal data
                     else:
+
+                        # Wilcoxon Test (two-sided)
                         pvalue = scipy.stats.wilcoxon(y1, y2)[1]
                         text = text + ' (Wilcoxon-Test): '
+
+                        # Null hypothesis is not rejected
                         if pvalue > .05:
                             text = (text + 'Equality hypothesis not rejected '
                                     '(pvalue: %.2e)' % pvalue + '\n')
                             result = '1=2'
+
+                        # Null hypothesis is rejected
                         else:
                             text = (text + 'Equality hypothesis rejected '
                                     '(pvalue: %.2e)' % pvalue + '\n')
+
+                            # One-sided to identify which method has
+                            # the lowest mean.
                             _, lower = scipy.stats.wilcoxon(
                                 y1, y2, alternative='less'
                             )
                             _, upper = scipy.stats.wilcoxon(
                                 y1, y2, alternative='greater'
                             )
+
+                            # First method has a lower measure
                             if lower < .05:
                                 text = (text + '  Better performance of '
                                         + method_names[0]
                                         + ' has been detected (pvalue: %.2e).'
                                         % lower + '\n')
                                 result = '1<2'
+                            # Second method has a lower measure
                             if upper < .05:
                                 text = (text + '  Better performance of '
                                         + method_names[1]
@@ -1755,6 +2635,8 @@ class Experiment:
                 if write or printscreen:
                     text = text + '\n'
 
+        # Count cases - equal performance, superiority of first method
+        # and superiority of second method
         mtd1, mtd2, equal = 0, 0, 0
         for i in range(len(results)):
             for j in range(len(results[i])):
@@ -1776,6 +2658,7 @@ class Experiment:
                     + ' outperformed ' + method_names[0] + ': %d ' % mtd2
                     + '(%.1f%%)\n' % (mtd2/(equal+mtd1+mtd2)*100))
 
+        # Print or write a file
         if printscreen:
             print(text)
         if write:
@@ -1790,18 +2673,123 @@ class Experiment:
                                  config_idx=[0], method_idx=[0, 1],
                                  printscreen=False, write=False, file_path='',
                                  all2all=True, one2all=None):
+        """Compare multiple method (Analysis of Variance).
+
+        Given a measure, a configuration, and a factor group, multiple
+        methods are compared through Analysis of Variance. Firstly,
+        it is determined if there is evidence for any difference in
+        mean performance. Then, all-to-all or one-to-all comparison
+        can be made to identify which methods have different
+        performances. The significance level is defined as 0.05 and the
+        effect size is computed for a 0.8 power level.
+
+        Parameters
+        ----------
+            measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                       'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                A string or a list of string to indicate the considered
+                measures. If `None`, then all the available ones will be
+                considered.
+
+            group_idx : int or list of int, default: [0]
+                Factor combination index (maximum contrast, maximum
+                object size etc).
+
+            config_idx : int or list of int, default: [0]
+                Configuration index.
+
+            method_idx : int of list of int, default: 0
+                Method index.
+
+            file_path : str, default: ''
+                Path to save the .txt file.
+
+            printscreen : bool, default: False
+                If `True`, the results for each test will be printed on
+                the screen.
+
+            write : bool, default: False
+                If `True`, the results for each test will be printed in
+                a .txt file.
+
+            all2all : bool, default: True
+                If `True`, all methods will be compared to each other
+                if any difference is detected.
+
+            one2all : None or int, default: None
+                If this argument is an integer, then it will be
+                interpreted as the index of the method in the list in
+                which all methods will be compared with, i.e., the
+                control group. Otherwise, it must be `None`.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if type(group_idx) is not int and type(group_idx) is not list:
+            raise error.WrongTypeInput('Experiment.compare_two_methods',
+                                       'group_idx', 'int/list of int',
+                                       type(group_idx))
+        if type(config_idx) is not int and type(config_idx) is not list:
+            raise error.WrongTypeInput('Experiment.compare_two_methods',
+                                       'config_idx', 'int', type(config_idx))
+        if type(method_idx) is not int and type(method_idx) is not list:
+            raise error.WrongTypeInput('Experiment.compare_two_methods',
+                                       'method_idx', 'int', type(method_idx))
+        if (measure is not None and type(measure) is not str
+                and type(measure) is not list):
+            raise error.WrongTypeInput('Experiment.compare_two_methods',
+                                       'meausre', 'None/str/list',
+                                       type(measure))
+
+        # Fix the format of the method index as list
+        if type(method_idx) is int:
+            method_idx = [method_idx]
         if type(group_idx) is int:
             group_idx = [group_idx]
         if type(config_idx) is int:
             config_idx = [config_idx]
+        if type(measure) is str:
+            measure = [measure]
         if measure is None:
             none_measure = True
         else:
             none_measure = False
+
+        # Check the values of the inputs
+        if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.compare_two_methods',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.compare_two_methods',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.compare_two_methods',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+        if type(measure) is str:
+            try:
+                get_title(measure)
+            except Exception:
+                raise error.WrongValueInput(
+                    'Experiments.compare_two_methods', 'measure',
+                    "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
+                    + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+
+        # Quick access to method names
         method_names = []
         for m in method_idx:
             method_names.append(self.methods[m].alias)
 
+        # Heading of the file
         title = 'Multile Comparison - *' + self.name + '*'
         subtitle = 'Methods: '
         for i in range(len(method_names)-1):
@@ -1815,15 +2803,18 @@ class Experiment:
 
         for i in config_idx:
 
+            # Different configurations may have different measures
             if none_measure:
                 measure = self.get_measure_set(i)
 
+            # The results are divided in sections by the configuration
             section = 'Configuration ' + self.configurations[i].name
             aux = ''.join(['=' for _ in range(len(section))])
             text = text + section + '\n' + aux + '\n\n'
 
             for j in config_idx:
 
+                # The results are divided in subsections by the group
                 subsection = 'Group %d' % j
                 aux = ''.join(['-' for _ in range(len(subsection))])
                 text = text + subsection + '\n' + aux + '\n'
@@ -1831,12 +2822,16 @@ class Experiment:
                 k = 0
                 for mea in measure:
 
+                    # Each measure is a topic
                     text += '* ' + measure[k]
+
+                    # Gather data
                     data = []
                     for m in method_idx:
                         data.append(self.get_final_value_over_samples(j, i, m,
                                                                       mea))
 
+                    # Compute residuals for normality assumption test
                     residuals = np.zeros((len(method_idx), self.sample_size))
                     for p in range(len(method_idx)):
                         for q in range(self.sample_size):
@@ -1844,9 +2839,18 @@ class Experiment:
 
                     normal_data = True
                     if scipy.stats.shapiro(residuals.flatten())[1] < .05:
+
+                        # In case of non-normal data, transformation is
+                        # tried.
                         output = data_transformation(data, residuals=True)
+
+                        # If no transformation has been succeed, then
+                        # a flag will be set for a specific test
                         if output is None:
                             normal_data = False
+
+                        # If any transformation has succeed, then this
+                        # information is added
                         else:
                             data = output[0]
                             if output[1] == 'log':
@@ -1854,12 +2858,20 @@ class Experiment:
                             elif output[1] == 'sqrt':
                                 text += ' (Square-root transformation)'
 
+                    # When the normality assumption is checked
                     if normal_data:
 
+                        # The equal-variance condition
+                        # (homoscedasticity) is checked
                         if scipy.stats.fligner(*data)[1] > .05:
                             homoscedasticity = True
+
+                            # One-Way ANOVA
                             output = oneway.anova_oneway(data,
                                                          use_var='equal')
+
+                            # Try to compute the effect-size (errors
+                            # may occur)
                             try:
                                 delta = (
                                     stats.power.FTestAnovaPower().solve_power(
@@ -1870,6 +2882,9 @@ class Experiment:
                             except Exception:
                                 delta = None
 
+                        # In case that the homoscedasticity cannot be
+                        # assumed, then Welch Anova + Satterthwaite-
+                        # Welch degrees of freedom is performed
                         else:
                             delta = None
                             homoscedasticity = False
@@ -1882,17 +2897,26 @@ class Experiment:
                         else:
                             aux = ''
 
+                        # If any difference in means has NOT been
+                        # detected
                         if output.pvalue > .05:
-                            text += (': Equality of means hypothesis NOT '
-                                     + 'rejected (p-value: %.3e'
+                            text += (': failure in reject the hypothesis of '
+                                     + "equal means (p-value: %.3e"
                                      % output.pvalue + aux + ' ).')
 
+                        # If any difference in means has NOT been
+                        # detected
                         else:
                             text += (': Equality of means hypothesis rejected'
                                      '(p-value: %.3e' % output.pvalue + aux
                                      + ').')
 
+                            # All-to-all comparisons, in case of
+                            # homoscedasticity, is addressed by Tukey's
+                            # HSD test
                             if all2all and homoscedasticity:
+
+                                # Adjusting arrays to routine
                                 data2 = np.zeros(residuals.shape)
                                 groups = []
                                 for m in range(len(method_idx)):
@@ -1900,181 +2924,315 @@ class Experiment:
                                     groups += ([method_names[m]]
                                                * self.sample_size)
                                 data2 = data2.flatten()
+
+                                # Tukey's HSD Test
                                 output = snd.stats.multicomp.MultiComparison(
                                     data2, groups
                                 ).tukeyhsd()
+
+                                # Add text
                                 text += ('\n  - All-to-all comparison '
                                          + '(Tukey HSD):')
+
+                                # Auxiliar variables to identify pairs
+                                # of comparison
                                 pair_comparison = []
                                 for p in range(len(method_idx)-1):
                                     for q in range(p, len(method_idx)):
                                         pair_comparison.append(
                                             [method_names[p], method_names[q]]
                                         )
+
+                                # Check each comparison pair
                                 for p in range(len(output.reject)):
+
+                                    # Names of the methods
                                     text += ('\n    * '
                                              + pair_comparison[p][0] + ' and '
                                              + pair_comparison[p][1] + ': ')
+
+                                    # No evidence for difference
                                     if output.reject[p]:
                                         text += ('Not enough evidence for '
                                                  + 'difference in performance')
+
+                                    # Evidence for difference
                                     else:
                                         text += ('Detected evidence for '
                                                  'difference in performance')
+
+                                    # Add p-value information
                                     text += (' (p-value: %.3e), '
                                              % output.pvalues[p]
                                              + 'Confi. Inter.: (%.2e, '
                                              % output.confint[p][0] + '%.2e).'
                                              % output.confint[p][1])
 
+                            # All-to-all comparisons, in case of
+                            # heteroscedasticity, is addressed by
+                            # Multiple Welch tests with Bon-Ferroni
+                            # correction of the significance level
                             elif all2all and not homoscedasticity:
+
+                                # Add text
                                 text += ('\n  - All-to-all comparison '
                                          + '(unequal variances):')
+
+                                # Bon-Ferroni correction
                                 a = len(method_idx)
                                 alpha = 0.05/(a*(a-1)/2)
+
+                                # Check each pair
                                 for p in range(len(method_idx)-1):
                                     for q in range(i, len(method_idx)):
+
+                                        # Separe two samples
                                         y1, y2 = data[p], data[q]
+
+                                        # Welch Test of independent
+                                        # samples
                                         H0, _, pvalue, _, cf = (
                                             ttest_ind_nonequalvar(y1, y2,
                                                                   alpha)
                                         )
+
+                                        # Names of the methods
                                         text += ('\n    * ' + method_names[p]
                                                  + ' and ' + method_names[q]
                                                  + ': ')
+
+                                        # No evidence for the rejection
+                                        # of the hypothesis of equal
+                                        # means
                                         if H0 is True:
                                             text += ('Not enough evidence for'
                                                      + ' difference in '
                                                      + 'performance')
+
+                                        # Detected difference in means
                                         else:
                                             text += ('Detected evidence for'
                                                      + ' difference in '
                                                      + 'performance')
+
+                                        # Add p-value information
                                         text += (' (p-value: %.3e), ' % pvalue
                                                  + 'Confi. Inter. (%.2e, '
                                                  % cf[0] + '%.2e).' % cf[1])
 
+                            # One-to-all test in case of
+                            # homoscedasticity is performed by Dunnett's
+                            # test
                             if one2all is not None and homoscedasticity:
 
+                                # Find method
                                 p = np.argwhere(np.array(method_idx)
                                                 == one2all)[0][0]
+
+                                # Add text
                                 text += ('\n  - One-to-all comparison '
                                          + "(Dunnet's test) - "
                                          + method_names[p] + ':')
 
+                                # Gather samples
                                 y0, y, q = data[p], [], []
                                 for m in range(len(method_idx)):
                                     if method_idx[m] != p:
                                         y.append(data[m])
                                         q.append(m)
 
+                                # Dunnett's Test
                                 output = dunnetttest(y0, y)
+
+                                # Check each comparison
                                 for i in range(len(output)):
+
+                                    # Names of the methods
                                     text += ('\n    * ' + method_names[p]
                                              + ' and ' + method_names[q[i]]
                                              + ': ')
+
+                                    # Not enough evidence against
+                                    # performance equality
                                     if output[i]:
                                         text += ('Not enough evidence for '
                                                  + 'difference in'
                                                  + 'performance.')
+
+                                    # Detected evidence for difference
+                                    # in performance
                                     else:
                                         text += ('Detected evidence for '
                                                  + 'difference in'
                                                  + 'performance.')
 
+                            # One-to-all test in case of
+                            # heteroscedasticity is performed by
+                            # multiple Welch test with Bon-Ferroni
+                            # correction of significance level
                             elif one2all is not None and not homoscedasticity:
 
+                                # Find method
                                 p = np.argwhere(np.array(method_idx)
                                                 == one2all)[0][0]
+
+                                # Add text
                                 text += ('\n  - One-to-all comparison '
                                          + "(unequal variances) - "
                                          + method_names[p] + ':')
 
+                                # Bon-Ferroni correction
                                 a = len(method_idx)
                                 alpha = 0.05/(a-1)
+
+                                # Gather samples
                                 y0, y, q = data[p], [], []
                                 for m in range(len(method_idx)):
                                     if method_idx[m] != p:
                                         y.append(data[m])
                                         q.append(m)
 
+                                # Check each comparison
                                 for i in range(a-1):
+
+                                    # Welch test for independent samples
                                     H0, _, pvalue, _, cf = (
                                         ttest_ind_nonequalvar(y0, y[i], alpha)
                                     )
+
+                                    # Names of the methods
                                     text += ('\n    * ' + method_names[p]
                                              + ' and ' + method_names[q[i]]
                                              + ': ')
+
+                                    # Not enough evidence against
+                                    # performance equality
                                     if H0 is True:
                                         text += ('Not enough evidence for'
                                                  + ' difference in '
                                                  + 'performance')
+
+                                    # Detected evidence for difference
+                                    # in performance
                                     else:
                                         text += ('Detected evidence for'
                                                  + ' difference in '
                                                  + 'performance')
+
+                                    # Add p-value information and
+                                    # confidence level for difference
+                                    # in means
                                     text += (' (p-value: %.3e), ' % pvalue
                                              + 'Confi. Inter. (%.2e, '
                                              % cf[0] + '%.2e).' % cf[1])
 
+                    # In case of Non-Normal data, The Kruskal-Wallis'
+                    # Test is performed
                     else:
+
+                        # Add text
                         text += ' (Non Normal Data): '
                         _, pvalue = scipy.stats.kruskal(*data)
 
+                        # Failure in rejecting the null hypothesis
                         if pvalue > 0.05:
                             text += ('Not enough evidence against difference'
                                      + ' in performance (p-value: %.3e).'
                                      % pvalue)
-                        else:
-                            text += ('Not enough evidence against difference'
-                                     + ' in performance (p-value: %.3e).'
-                                     % pvalue)
 
+                        # The null hypothesis is rejected
+                        else:
+                            text += ('Evidence has been detected for '
+                                     + 'difference in performance (p-value: '
+                                     + '%.3e).' % pvalue)
+
+                            # For all-to-all comparisons, the
+                            # Mann-Whitney Rank Test is performed for
+                            # detecting difference in the probability
+                            # of superior results
                             if all2all:
+
+                                # Add text
                                 text += ('\n  - All-to-all comparison '
                                          + '(Mann-Whitney Rank Test):')
+
+                                # Check each comparison
                                 for p in range(len(method_idx)-1):
                                     for q in range(p, len(method_idx)):
+
+                                        # Mann-Whitney Rank Test
                                         _, pvalue = scipy.stats.mannwhitneyu(
                                             data[p], data[q]
                                         )
+
+                                        # Names of the methods
                                         text += ('\n    * ' + method_names[p]
                                                  + ' and ' + method_names[q]
                                                  + ': ')
+
+                                        # Failure in rejecting the null
+                                        # hypothesis
                                         if pvalue > 0.05:
                                             text += ('Not enough evidence '
                                                      + 'against the hypothesis'
                                                      + ' of same probability '
                                                      + 'of superiority')
+
+                                        # Null hypothesis has been
+                                        # rejected
                                         else:
                                             text += ('Evidence detected for '
                                                      + 'difference in '
                                                      + 'probability of '
                                                      + 'superiorit')
+
+                                        # Add p-value information
                                         text += ' (p-value: %.3e).' % pvalue
 
+                            # For one-to-all comparisons, the
+                            # Mann-Whitney Rank Test is performed for
+                            # detecting difference in the probability
+                            # of superior results
                             if one2all is not None:
+
+                                # Find the control method
                                 p = np.argwhere(np.array(method_idx)
                                                 == one2all)[0][0]
+
+                                # Add text
                                 text += ('\n  - One-to-all comparison '
                                          + '(Mann-Whitney Rank Test) - '
                                          + method_names[p] + ':')
+
+                                # Gather samples
                                 y0, y, q = data[p], [], []
                                 for m in range(len(method_idx)):
                                     if method_idx[m] != p:
                                         y.append(data[m])
                                         q.append(m)
+
+                                # Check each comparison
                                 for i in range(a-1):
+
+                                    # Mann-Whitney Rank Test
                                     _, pvalue = scipy.stats.mannwhitneyu(y0,
                                                                          y[i])
+
+                                    # Names of the methods
                                     text += ('\n    * ' + method_names[p]
                                              + ' and ' + method_names[q[i]]
                                              + ': ')
+
+                                    # Failure in rejecting the null
+                                    # hypothesis
                                     if pvalue > 0.05:
                                         text += ('Not enough evidence '
                                                  + 'against the hypothesis'
                                                  + ' of same probability '
                                                  + 'of superiority')
+
+                                    # Null hypothesis has been
+                                    # rejected
                                     else:
                                         text += ('Evidence detected for '
                                                  + 'difference in '
@@ -2085,6 +3243,7 @@ class Experiment:
                     text += '\n'
                     k += 1
 
+        # Print or write results
         if printscreen:
             print(text)
         if write:
@@ -3515,7 +4674,8 @@ def boxplot(data, axes=None, meanline=False, labels=None, xlabel=None,
         ylabel : list of str, default: None
 
         color : str, default: 'b'
-            Color of boxes. Check some `here <https://matplotlib.org/3.1.1/gallery/color/named_colors.html>`_
+            Color of boxes. Check some `here <https://matplotlib.org/
+            3.1.1/gallery/color/named_colors.html>`_
 
         legend : str, default: None
             Label for meanline.
