@@ -46,6 +46,7 @@ LABEL_ZETA_SOE = r'$\zeta_{\sigma OE}$'
 LABEL_ZETA_BE = r'$\zeta_{BE}$'
 LABEL_ZETA_TFMPAD = r'$\zeta_{TFMPAD}$'
 LABEL_ZETA_TFPPAD = r'$\zeta_{TFPPAD}$'
+LABEL_EXECUTION_TIME = r'$t_{exe}$ [sec]'
 MEASURE_SET = ['zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', 'zeta_eoe',
                'zeta_sad', 'zeta_soe', 'zeta_sbe', 'zeta_tfmpad',
                'zeta_tfppad', 'zeta_be']
