@@ -1,22 +1,50 @@
-"""Experiments Module
+r"""Experiments Module
 
 This module is intended to provide tools to analyse the perfomance of
-solvers. According to the definition of some parameters, simulations may
-be carried out and there are tools for statistical studies.
+solvers for microwave imaging problems. According to the definition of
+some parameters, simulations may be carried out in order to synthesize
+data and there are tools for statistical studies.
 
-This module provides:
+This module provides the following class and function for experiments:
 
     :class:`Experiment`
         A container for joining methods, inputs and configurations for
         statistical analysis of performance.
+    :func:`run_methods`
+        Run a list of methods for a specific input.
+    :func:`run_scenarios`
+        Run a list of inputs (scenarios) for a specific method.
     :func:`create_scenario`
         A routine to create random scenarios for experiments.
     :func:`contrast_density`
         Evaluate the contrast density of a given map.
-    :func:`isleft`
-        Determine if a point is on the left of a line.
-    :func:`winding_number`
-        Determine if a point is inside a polygon.
+    :func:`compute_resolution`:
+        Compute resolution given a specific wavelength.
+
+It also provides the following statistic tools [1]_:
+
+    :func:`factorial_analysis`
+        Factorial analysis of samples.
+    :func:`ttest_ind_nonequalvar`
+        Welch T-test for independent sample with different variances.
+    :func:`dunnetttest`
+        Dunnett's test for all-to-one comparisons.
+    :func:`fittedcurve`
+        Standard function for curve fitting for Dunnett's test.
+    :func:`data_transformation`
+        Try transformation formulas to obtain a normal distribution.
+    :func:`normalitiyplot`
+        Quantile-Quantile plot for graphic verification of normality
+        assumption.
+    :func:`homoscedasticityplot`
+        Graphic verification of homoscedasticity assumption (equal
+        variance among samples).
+    :func:`boxplot`
+        An improved routine for boxplot.
+    :func:`violinplot`
+        An improved routine for violin plot.
+    :func:`confintplot`
+        Confidence interval plot for multiple samples.
 
 A set of routines for drawing geometric figures is provided:
 
@@ -41,9 +69,26 @@ A set of routines for defining surfaces is also provided:
     :func:`draw_wave`
     :func:`draw_random_waves`
     :func:`draw_random_gaussians`
+
+It also provides some helpful routines:
+
+    :func:`get_label`
+        Returns LaTeX symbol of a measure.
+    :func:`get_title`
+        Returns formal name of a measure.
+    :func:`isleft`
+        Determine if a point is on the left of a line.
+    :func:`winding_number`
+        Determine if a point is inside a polygon.
+
+References
+----------
+.. [1] Montgomery, Douglas C. Design and analysis of experiments.
+   John wiley & sons, 2017.
 """
 
 # Standard libraries
+import sys
 import pickle
 import copy as cp
 import numpy as np
@@ -117,31 +162,124 @@ class Experiment:
     ----------
         name : str
             A name for the experiment.
+
         maximum_contrast : list
             A list with maximum contrast values allowed in the
             experiments.
+
         maximum_object_size : list
             A list with maximum values of the size of objects.
+
         maximum_contrast_density : list
             A list with the maximum value of contrast density.
+
         map_pattern : {'geometric', 'surfaces'}
-            Define the kind of contrast pattern in the image.
+            A list with the defined kind of contrast pattern in the
+            image.
+
         sample_size : int
             Number of scenarios for experiments.
+
         synthetization_resolution : 2-tuple
             Synthetization image resolution.
+
         recover_resoluton : 2-tuple
             Recovered image resolution.
+
         configurations : list
             List of objects of Configuration class.
+
         scenarios : list
             Instances which will be considered.
+
         methods : list
             Set of solvers.
+
         results : list
             List of outputs of executions.
+
         forward_solver : :class:`forward.Forward`
             An object of forward solver for synthetizing data.
+
+    Data synthesization
+    -------------------
+        :func:`define_synthetization_resolution`
+            Compute appropriated resolution for sythesized images.
+
+        :func:`define_recover_resolution`
+            Compute appropriated resolution for recovered images.
+
+        :func:`randomize_scenarios`
+            Generate random scenarios.
+
+        :func:`synthesize_scattered_field`
+            Run forward problem for data synthesization.
+
+        :func:`solve_scenarios`
+            Run methods for the defined scenarios (samples).
+
+        :func:`run`
+            Gather the last 5 methods as a shortcut for a complete
+            automatic and random experiment.
+
+    Visualize results
+    -----------------
+        :func:`fixed_sampleset_plot`
+            Compare observations of a sample.
+
+        :func:`fixed_sampleset_violinplot`
+            Compare results among methods for a single sample.
+
+        :func:`fixed_measure_violinplot`
+            Compare results of multiple methods for multiple samples
+            given a measure.
+
+        :func:`evolution_boxplot`
+            Compare methods for when varying some parameter.
+
+        :func:`plot_sampleset_results`
+            Plot recovered images from a sample.
+
+        :func:`plot_nbest_results`
+            Plot N-best images recovered by methods.
+
+        :func:`plot_normality`
+            Quantile-Quantile plot for samples to check normality
+            assumption.
+
+    Compare algorithms
+    ------------------
+        :func:`study_single_mean`
+            Determine confidence interval of means and compare among
+            algorithms.
+
+        :func:`compare_two_methods`
+            Paired design between two methods.
+
+        :func:`compare_multiple_methods`
+            Compare multiple methods through Analysis of Variance and
+            all-to-all and one-to-all comparisons.
+
+        :func:`evolution_boxplot`
+            Compare methods for when varying some parameter.
+
+        :func:`factor_study`
+            Determine which model parameters are relevant for the
+            performance of a single method.
+
+    Helpful methods
+    ---------------
+        :func:`save`
+            Save experiment data.
+
+        :func:`import_data`
+            Load saved object.
+
+        :func:`get_final_value_over_samples`
+            Return the results of a single sample.
+
+        :func:`get_measure_set`
+            Return the set of available measures.
     """
 
     @property
@@ -457,7 +595,9 @@ class Experiment:
                                         'one list and float/complex',
                                         'More than one are list')
 
-    def run(self, configurations=None, scenarios=None, methods=None):
+    def run(self, configurations=None, scenarios=None, methods=None,
+            save_per_iteration=False, save_solver_screeninfo=False,
+            file_path=''):
         """Run experiment.
 
         This routine run the experiment without analysing the results.
@@ -473,6 +613,20 @@ class Experiment:
             scenarios : list of :class:`inputdata.InputData`
 
             methods : list of :class:`solver.Solver`
+
+            save_per_iteration : bool, default: False
+                If `True`, then the data will be saved in each iteration
+                when running the forward problem and solving the
+                inverse problem. This may be useful for long experiments
+                and when the server may turn off unexpectedly.
+
+            save_solver_screeninfo : bool, default: False
+                If `True`, then the routine will save the information
+                displayed by the methods through a specific .txt file
+                and save it with the name of the experiment.
+
+            file_path : str, default: ''
+                Path to save the object.
         """
         # Check required attributes
         if self.configurations is None and configurations is None:
@@ -510,6 +664,9 @@ class Experiment:
             self.randomize_scenarios(self.synthetization_resolution)
         print('ok!')
 
+        if save_per_iteration:
+            self.save(file_path=file_path)
+
         # Check forward solver for data synthesization
         print('Check forward solver for data synthesization...', end=' ')
         if self.forward_solver is None:
@@ -518,10 +675,20 @@ class Experiment:
         print('ok!')
 
         # Synthesize the scattered field
-        self.synthesize_scattered_field()
+        self.synthesize_scattered_field(save_per_iteration=save_per_iteration,
+                                        file_path=file_path)
+
+        if save_solver_screeninfo:
+            screen_object = open(self.name + '.txt', 'w')
+        else:
+            screen_object = sys.stdout
 
         # Solving scenarios
-        self.solve_scenarios()
+        self.solve_scenarios(save_per_iteration=save_per_iteration,
+                             file_path=file_path)
+
+        if save_solver_screeninfo:
+            screen_object.close()
 
     def define_synthetization_resolution(self):
         """Set synthetization resolution attribute."""
@@ -697,8 +864,19 @@ class Experiment:
         message = 'Scenarios %d/' % n + '%d' % N
         print(message, end=' ', flush=True)
 
-    def synthesize_scattered_field(self):
-        """Run forward problem to synthesize scattered field."""
+    def synthesize_scattered_field(self, save_per_iteration=False,
+                                   file_path=''):
+        """Run forward problem to synthesize scattered field.
+
+        Parameters
+        ----------
+            save_per_iteration : bool, default: False
+                If `True`, then the object will be saved after each
+                iteration, i.e., for each scenario.
+
+            file_path : str, default: ''
+                Path to save the object.
+        """
         # Check required attributes
         if self.maximum_contrast is None:
             raise error.MissingAttributesError('Experiment',
@@ -738,17 +916,31 @@ class Experiment:
                         SAVE_INTERN_FIELD=SAVE_INTERN_FIELD
                     )
 
+                    if save_per_iteration:
+                        self.save(file_path)
+
         # Print final information
         message = 'Solved %d/' % N + '%d' % N
         print(message, end=' ', flush=True)
 
-    def solve_scenarios(self, parallelization=False):
+    def solve_scenarios(self, parallelization=False, save_per_iteration=False,
+                        file_path='', screen_object=sys.stdout):
         """Run methods for each scenario.
 
-        Parameter
+        Parameters
         ---------
             parallelization : bool
                 If the methods may run in parallel.
+
+            save_per_iteration : bool, default: False
+                If `True`, then the object will be saved after each
+                iteration.
+
+            file_path : str, default: ''
+                Path to save the object.
+
+        screen_object : :class:`_io.TextIOWrapper`, default: sys.stdout
+            Output object to print solver information.
         """
         # Check required attributes
         if self.maximum_contrast is None:
@@ -794,11 +986,21 @@ class Experiment:
                     print(message, end='\b'*len(message), flush=True)
                     n += len(self.methods)
 
+                    if screen_object != sys.stdout:
+                        print_info = True
+                    else:
+                        print_info = False
+
                     # Run methods
                     self.results[i][j][k] = (
                         run_methods(self.methods, self.scenarios[i][j][k],
-                                    parallelization=parallelization)
+                                    parallelization=parallelization,
+                                    print_info=print_info,
+                                    screen_object=screen_object)
                     )
+
+                    if save_per_iteration:
+                        self.save(file_path)
 
         # Print info
         message = 'Executions %d/' % N + '%d' % N
@@ -868,7 +1070,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.fixed_sampleset_plot',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -979,7 +1181,7 @@ class Experiment:
                                         + 'violinplot', 'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.fixed_sampleset_'
                                         + 'violinplot',
                                         'method_idx', '0 to %d'
@@ -1102,7 +1304,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.fixed_measure_violinplot',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -1264,7 +1466,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.evolution_boxplot',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -1472,7 +1674,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -1657,7 +1859,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -1832,7 +2034,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.study_single_mean',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -2226,7 +2428,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.plot_normality',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -2456,7 +2658,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -2769,7 +2971,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.configurations):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -3255,22 +3457,148 @@ class Experiment:
     def factor_study(self, method_idx, measure=None, group_idx=None,
                      config_idx=None, printscreen=False, write=False,
                      file_path='', show=False, figure_format='eps'):
-        if group_idx is None:
-            group_idx = np.arange(len(self.maximum_contrast))
-        if config_idx is None:
-            config_idx = np.array([0])
+        """Analyse factor influence on a single method.
 
+        Scenario and configuration characteristics may influence the
+        performance of the algorithm. Factorial analysis is a
+        statistical tool to determine these influences and possible
+        interactions between characteristics.
+
+        Given a method and a set of measures, the routine determines
+        the factors and level given the configuration and groups
+        indexes, i.e., it automatically identifies the factors that
+        should be taken into account on the analysis.
+
+        If more than one configuration index is provided, than it is
+        automatically defined as the levels of one factor of the
+        factorial analysis. The group indexes should be passed taking
+        into account all the levels of the desired factors. The routine
+        automatically finds the factors and levels.
+
+        ONLY TWO OR THREE FACTORS ARE ALLOWED IN THIS VERSION! The
+        significance level is defined as 0.05.
+
+        Parameters
+        ----------
+            method_idx : int
+                Method index.
+
+            measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
+                       'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                A string or a list of string to indicate the considered
+                measures. If `None`, then all the available ones will be
+                considered.
+
+            group_idx : int or list of int, default: None
+                Factor combination index (maximum contrast, maximum
+                object size etc). If `None`, then all the groups are
+                considered.
+
+            config_idx : int or list of int, default: None
+                Configuration index. If `None`, then the first is
+                considered.
+
+            file_path : str, default: ''
+                Path to save the .txt file.
+
+            printscreen : bool, default: False
+                If `True`, the results for each test will be printed on
+                the screen.
+
+            write : bool, default: False
+                If `True`, the results for each test will be printed in
+                a .txt file.
+
+            show : bool, default: False
+                If `True`, then the normality and homoscedasticity plots
+                are shown for graphic assumption verification.
+                Otherwise, a figure is save with the name
+                'factorialanalysis'.
+
+            file_format : {'eps', 'png', 'pdf', 'svg'}
+                Format of the figure to be saved. Only formats supported
+                by `matplotlib.pyplot.savefig`.
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if (type(group_idx) is not int and type(group_idx) is not list
+                and group_idx is not None):
+            raise error.WrongTypeInput('Experiment.factor_study',
+                                       'group_idx', 'int/list of int'
+                                       + '/None', type(group_idx))
+        if (type(config_idx) is not int
+                and type(config_idx) is not list
+                and config_idx is not None):
+            raise error.WrongTypeInput('Experiment.factor_study',
+                                       'config_idx', 'int/list of int/'
+                                       + 'None', type(config_idx))
+        if type(method_idx) is not int:
+            raise error.WrongTypeInput('Experiment.factor_study',
+                                       'method_idx', 'int', type(method_idx))
+        if (measure is not None and type(measure) is not str
+                and type(measure) is not list):
+            raise error.WrongTypeInput('Experiment.factor_study',
+                                       'meausre', 'None/str/list',
+                                       type(measure))
+
+        # Fix the format of the method index as list
+        if type(group_idx) is int:
+            group_idx = [group_idx]
+        elif group_idx is None:
+            group_idx = np.arange(len(self.maximum_contrast))
+        if type(config_idx) is int:
+            config_idx = [config_idx]
+        elif config_idx is None:
+            config_idx = np.array([0])
+        if type(measure) is str:
+            try:
+                get_title(measure)
+                measure = [measure]
+            except Exception:
+                raise error.WrongValueInput(
+                    'Experiments.plot_normality', 'measure',
+                    "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
+                    + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+            
+
+        # Check the values of the inputs
+        if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.factor_study',
+                                        'group_idx', '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.factor_study',
+                                        'config_idx', '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+            raise error.WrongValueInput('Experiment.factor_study',
+                                        'method_idx', '0 to %d'
+                                        % len(self.methods),
+                                        str(method_idx))
+
+        # Auxiliar variables
         nfactors = 0
         which_factors = []
         levels = []
         levels_idx = []
         nlevels = []
+
+        # Detect configuration levels
         if len(config_idx) > 1:
             nfactors += 1
             which_factors.append('configuration')
             levels.append([self.configurations[i].name for i in config_idx])
             levels_idx.append(config_idx)
             nlevels.append(len(config_idx))
+
+        # Check if maximum_contrast is a factor
         for i in group_idx[:-2]:
             if (self.maximum_contrast[i]
                     != self.maximum_contrast[group_idx[-1]]):
@@ -3284,6 +3612,8 @@ class Experiment:
                 nlevels.append(unique.size)
                 levels_idx.append(unique_inverse)
                 break
+
+        # Check if maximum_object_size is a factor
         for i in group_idx[:-2]:
             if (self.maximum_object_size[i]
                     != self.maximum_object_size[group_idx[-1]]):
@@ -3297,6 +3627,8 @@ class Experiment:
                 nlevels.append(unique.size)
                 levels_idx.append(unique_inverse)
                 break
+
+        # Check if maximum_contrast_density is a factor
         for i in group_idx[:-2]:
             if (self.maximum_contrast_density[i]
                     != self.maximum_contrast_density[group_idx[-1]]):
@@ -3310,6 +3642,8 @@ class Experiment:
                 nlevels.append(unique.size)
                 levels_idx.append(unique_inverse)
                 break
+
+        # Check if noise is a factor
         for i in group_idx[:-2]:
             if (self.noise[i] != self.noise[group_idx[-1]]):
                 nfactors += 1
@@ -3322,6 +3656,8 @@ class Experiment:
                 nlevels.append(unique.size)
                 levels_idx.append(unique_inverse)
                 break
+
+        # Check if map_pattern is a factor
         for i in group_idx[:-2]:
             if (self.map_pattern[i] != self.map_pattern[group_idx[-1]]):
                 nfactors += 1
@@ -3335,9 +3671,11 @@ class Experiment:
                 levels_idx.append(unique_inverse)
                 break
 
+        # It only supports two or three factors
         if nfactors != 2 and nfactors != 3:
             return None
 
+        # Heading of the results
         title = 'Factor Study - *' + self.name + '*'
         subtitle = 'Method: ' + self.methods[method_idx].alias
         text = ''.join(['*' for _ in range(len(title))])
@@ -3368,23 +3706,31 @@ class Experiment:
                 text += ', '
         text += '\n\n'
 
+        # If no measure is specified, then it will be assumed the one
+        # valid for the first configuration index provided.
         if measure is None:
             measure = self.get_measure_set(config_idx[0])
 
+        # Run a study for each measure
         for i in range(len(measure)):
 
+            # Each measure is a section
             section = 'Measure: ' + measure[i]
             aux = ''.join(['=' for _ in range(len(section))])
             text = text + section + '\n' + aux + '\n\n'
 
+            # Two-factor analysis
             if nfactors == 2:
 
                 data = np.zeros((nlevels[0], nlevels[1], self.sample_size))
 
+                # First factor
                 for m in range(nlevels[0]):
 
+                    # Second factor
                     for n in range(nlevels[1]):
 
+                        # Determine the correpondent sample 
                         if which_factors[0] == 'configuration':
                             p = config_idx[m]
                             q = np.argwhere(levels_idx[1] == n)[0][0]
@@ -3405,8 +3751,11 @@ class Experiment:
                             measure=measure[i]
                         )
 
+                # Run factorial analysis
                 output = factorial_analysis(data, group_names=which_factors,
                                             ylabel=get_label(measure[i]))
+
+                # Factor A results
                 text += '* ' + which_factors[0] + ' (main effect): '
                 if output[0][0]:
                     text += ('failure in rejecting the hypothesis of '
@@ -3415,6 +3764,7 @@ class Experiment:
                     text += 'detected difference between levels '
                 text += '(p-value: %.3e).\n' % output[1][1]
 
+                # Factor B results
                 text += '* ' + which_factors[1] + ' (main effect): '
                 if output[0][1]:
                     text += ('failure in rejecting the hypothesis of '
@@ -3423,6 +3773,7 @@ class Experiment:
                     text += 'detected difference between levels '
                 text += '(p-value: %.3e).\n' % output[1][1]
 
+                # Interaction AB results
                 text += '* Interaction effect: '
                 if output[0][2]:
                     text += ('failure in rejecting the hypothesis of '
@@ -3431,9 +3782,11 @@ class Experiment:
                     text += 'detected iteraction effect between factors '
                 text += '(p-value: %.3e).\n' % output[1][2]
 
+                # In case of data transformation...
                 if output[-1] is not None:
                     text += '* Data transformation: ' + output[-1] + '\n'
 
+                # Normality assumption check
                 text += "* Normality assumption (Shapiro-Wilk's test): "
                 if output[2] > 0.05:
                     text += 'not rejected '
@@ -3441,6 +3794,7 @@ class Experiment:
                     text += 'rejected '
                 text += ' (p-value: %.3e).\n' % output[2]
 
+                # Homoscedasticity assumption check
                 text += "* Homoscedascity assumption (Fligner-Killen's Test): "
                 if output[3] > 0.05:
                     text += 'not rejected '
@@ -3448,6 +3802,7 @@ class Experiment:
                     text += 'rejected '
                 text += ' (p-value: %.3e).\n\n' % output[3]
 
+                # Show or plot graphic assumptions verification
                 if show:
                     plt.show()
                 else:
@@ -3456,15 +3811,20 @@ class Experiment:
                                 format=figure_format)
                     plt.close()
 
+            # Three-factor analysis
             elif nfactors == 3:
 
                 data = np.zeros((nlevels[0], nlevels[1], nlevels[2],
                                  self.sample_size))
 
+                # First factor
                 for k in range(nlevels[0]):
+                    # Second factor
                     for m in range(nlevels[1]):
+                        # Third factor
                         for n in range(nlevels[2]):
 
+                            # Determine the correpondent sample 
                             if which_factors[0] == 'configuration':
                                 p = config_idx[k]
                                 q = group_idx[
@@ -3502,8 +3862,11 @@ class Experiment:
                                 )
                             )
 
+                # Run factorial analysis
                 output = factorial_analysis(data, group_names=which_factors,
                                             ylabel=get_label(measure[i]))
+
+                # Factor A results
                 text += '* ' + which_factors[0] + ' (main effect): '
                 if output[0][0]:
                     text += ('failure in rejecting the hypothesis of '
@@ -3512,6 +3875,7 @@ class Experiment:
                     text += 'detected difference between levels '
                 text += '(p-value: %.3e).\n' % output[1][1]
 
+                # Factor B results
                 text += '* ' + which_factors[1] + ' (main effect): '
                 if output[0][1]:
                     text += ('failure in rejecting the hypothesis of '
@@ -3520,6 +3884,7 @@ class Experiment:
                     text += 'detected difference between levels '
                 text += '(p-value: %.3e).\n' % output[1][1]
 
+                # Factor C results
                 text += '* ' + which_factors[2] + ' (main effect): '
                 if output[0][2]:
                     text += ('failure in rejecting the hypothesis of '
@@ -3528,6 +3893,7 @@ class Experiment:
                     text += 'detected difference between levels '
                 text += '(p-value: %.3e).\n' % output[1][2]
 
+                # Iteraction AB results
                 text += ('* Interaction effect between ' + which_factors[0]
                          + ' and ' + which_factors[1] + ': ')
                 if output[0][3]:
@@ -3537,6 +3903,7 @@ class Experiment:
                     text += 'detected iteraction effect between these factors '
                 text += '(p-value: %.3e).\n' % output[1][3]
 
+                # Iteraction AC results
                 text += ('* Interaction effect between ' + which_factors[0]
                          + ' and ' + which_factors[2] + ': ')
                 if output[0][4]:
@@ -3546,6 +3913,7 @@ class Experiment:
                     text += 'detected iteraction effect between these factors '
                 text += '(p-value: %.3e).\n' % output[1][4]
 
+                # Iteraction BC results
                 text += ('* Interaction effect between ' + which_factors[1]
                          + ' and ' + which_factors[2] + ': ')
                 if output[0][5]:
@@ -3555,6 +3923,7 @@ class Experiment:
                     text += 'detected iteraction effect between these factors '
                 text += '(p-value: %.3e).\n' % output[1][5]
 
+                # Iteraction ABC results
                 text += '* Interaction effect between among all factors: '
                 if output[0][6]:
                     text += ('failure in rejecting the hypothesis of '
@@ -3563,9 +3932,11 @@ class Experiment:
                     text += 'detected iteraction effect among all factors '
                 text += '(p-value: %.3e).\n' % output[1][6]
 
+                # In case of data transformation...
                 if output[-1] is not None:
                     text += '* Data transformation: ' + output[-1] + '\n'
 
+                # Normality assumption check
                 text += "* Normality assumption (Shapiro-Wilk's test): "
                 if output[2] > 0.05:
                     text += 'not rejected '
@@ -3573,6 +3944,7 @@ class Experiment:
                     text += 'rejected '
                 text += ' (p-value: %.3e).\n' % output[2]
 
+                # Homoscedasticity assumption check
                 text += "* Homoscedascity assumption (Fligner-Killen's Test): "
                 if output[3] > 0.05:
                     text += 'not rejected '
@@ -3580,6 +3952,7 @@ class Experiment:
                     text += 'rejected '
                 text += ' (p-value: %.3e).\n\n' % output[3]
 
+                # Show or plot graphic assumptions verification
                 if show:
                     plt.show()
                 else:
@@ -3588,6 +3961,7 @@ class Experiment:
                                 format=figure_format)
                     plt.close()
 
+        # Print and write a file
         if printscreen:
             print(text)
         if write:
@@ -3597,6 +3971,31 @@ class Experiment:
 
     def _pairedtest_result(self, pvalue, lower, upper, method_names,
                            effect_size=None, text=None):
+        """Auxiliar method for displaying results of Paired T-Test.
+
+        Parameters
+        ----------
+            pvalue : float
+
+            lower : tuple
+                Results of lower side of the one-side test.
+
+            upper : tuple
+                Results of upper side of the one-side test.
+
+            method_names : list of str
+
+            effect_size : float
+
+            test : str
+                Variable in which the results will be written.
+
+        Returns
+        -------
+            result : {'1<2', '1=2', '1>2'}
+
+            text : str
+        """
         if text is None:
             text = ''
 
@@ -3605,6 +4004,7 @@ class Experiment:
         else:
             aux = ', effect size: %.3e' % effect_size
 
+        # Two-sided results
         if pvalue < .05:
             text = (text + 'Difference hypothesis rejected (pvalue: %.2e'
                     % pvalue + aux + ').\n')
@@ -3613,11 +4013,14 @@ class Experiment:
             text = (text + 'No evidence against difference in performance '
                     + '(pvalue: %.2e' % pvalue + aux + ').\n')
 
+            # One-side test
             if lower[2] > .05:
                 text = (text + '  No evidence against a better performance of '
                         + method_names[0] + ' (pvalue: %.2e).' % lower[2]
                         + '\n')
                 result = '1<2'
+
+            # One-side test
             else:
                 text = (text + '  No evidence against a better performance of '
                         + method_names[1] + ' (pvalue: %.2e).' % upper[2]
@@ -3627,7 +4030,11 @@ class Experiment:
 
     def __str__(self):
         """Print the object information."""
+
+        # Name
         message = 'Experiment name: ' + self.name
+
+        # Maximum contrast values
         if all(i == self.maximum_contrast[0] for i in self.maximum_contrast):
             message = (message
                        + '\nMaximum Contrast: %.2f'
@@ -3636,6 +4043,8 @@ class Experiment:
         else:
             message = (message + '\nMaximum Contrast: '
                        + str(self.maximum_contrast))
+
+        # Maximum object size values
         if all(i == self.maximum_object_size[0]
                for i in self.maximum_object_size):
             message = (message + '\nMaximum Object Size: %.1f [lambda]'
@@ -3643,6 +4052,8 @@ class Experiment:
         else:
             message = (message + '\nMaximum Object Size: '
                        + str(self.maximum_object_size))
+
+        # Maximum contrast density values
         if all(i == self.maximum_contrast_density[0]
                for i in self.maximum_contrast_density):
             message = (message + '\nMaximum Constrast Density: %.1f'
@@ -3651,35 +4062,51 @@ class Experiment:
         else:
             message = (message + '\nMaximum Contrast Density: '
                        + str(self.maximum_contrast_density))
+
+        # Noise values
         if all(i == 0 for i in self.noise):
             message = message + '\nNoise levels: None'
         elif all(i == self.noise[0] for i in self.noise):
             message = message + '\nNoise levels: %.1e' % self.noise[0]
         else:
             message = message + '\nNoise levels: ' + str(self.noise)
+
+        # Map patterns
         if all(i == self.map_pattern[0]
                for i in self.map_pattern):
             message = (message + '\nMap pattern: ' + self.map_pattern[0])
         else:
             message = (message + '\nMap pattern: ' + str(self.map_pattern))
+
+        # Sample size
         if self.sample_size is not None:
             message = message + '\nSample Size: %d' % self.sample_size
+
+        # Considered studies
         message = message + 'Study residual error: ' + str(self.study_residual)
         message = message + 'Study map error: ' + str(self.study_map)
         message = (message + 'Study intern field error: '
                    + str(self.study_internfield))
+
+        # Configurations list
         if self.configurations is not None and len(self.configurations) > 0:
             message = message + '\nConfiguration names:'
             for i in range(len(self.configurations)-1):
                 message = message + ' ' + self.configurations[i].name + ','
             message = message + ' ' + self.configurations[-1].name
+
+        # Methods list
         if self.methods is not None and len(self.methods) > 0:
             message = message + '\nMethods:'
             for i in range(len(self.methods)-1):
                 message = message + ' ' + self.methods[i].alias + ','
             message = message + ' ' + self.methods[-1].alias
+
+        # Forward solver for data synthesization
         if self.forward_solver is not None:
             message = message + '\nForward solver: ' + self.forward_solver.name
+
+        # Resolution for synthesized maps
         if self.synthetization_resolution is not None:
             message = message + '\nSynthetization resolutions: '
             for j in range(len(self.configurations)):
@@ -3694,6 +4121,8 @@ class Experiment:
                            + '%d], '
                            % self.synthetization_resolution[-1][j][1])
             message = message[:-2]
+
+        # Resolution for recovered images
         if self.recover_resolution is not None:
             message = message + '\nRecover resolutions: '
             for j in range(len(self.configurations)):
@@ -3708,6 +4137,8 @@ class Experiment:
                            + '%d], '
                            % self.recover_resolution[-1][j][1])
             message = message[:-2]
+
+        # Number of scenarios
         if self.scenarios is not None:
             message = (message + '\nNumber of scenarios: %d'
                        % (len(self.scenarios)*len(self.scenarios[0])
@@ -3715,6 +4146,7 @@ class Experiment:
         return message
 
     def save(self, file_path=''):
+        """Save object information."""
         data = {
             NAME: self.name,
             CONFIGURATIONS: self.configurations,
@@ -3760,10 +4192,86 @@ class Experiment:
         self.results = data[RESULTS]
 
     def get_final_value_over_samples(self, group_idx=0, config_idx=0,
-                                     method_idx=0, measure=None):
+                                     method_idx=0, measure='zeta_rn'):
+        """Return the results of a single sample.
+
+        Given a group, a configuration, a method, and a measure, it
+        returns the final value obtained for each scenario in the
+        sample. This routine is useful for separing sample results.
+
+        Parameters
+        ----------
+            group_idx : int, default: 0
+                Group index.
+
+            config_idx: int, default: 0
+                Configuration index.
+
+            method_idx : int, default: 0
+                Method index.
+
+            measure : str, default: 'zeta_rn'
+                Measure name.
+
+        Return
+        ------
+            data : 1-d :class:`numpy.ndarray`
+        """
+        # Check the existence of results
+        if self.results is None:
+            raise error.MissingAttributesError('Experiment', 'results')
+
+        # Check the type of the inputs
+        if (type(group_idx) is not int):
+            raise error.WrongTypeInput('Experiment.get_final_value_over'
+                                       + '_samples', 'group_idx', 'int',
+                                       type(group_idx))
+        if type(config_idx) is not int:
+            raise error.WrongTypeInput('Experiment.get_final_value_over'
+                                       '_samples', 'config_idx', 'int',
+                                       type(config_idx))
+        if type(method_idx) is not int:
+            raise error.WrongTypeInput('Experiment.get_final_value_over'
+                                       '_samples', 'method_idx', 'int',
+                                       type(method_idx))
+        if type(measure) is not str:
+            raise error.WrongTypeInput('Experiment.get_final_value_over'
+                                       '_samples', 'measure', 'str',
+                                       type(measure))
+
+        try:
+            get_title(measure)
+        except Exception:
+            raise error.WrongValueInput(
+                'Experiments.plot_normality', 'measure',
+                "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
+                + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
+                + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure
+            )
+            
+
+        # Check the values of the inputs
+        if group_idx < 0 or group_idx >= len(self.maximum_contrast):
+            raise error.WrongValueInput('Experiment.get_final_value_'
+                                        + 'over_samples', 'group_idx',
+                                        '0 to %d'
+                                        % len(self.maximum_contrast),
+                                        str(group_idx))
+        if config_idx < 0 or config_idx >= len(self.configurations):
+            raise error.WrongValueInput('Experiment.get_final_value_'
+                                        + 'over_samples', 'config_idx',
+                                        '0 to %d'
+                                        % len(self.configurations),
+                                        str(config_idx))
+        if method_idx < 0 or method_idx >= len(self.method_idx):
+            raise error.WrongValueInput('Experiment.get_final_value_'
+                                        + 'over_samples', 'method_idx',
+                                        '0 to %d' % len(self.methods),
+                                        str(method_idx))
         if measure is None:
             raise error.MissingInputError('Experiments.get_final_value_over_'
                                           + 'samples', 'measure')
+
         g, c, m = group_idx, config_idx, method_idx
         data = np.zeros(self.sample_size)
         for i in range(self.sample_size):
@@ -3801,10 +4309,28 @@ class Experiment:
         return data
 
     def get_measure_set(self, config_idx=0):
+        """Return the available measures given a configuration.
+
+        It also takes into account the `study` flags defined on this
+        object.
+
+        Parameter
+        ---------
+            config_idx : int, default: 0
+                Configuration index.
+
+        Returns
+        -------
+            measures : list of str
+        """
         measures = []
+
+        # Residual measures
         if self.study_residual:
             measures.append('zeta_rn')
             measures.append('zeta_rpad')
+
+        # Contrast measures
         if self.study_map:
             if self.configurations[config_idx].perfect_dielectric:
                 if self.scenarios[0][config_idx][0].homogeneous_objects:
@@ -3833,9 +4359,12 @@ class Experiment:
                     measures.append('zeta_sad')
             if self.scenarios[0][config_idx][0].homogeneous_objects:
                 measures.append('zeta_be')
+
+        # Intern field measures
         if self.study_internfield:
             measures.append('zeta_tfmpad')
             measures.append('zeta_tfppad')
+
         return measures
 
 
@@ -4915,7 +5444,8 @@ def get_title(measure):
                                     + "'zeta_tfppad'", measure)
 
 
-def run_methods(methods, scenario, parallelization=False):
+def run_methods(methods, scenario, parallelization=False,
+                print_info=False, screen_object=sys.stdout):
     """Run methods for a single scenario.
 
     Parameters
@@ -4925,8 +5455,15 @@ def run_methods(methods, scenario, parallelization=False):
 
         scenario : :class:`inputdata.InputData`
 
-        parallelization : bool
+        parallelization : bool, default: False
             If `True`, the methods will run in parallel.
+
+        print_info : bool, default: False
+            If 'True', then the solver will be able to print
+            information.
+
+        screen_object : :class:`_io.TextIOWrapper`, default: sys.stdout
+            Output object to print solver information.
 
     Returns
     -------
@@ -4945,7 +5482,8 @@ def run_methods(methods, scenario, parallelization=False):
             results.append(output[m])
         # Run single method
         else:
-            results.append(methods[m].solve(scenario, print_info=False))
+            results.append(methods[m].solve(scenario, print_info=print_info,
+                                            print_file=screen_object))
     return results
 
 
