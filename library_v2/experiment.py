@@ -143,6 +143,7 @@ FORWARD_SOLVER = 'forward_solver'
 STUDY_RESIDUAL = 'study_residual'
 STUDY_MAP = 'study_map'
 STUDY_INTERNFIELD = 'study_internfield'
+STUDY_EXECUTIONTIME = 'study_executiontime'
 RESULTS = 'results'
 
 
@@ -200,6 +201,22 @@ class Experiment:
 
         forward_solver : :class:`forward.Forward`
             An object of forward solver for synthetizing data.
+
+        study_residual : bool
+            If `True`, then the residual error will be recorded and
+            available for study.
+
+        study_map : bool
+            If `True`, then the map (relative permittivity,
+            conductivity) error willbe recorded and available for study.
+
+        study_internfield : bool
+            If `True`, then the intern total field error will be
+            recorded and available for study.
+
+        study_executiontime : bool
+            If `True`, then the execution time will be available for
+            study.
 
     Data synthesization
     -------------------
@@ -476,21 +493,92 @@ class Experiment:
                  configurations=None, scenarios=None, methods=None,
                  forward_solver=None, noise=None, study_residual=True,
                  study_map=False, study_internfield=False,
-                 import_filename=None, import_filepath=''):
+                 study_executiontime=False, import_filename=None,
+                 import_filepath=''):
         """Create the experiment object.
 
         The object should be defined with one of the following
         possibilities of combination of parameters (maximum_contrast,
-        maximum_object_size, maximum_contrast_density): (i) all are
-        single values; (ii) one is list and the others are single
-        values; and (iii) all are list of same size.
+        maximum_object_size, maximum_contrast_density, noise,
+        map_pattern): (i) all are single values; (ii) one is list and
+        the others are single values; and (iii) all are list of same
+        size.
+
+        You may create a new object or import a pre-saved file through
+        variables `import_filename` or `import_filepath`.
 
         Parameters
         ----------
             name : str
                 The name of the experiment.
-            maximum_contrast : float or complex of list
-                The
+
+            maximum_contrast : float or complex or list
+                The maximum contrast value allowed on the map.
+
+            maximum_object_size : float or list
+                The maximum object size allowed on the map.
+
+            maximum_contrast_density : float or list
+                Maximum value for contrast (absolute value) per pixel
+                normalized by the maximum contrast allowed.
+
+            noise : float or list
+                Noise level added to scattered field data.
+
+            map_pattern : {'random_polygons', 'regular_polygons',
+                           'surfaces'} or list
+                Kind of objects on the image.
+
+            sample_size : int, default: 30
+                Number of scenarios per combination of configuration and
+                other parameter.
+
+            synthetization_resolution : list of tuple, default: None
+                Resolution of synthesized images. The list must be two-
+                dimensional: [groups, configurations].
+
+            recover_resolution : list of tuple, default: None
+                Resolution of recovered images. The list must be two-
+                dimensional: [groups, configurations].
+
+            configurations : :class:`configuration.Configuration` or 
+                             list, default: None
+                Configuration objects.
+
+            scenarios : list of :class:`inputdata.InputData`,
+                        default: None
+                Set of scenarios. The list must be three-dimensional:
+                [groups, configurations, sample_size].
+
+            methods : :class:`solver.Solver` or list, default: None
+                Set of methods.
+
+            forward_solver : :class:`forward.Forward`, default: None
+                Forward solver for synthesizing scattered field.
+
+            study_residual : bool, default: True
+                Flag to indicate that the residual of the equations will
+                be addressed.
+
+            study_map : bool, default: False
+                Flag to indicate that the error on the recovered map
+                (relative permittivity and conductivity) will be
+                addressed.
+
+            study_internfield : bool, default: False
+                Flag to indicate that the error on intern total field
+                will be addressed.
+
+            study_executiontime : bool, default: False
+                Flag to indicate that the execution time will be
+                addressed.
+
+            import_filename : str, default: None
+                Import an object saved before with the name specified
+                by this argument.
+
+            import_filepath : str, default: ''
+                Path to file with the object saved.
         """
         if import_filename is not None:
             self.importdata(import_filename, import_filepath)
@@ -526,6 +614,7 @@ class Experiment:
         self.study_residual = study_residual
         self.study_map = study_map
         self.study_internfield = study_internfield
+        self.study_executiontime = study_executiontime
         self.results = None
 
         # Enforcing that all experimentation parameters are of same length
@@ -1245,7 +1334,8 @@ class Experiment:
         ----------
             measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                        'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                       'execution_time'}
                 String to indicate which measure.
 
             group_idx : int or list of int, default: [0]
@@ -1317,7 +1407,8 @@ class Experiment:
                                         + " 'zeta_epad', 'zeta_ebe', "
                                         + "'zeta_eoe', 'zeta_sad', 'zeta_sbe',"
                                         + " 'zeta_soe', 'zeta_tfmpad', "
-                                        + "'zeta_tfppad', 'zeta_be'}", measure)
+                                        + "'zeta_tfppad', 'zeta_be', "
+                                        + "'execution_time'}", measure)
 
         # Figure parameters
         ylabel = get_label(measure)
@@ -1400,7 +1491,8 @@ class Experiment:
 
             measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                        'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                       'execution_time'}
                 A string or a list of string to indicate the considered
                 measures. If `None`, then all the available ones will be
                 considered.
@@ -1479,7 +1571,8 @@ class Experiment:
                     'Experiments.compare_two_methods', 'measure',
                     "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
                     + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
-                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be', "
+                    + "'execution_time'}", measure)
 
         # Quick access to method names
         method_names = []
@@ -1793,7 +1886,8 @@ class Experiment:
 
             measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                        'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                       'execution_time'}
                 A string to indicate the considered measures. If `None`, then
                 all the available ones will be considered.
 
@@ -1872,7 +1966,8 @@ class Experiment:
                                         + " 'zeta_epad', 'zeta_ebe', "
                                         + "'zeta_eoe', 'zeta_sad', 'zeta_sbe',"
                                         + " 'zeta_soe', 'zeta_tfmpad', "
-                                        + "'zeta_tfppad', 'zeta_be'}", measure)
+                                        + "'zeta_tfppad', 'zeta_be', "
+                                        + "'execution_time'}", measure)
 
         # Quick access to method names
         method_names = []
@@ -1953,7 +2048,8 @@ class Experiment:
         ----------
             measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                        'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                       'execution_time'}
                 A string or a list of string to indicate the considered
                 measures. If `None`, then all the available ones will be
                 considered.
@@ -2047,7 +2143,8 @@ class Experiment:
                     'Experiments.study_single_mean', 'measure',
                     "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
                     + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
-                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be', "
+                    + "'execution_time'}", measure
                 )
 
         # Quick access to method names
@@ -2355,7 +2452,8 @@ class Experiment:
         ----------
             measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                        'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                       'execution_time'}
                 A string or a list of string to indicate the considered
                 measures. If `None`, then all the available ones will be
                 considered.
@@ -2441,7 +2539,8 @@ class Experiment:
                     'Experiments.plot_normality', 'measure',
                     "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
                     + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
-                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be', "
+                    + "'execution_time'}", measure)
 
         # Quick access to method names
         method_names = []
@@ -2566,7 +2665,8 @@ class Experiment:
         ----------
             measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                        'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                       'execution_time'}
                 A string or a list of string to indicate the considered
                 measures. If `None`, then all the available ones will be
                 considered.
@@ -2671,7 +2771,8 @@ class Experiment:
                     'Experiments.compare_two_methods', 'measure',
                     "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
                     + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
-                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be', "
+                    + "'execution_time'}", measure)
 
         # Quick access to method names
         method_names = []
@@ -2889,7 +2990,8 @@ class Experiment:
         ----------
             measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                        'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                       'execution_time'}
                 A string or a list of string to indicate the considered
                 measures. If `None`, then all the available ones will be
                 considered.
@@ -2984,7 +3086,8 @@ class Experiment:
                     'Experiments.compare_two_methods', 'measure',
                     "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
                     + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
-                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be', "
+                    + "'execution_time'}", measure)
 
         # Quick access to method names
         method_names = []
@@ -3485,7 +3588,8 @@ class Experiment:
 
             measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                        'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                       'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                       'execution_time'}
                 A string or a list of string to indicate the considered
                 measures. If `None`, then all the available ones will be
                 considered.
@@ -3563,7 +3667,8 @@ class Experiment:
                     'Experiments.plot_normality', 'measure',
                     "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
                     + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
-                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure)
+                    + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be', "
+                    + "'execution_time'}", measure)
             
 
         # Check the values of the inputs
@@ -4087,6 +4192,8 @@ class Experiment:
         message = message + 'Study map error: ' + str(self.study_map)
         message = (message + 'Study intern field error: '
                    + str(self.study_internfield))
+        message = (message + 'Study execution time: '
+                   + str(self.study_executiontime))
 
         # Configurations list
         if self.configurations is not None and len(self.configurations) > 0:
@@ -4164,6 +4271,7 @@ class Experiment:
             STUDY_RESIDUAL: self.study_residual,
             STUDY_MAP: self.study_map,
             STUDY_INTERNFIELD: self.study_internfield,
+            STUDY_EXECUTIONTIME: self.study_executiontime,
             RESULTS: self.results
         }
 
@@ -4189,6 +4297,7 @@ class Experiment:
         self.study_internfield = data[STUDY_INTERNFIELD]
         self.study_residual = data[STUDY_RESIDUAL]
         self.study_map = data[STUDY_MAP]
+        self.study_executiontime = data[STUDY_EXECUTIONTIME]
         self.results = data[RESULTS]
 
     def get_final_value_over_samples(self, group_idx=0, config_idx=0,
@@ -4246,7 +4355,8 @@ class Experiment:
                 'Experiments.plot_normality', 'measure',
                 "{'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe', "
                 + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
-                + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}", measure
+                + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be', 'execution_time'}",
+                measure
             )
             
 
@@ -4297,6 +4407,8 @@ class Experiment:
                 data[i] = self.results[g][c][i][m].zeta_tfppad[-1]
             elif measure == 'zeta_be':
                 data[i] = self.results[g][c][i][m].zeta_be[-1]
+            elif measure == 'execution_time':
+                data[i] = self.results[g][c][i][m].execution_time
             else:
                 raise error.WrongValueInput('Experiments.get_final_value_over_'
                                             + 'samples', 'measure',
@@ -4304,8 +4416,8 @@ class Experiment:
                                             + "'zeta_epad'/'zeta_ebe'/"
                                             + "'zeta_eoe'/'zeta_sad'/"
                                             + "'zeta_sbe'/'zeta_soe'/'zeta_be'"
-                                            + "/'zeta_tfmpad'/'zeta_tfppad'",
-                                            measure)
+                                            + "/'zeta_tfmpad'/'zeta_tfppad'/"
+                                            + "'execution_time'", measure)
         return data
 
     def get_measure_set(self, config_idx=0):
@@ -4364,6 +4476,10 @@ class Experiment:
         if self.study_internfield:
             measures.append('zeta_tfmpad')
             measures.append('zeta_tfppad')
+
+        # Execution time measure
+        if self.study_executiontime:
+            measures.append('execution_time')
 
         return measures
 
@@ -5365,7 +5481,8 @@ def get_label(measure):
     ----------
         measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                    'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                   'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                   'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                   'execution_time'}
 
     Returns
     -------
@@ -5393,12 +5510,15 @@ def get_label(measure):
         return rst.LABEL_ZETA_TFPPAD
     elif measure == 'zeta_be':
         return rst.LABEL_ZETA_BE
+    elif measure == 'execution_time':
+        return rst.LABEL_EXECUTION_TIME
     else:
         raise error.WrongValueInput('get_label', 'measure', "'zeta_rn'/"
                                     + "'zeta_rpad'/'zeta_epad'/'zeta_ebe'/"
                                     + "'zeta_eoe'/'zeta_sad'/'zeta_sbe'/"
                                     + "'zeta_soe'/'zeta_be'/'zeta_tfmpad'/"
-                                    + "'zeta_tfppad'", measure)
+                                    + "'zeta_tfppad'/'execution_time'",
+                                    measure)
 
 
 def get_title(measure):
@@ -5408,7 +5528,8 @@ def get_title(measure):
     ----------
         measure : {'zeta_rn', 'zeta_rpad', 'zeta_epad', 'zeta_ebe',
                    'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe',
-                   'zeta_tfmpad', 'zeta_tfppad', 'zeta_be'}
+                   'zeta_tfmpad', 'zeta_tfppad', 'zeta_be',
+                   'execution_time'}
 
     Returns
     -------
@@ -5436,12 +5557,15 @@ def get_title(measure):
         return 'To. Field Phase PAD'
     elif measure == 'zeta_be':
         return 'Boundary Error'
+    elif measure == 'execution_time':
+        return 'Execution Time'
     else:
         raise error.WrongValueInput('get_label', 'measure', "'zeta_rn'/"
                                     + "'zeta_rpad'/'zeta_epad'/'zeta_ebe'/"
                                     + "'zeta_eoe'/'zeta_sad'/'zeta_sbe'/"
                                     + "'zeta_soe'/'zeta_be'/'zeta_tfmpad'/"
-                                    + "'zeta_tfppad'", measure)
+                                    + "'zeta_tfppad'/'execution_time'",
+                                    measure)
 
 
 def run_methods(methods, scenario, parallelization=False,
