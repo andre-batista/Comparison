@@ -18,6 +18,7 @@ References
 import copy as cp
 import time as tm
 import numpy as np
+import sys
 
 # Developed libraries
 import configuration as cfg
@@ -98,7 +99,7 @@ class BornIterativeMethod(slv.Solver):
         if self.inverse.configuration is None:
             self.inverse.configuration = self.configuration
 
-    def solve(self, instance, print_info=True):
+    def solve(self, instance, print_info=True, print_file=sys.stdout):
         """Solve a nonlinear inverse problem.
 
         Parameters
@@ -110,7 +111,7 @@ class BornIterativeMethod(slv.Solver):
             print_info : bool
                 Print or not the iteration information.
         """
-        super().solve(instance, print_info)
+        super().solve(instance, print_info, print_file)
         result = rst.Results(instance.name + '_' + self.alias,
                              method_name=self.alias,
                              configuration_filename=self.configuration.name,
@@ -119,12 +120,12 @@ class BornIterativeMethod(slv.Solver):
                              input_filepath=instance.path)
 
         if print_info:
-            print('Iterations: %d' % self.MAX_IT)
-            print('----------------------------------------')
-            print(self.forward)
-            print('----------------------------------------')
-            print(self.inverse)
-            print('----------------------------------------')
+            print('Iterations: %d' % self.MAX_IT, file=print_file)
+            print('----------------------------------------', file=print_file)
+            print(self.forward, file=print_file)
+            print('----------------------------------------', file=print_file)
+            print(self.inverse, file=print_file)
+            print('----------------------------------------', file=print_file)
 
         # The solution variable will be an object of InputData.
         solution = cp.deepcopy(instance)
@@ -157,7 +158,7 @@ class BornIterativeMethod(slv.Solver):
             iteration_message = result.last_error_message(instance,
                                                           iteration_message)
             if print_info:
-                print(iteration_message)
+                print(iteration_message, file=print_file)
 
             # This is only emergencial feature for ensuring that the
             # scattered field data received by the inverse solver in the

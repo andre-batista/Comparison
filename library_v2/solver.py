@@ -9,6 +9,7 @@ class aims to compute the dielectric map and the total intern field.
 from abc import ABC, abstractmethod
 import numpy as np
 import copy as cp
+import sys
 
 # Developed libraries
 import error
@@ -97,7 +98,7 @@ class Solver(ABC):
 
 
     @abstractmethod
-    def solve(self, inputdata, print_info=True):
+    def solve(self, inputdata, print_info=True, print_file=sys.stdout):
         """Solve the inverse scattering problem.
 
         This is the model routine for any method implementation. The
@@ -118,20 +119,22 @@ class Solver(ABC):
             :class:`results.Results`
         """
         if print_info:
-            self._print_title(inputdata)
+            self._print_title(inputdata, print_file=print_file)
 
         return rst.Results(inputdata.name)
 
-    def _print_title(self, instance):
+    def _print_title(self, instance, print_file=sys.stdout):
         """Print the title of the execution.
 
         Parameters
         ----------
             instance : :class:`results.Results`
         """
-        print("==============================================================")
-        print('Method: ' + self.name)
+        print("==============================================================",
+              file=print_file)
+        print('Method: ' + self.name, file=print_file)
         if self.alias != '':
-            print('Alias: ' + self.alias)
-        print('Problem configuration: ' + self.configuration.name)
-        print('Instance: ' + instance.name)
+            print('Alias: ' + self.alias, file=print_file)
+        print('Problem configuration: ' + self.configuration.name,
+              file=print_file)
+        print('Instance: ' + instance.name, file=print_file)
