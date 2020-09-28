@@ -174,7 +174,8 @@ class Experiment:
         maximum_contrast_density : list
             A list with the maximum value of contrast density.
 
-        map_pattern : {'geometric', 'surfaces'}
+        map_pattern : {'random_polygons', 'regular_polygons',
+                       'surfaces'}
             A list with the defined kind of contrast pattern in the
             image.
 
@@ -469,18 +470,22 @@ class Experiment:
                 self._map_pattern = [map_pattern]
             else:
                 raise error.WrongValueInput('Experiment', 'map_pattern',
-                                            RANDOM_POLYGONS_PATTERN + ' or '
+                                            RANDOM_POLYGONS_PATTERN
+                                            + ' or '
+                                            + REGULAR_POLYGONS_PATTERN + ' or '
                                             + SURFACES_PATTERN, map_pattern)
         elif type(map_pattern) is list:
             self._map_pattern = []
             for i in range(len(map_pattern)):
                 if (map_pattern[i] == RANDOM_POLYGONS_PATTERN
-                        or map_pattern == REGULAR_POLYGONS_PATTERN
+                        or map_pattern[i] == REGULAR_POLYGONS_PATTERN
                         or map_pattern[i] == SURFACES_PATTERN):
                     self._map_pattern.append(map_pattern[i])
                 else:
                     raise error.WrongValueInput('Experiment', 'map_pattern',
                                                 RANDOM_POLYGONS_PATTERN
+                                                + ' or '
+                                                + REGULAR_POLYGONS_PATTERN
                                                 + ' or ' + SURFACES_PATTERN,
                                                 map_pattern[i])
         else:
@@ -1159,7 +1164,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.fixed_sampleset_plot',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -1270,7 +1275,7 @@ class Experiment:
                                         + 'violinplot', 'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.fixed_sampleset_'
                                         + 'violinplot',
                                         'method_idx', '0 to %d'
@@ -1394,7 +1399,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.fixed_measure_violinplot',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -1558,7 +1563,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.evolution_boxplot',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -1767,7 +1772,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -1953,7 +1958,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -2130,7 +2135,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.study_single_mean',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -2526,7 +2531,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.plot_normality',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -2758,7 +2763,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -3073,7 +3078,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -3669,7 +3674,6 @@ class Experiment:
                     + "'zeta_eoe', 'zeta_sad', 'zeta_sbe', 'zeta_soe', "
                     + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be', "
                     + "'execution_time'}", measure)
-            
 
         # Check the values of the inputs
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
@@ -3682,7 +3686,7 @@ class Experiment:
                                         'config_idx', '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.method_idx):
+        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.factor_study',
                                         'method_idx', '0 to %d'
                                         % len(self.methods),
@@ -3835,7 +3839,7 @@ class Experiment:
                     # Second factor
                     for n in range(nlevels[1]):
 
-                        # Determine the correpondent sample 
+                        # Determine the correpondent sample
                         if which_factors[0] == 'configuration':
                             p = config_idx[m]
                             q = np.argwhere(levels_idx[1] == n)[0][0]
@@ -3929,7 +3933,7 @@ class Experiment:
                         # Third factor
                         for n in range(nlevels[2]):
 
-                            # Determine the correpondent sample 
+                            # Determine the correpondent sample
                             if which_factors[0] == 'configuration':
                                 p = config_idx[k]
                                 q = group_idx[
@@ -4135,7 +4139,6 @@ class Experiment:
 
     def __str__(self):
         """Print the object information."""
-
         # Name
         message = 'Experiment name: ' + self.name
 
@@ -4358,7 +4361,6 @@ class Experiment:
                 + "'zeta_tfmpad', 'zeta_tfppad', 'zeta_be', 'execution_time'}",
                 measure
             )
-            
 
         # Check the values of the inputs
         if group_idx < 0 or group_idx >= len(self.maximum_contrast):
@@ -4373,7 +4375,7 @@ class Experiment:
                                         '0 to %d'
                                         % len(self.configurations),
                                         str(config_idx))
-        if method_idx < 0 or method_idx >= len(self.method_idx):
+        if method_idx < 0 or method_idx >= len(self.methods):
             raise error.WrongValueInput('Experiment.get_final_value_'
                                         + 'over_samples', 'method_idx',
                                         '0 to %d' % len(self.methods),
@@ -4546,7 +4548,7 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
         transformation : None or str
             If `None`, no transformation was applied on the data in
             order to fix it for following the assumption. Otherwise,
-            it is a string saying the type of transformation. 
+            it is a string saying the type of transformation.
 
     References
     ----------
@@ -4770,7 +4772,7 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
         pvalue_a = 1-scipy.stats.f.cdf(F0A, dfA, dfE)
         pvalue_b = 1-scipy.stats.f.cdf(F0B, dfB, dfE)
         pvalue_c = 1-scipy.stats.f.cdf(F0C, dfC, dfE)
-        pvalue_ab = 1-scipy.stats.f.cdf(F0AB, dfAB, dfE)        
+        pvalue_ab = 1-scipy.stats.f.cdf(F0AB, dfAB, dfE)
         pvalue_ac = 1-scipy.stats.f.cdf(F0AC, dfAC, dfE)
         pvalue_bc = 1-scipy.stats.f.cdf(F0BC, dfBC, dfE)
         pvalue_abc = 1-scipy.stats.f.cdf(F0ABC, dfABC, dfE)
@@ -4862,7 +4864,7 @@ def dunnetttest(y0, y):
     test is a modification of the usual t-test where, in each
     comparison, the null hypothesis is the equality of means. The
     significance level is fixed in 0.05.
-    
+
     Parameters
     ----------
         y0 : :class:`numpy.ndarray`
@@ -4952,7 +4954,7 @@ def dunnetttest(y0, y):
     # If the number of comparisons is equal to one of the columns of the
     # table of critical values, then we check if the number of degrees
     # of freedom is also available. If isn't, we approximate a value
-    # by curve fitting procedure with the closest number of degrees of 
+    # by curve fitting procedure with the closest number of degrees of
     # freedom.
     if a-1 < 10:
         if np.any(F-f == 0):
@@ -4989,10 +4991,10 @@ def dunnetttest(y0, y):
 
 
 def fittedcurve(x, a, b, c):
-    """Standard curve for linear regression in Dunnett's test.
+    """Evalute standard curve for linear regression in Dunnett's test.
 
     This routine computes the function :math:`ax^b+c` which is used for
-    curve fitting in Dunnett's test. 
+    curve fitting in Dunnett's test.
     """
     return a*x**b+c
 
@@ -5402,7 +5404,8 @@ def violinplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
         ylabel : list of str, default: None
 
         color : str, default: 'b'
-            Color of boxes. Check some `here <https://matplotlib.org/3.1.1/gallery/color/named_colors.html>`_
+            Color of boxes. Check some `here <https://matplotlib.org/
+            3.1.1/gallery/color/named_colors.html>`_
 
         title : str, default: None
             A possible title to the plot.
