@@ -112,6 +112,12 @@ class BornIterativeMethod(slv.Solver):
                 Print or not the iteration information.
         """
         super().solve(instance, print_info, print_file)
+
+        if self.forward.configuration.name != self.configuration:
+            self.forward.configuration = cp.deepcopy(self.configuration)
+        if self.inverse.configuration.name != self.configuration:
+            self.inverse.configuration = cp.deepcopy(self.configuration)
+
         result = rst.Results(instance.name + '_' + self.alias,
                              method_name=self.alias,
                              configuration_filename=self.configuration.name,

@@ -189,7 +189,8 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             niter = np.zeros(NS)
             error = np.zeros((self.MAX_IT, NS))
             num_cores = multiprocessing.cpu_count()
-            results = (Parallel(n_jobs=num_cores)(delayed(self.__CG_FFT)
+
+            results = (Parallel(n_jobs=num_cores)(delayed(self.CG_FFT)
                                                   (G,
                                                    b[:, ns].reshape((-1, 1)),
                                                    NX, NY, 1,
@@ -197,10 +198,12 @@ class MoM_CG_FFT(fwr.ForwardSolver):
                                                    self.MAX_IT, self.TOL,
                                                    False)
                                                   for ns in range(NS)))
+
             for ns in range(NS):
                 et[:, ns] = results[ns][0].flatten()
                 niter[ns] = results[ns][1]
-                error[:,ns] = results[ns][2].flatten()
+                error[:, ns] = results[ns][2].flatten()
+
             time_cg_fft = time.time()-tic
             if PRINT_INFO:
                 print('Execution time: %.2f' % time_cg_fft + ' [sec]')
@@ -211,7 +214,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
             error = np.zeros((self.MAX_IT, NF))
             num_cores = multiprocessing.cpu_count()
 
-            results = (Parallel(n_jobs=num_cores)(delayed(self.__CG_FFT)
+            results = (Parallel(n_jobs=num_cores)(delayed(self.CG_FFT)
                                                   (np.squeeze(G[:, :, nf]),
                                                    np.squeeze(b[:, :, nf]),
                                                    NX, NY, NS,
@@ -309,7 +312,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
 
         return G
 
-    def __CG_FFT(self, G, b, NX, NY, NS, Xr, MAX_IT, TOL, PRINT_CONVERGENCE):
+    def CG_FFT(self, G, b, NX, NY, NS, Xr, MAX_IT, TOL, PRINT_CONVERGENCE):
         """Apply the Conjugated-Gradient Method to the forward problem.
 
         Parameters
@@ -353,7 +356,7 @@ class MoM_CG_FFT(fwr.ForwardSolver):
         error_res = np.zeros(MAX_IT)
 
         for n in range(MAX_IT):
-            
+
             alpha = -1*(np.sum(np.conj(self.__fft_A(po, G, NX, NY, NS, Xr))
                                * (self.__fft_A(Eo, G, NX, NY, NS, Xr)-b),
                                axis=0)
