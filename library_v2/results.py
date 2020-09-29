@@ -1200,7 +1200,7 @@ def add_image(axes, image, title, colorbar_name, bounds=(-1., 1., -1., 1.),
 
 
 def add_plot(axes, data, x=None, title=None, xlabel='Iterations', ylabel=None,
-             style='--*', xticks=None, legend=None):
+             style='--*', xticks=None, legend=None, legend_fontsize=None):
     """Add a plot to the axes.
 
     A predefined function for plotting curves. This is useful for
@@ -1245,7 +1245,10 @@ def add_plot(axes, data, x=None, title=None, xlabel='Iterations', ylabel=None,
     if title is not None:
         axes.set_title(title)
     if legend is not None:
-        axes.legend(legend)
+        if legend_fontsize is not None:
+            axes.legend(legend, fontsize=legend_fontsize)
+        else:
+            axes.legend(legend)
     axes.grid()
 
 
@@ -1273,6 +1276,59 @@ def get_single_figure_axes(figure):
 
     """
     return figure.add_axes([.17, .17, .7, .7])
+
+
+def get_figure(nsubplots=1, number_lines=1):
+    """Get a Figure and Axes object with customized sizes.
+
+    Parameters
+    ----------
+        nsubplots : int, default: 1
+            Number of subplots in the figure.
+
+        number_lines : int, default: 1
+            Number of lines in each subplot.
+
+    Returns
+    -------
+        fig : :class:`matplotlib.figure.Figure`
+
+        axes : :class:`matplotlib.axes.Axes`
+
+        legend_fontsize : float
+    """
+    # Compute number of rows and columns
+    nrows = round(np.sqrt(nsubplots))
+    ncols = int(np.ceil(nsubplots/nrows))
+
+    if nrows == 1 and ncols == 1:
+        hspace = None
+    else:
+        hspace = .23*nrows - .22
+
+    max_lines = np.array([0, 15, 13, 8, 5, 3, 2, 1, 1, 1, 1, 1])
+    if number_lines > max_lines[nrows] and nrows > 2:
+        legend_fontsize = 10-(number_lines-max_lines[nrows])*.65
+    elif number_lines > max_lines[nrows] and nrows < 3:
+        legend_fontsize = 10-(number_lines-max_lines[nrows])*.55
+    else:
+        legend_fontsize = None
+
+    # Figure creation
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols,
+                             figsize=(6.4*ncols, 4.8*nrows),
+                             gridspec_kw={'hspace': hspace})
+
+    if nrows == 1 and ncols == 1:
+        axes = np.array([axes])
+    else:
+        axes = axes.flatten()
+
+    if nsubplots < axes.size:
+        for i in range(nsubplots, axes.size):
+            axes[i].set_visible(False)
+
+    return fig, axes, legend_fontsize
 
 
 def compute_zeta_rn(es_o, es_a):
