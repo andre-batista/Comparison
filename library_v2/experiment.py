@@ -546,7 +546,7 @@ class Experiment:
                 Resolution of recovered images. The list must be two-
                 dimensional: [groups, configurations].
 
-            configurations : :class:`configuration.Configuration` or 
+            configurations : :class:`configuration.Configuration` or
                              list, default: None
                 Configuration objects.
 
@@ -773,13 +773,14 @@ class Experiment:
                                         file_path=file_path)
 
         if save_solver_screeninfo:
-            screen_object = open(self.name + '.txt', 'w')
+            screen_object = open(file_path + self.name + '.txt', 'w')
         else:
             screen_object = sys.stdout
 
         # Solving scenarios
+        print('Solving samples...')
         self.solve_scenarios(save_per_iteration=save_per_iteration,
-                             file_path=file_path)
+                             file_path=file_path, screen_object=screen_object)
 
         if save_solver_screeninfo:
             screen_object.close()
@@ -995,7 +996,10 @@ class Experiment:
 
         for i in range(len(self.maximum_contrast)):
             for j in range(len(self.configurations)):
-                self.forward_solver.configuration = self.configurations[j]
+                self.forward_solver.configuration = cp.deepcopy(
+                    self.configurations[j]
+                )
+
                 for k in range(self.sample_size):
 
                     # Print information
@@ -1065,7 +1069,9 @@ class Experiment:
 
                 # Set the current configuration for each method
                 for m in range(len(self.methods)):
-                    self.methods[m].configuration = self.configurations[j]
+                    self.methods[m].configuration = cp.deepcopy(
+                        self.configurations[j]
+                    )
 
                 for k in range(self.sample_size):
                     self.results[i][j].append(list())
@@ -1157,17 +1163,17 @@ class Experiment:
         if group_idx < 0 or group_idx >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.fixed_sampleset_plot',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if config_idx < 0 or config_idx >= len(self.configurations):
             raise error.WrongValueInput('Experiment.fixed_sampleset_plot',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.fixed_sampleset_plot',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
 
         # Main variables
@@ -1177,11 +1183,7 @@ class Experiment:
         nplots = len(measures)
 
         # Image configuration
-        nrows = int(np.sqrt(nplots))
-        ncols = int(np.ceil(nplots/nrows))
-        image_size = (3.*ncols, 3.*nrows)
-        figure = plt.figure(figsize=image_size)
-        rst.set_subplot_size(figure)
+        _, axes, lgd_size = rst.get_figure(nplots, len(method_idx))
 
         # Quick access to method names
         method_names = []
@@ -1197,10 +1199,10 @@ class Experiment:
                     group_idx=g, config_idx=c, method_idx=method_idx[m],
                     measure=measures[j]
                 )
-            axes = figure.add_subplot(nrows, ncols, i)
-            rst.add_plot(axes, y, x=x, title=get_title(measures[j]),
+            # axes = figure.add_subplot(nrows, ncols, i)
+            rst.add_plot(axes[j], y, x=x, title=get_title(measures[j]),
                          xlabel=LABEL_INSTANCE, ylabel=get_label(measures[j]),
-                         xticks=x, legend=method_names)
+                         legend=method_names, legend_fontsize=lgd_size)
             i += 1
 
         # Show or save results
@@ -1268,18 +1270,18 @@ class Experiment:
         if group_idx < 0 or group_idx >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.fixed_sampleset_'
                                         + 'violinplot', 'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if config_idx < 0 or config_idx >= len(self.configurations):
             raise error.WrongValueInput('Experiment.fixed_sampleset_'
                                         + 'violinplot', 'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.fixed_sampleset_'
                                         + 'violinplot',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
 
         # Main variables
@@ -1288,11 +1290,7 @@ class Experiment:
         nplots = len(measures)
 
         # Image configuration
-        nrows = int(np.sqrt(nplots))
-        ncols = int(np.ceil(nplots/nrows))
-        image_size = (3.*ncols, 3.*nrows)
-        figure = plt.figure(figsize=image_size)
-        rst.set_subplot_size(figure)
+        _, axes, _ = rst.get_figure(nplots, len(method_idx))
 
         # Quick access to method names
         method_names = []
@@ -1310,9 +1308,9 @@ class Experiment:
                                                       method_idx=method_idx[m],
                                                       measure=measures[i])
                 )
-            axes = figure.add_subplot(nrows, ncols, n)
-            violinplot(data, axes=axes, labels=method_names, xlabel='Methods',
-                       ylabel=get_label(measures[i]),
+
+            violinplot(data, axes=axes[i], labels=method_names,
+                       xlabel='Methods', ylabel=get_label(measures[i]),
                        title=get_title(measures[i]), show=show,
                        file_path=file_path, file_format=file_format)
             n += 1
@@ -1392,17 +1390,17 @@ class Experiment:
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.fixed_measure_violinplot',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
             raise error.WrongValueInput('Experiment.fixed_measure_violinplot',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.fixed_measure_violinplot',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
         try:
             get_title(measure)
@@ -1418,24 +1416,14 @@ class Experiment:
         # Figure parameters
         ylabel = get_label(measure)
         nplots = len(group_idx)*len(config_idx)
-        if nplots > 1:
-            nrows = int(np.sqrt(nplots))
-            ncols = int(np.ceil(nplots/nrows))
-            image_size = (3.*ncols, 3.*nrows)
-            figure = plt.figure(figsize=image_size)
-            rst.set_subplot_size(figure)
-        else:
-            axes = rst.get_single_figure_axes(plt.figure())
+        fig, axes, _ = rst.get_figure(nplots, len(method_idx))
 
         # Plot graphics
-        n = 1
+        n = 0
         for i in range(len(group_idx)):
             for j in range(len(config_idx)):
                 data = []
                 labels = []
-                if nplots > 1:
-                    axes = figure.add_subplot(nrows, ncols, n)
-                    n += 1
                 for k in range(len(method_idx)):
                     data.append(
                         self.get_final_value_over_samples(
@@ -1452,12 +1440,14 @@ class Experiment:
                     else:
                         title = ('Group %d' % group_idx[i]
                                  + ', Con. %d' % config_idx[j])
-                    figure.suptitle(get_title(measure))
+                    fig.suptitle(get_title(measure))
                 else:
                     title = get_title(measure)
-                violinplot(data, axes=axes, labels=labels, xlabel='Methods',
+
+                violinplot(data, axes=axes[n], labels=labels, xlabel='Methods',
                            ylabel=ylabel, title=title, show=show,
                            file_path=file_path, file_format=file_format)
+                n += 1
 
         # Save or show the figure
         if show:
@@ -1556,17 +1546,17 @@ class Experiment:
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.evolution_boxplot',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
             raise error.WrongValueInput('Experiment.evolution_boxplot',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.evolution_boxplot',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
         if type(measure) is str:
             try:
@@ -1604,23 +1594,12 @@ class Experiment:
                 if none_measure:
                     measure = self.get_measure_set(i)
 
-                # Plot configurations
-                if len(measure) == 1:
-                    figure = plt.figure()
-                    axes = rst.get_single_figure_axes(figure)
-                else:
-                    nplots = len(measure)
-                    nrows = int(np.sqrt(nplots))
-                    ncols = int(np.ceil(nplots/nrows))
-                    image_size = (3.*ncols, 3.*nrows)
-                    figure = plt.figure(figsize=image_size)
-                    rst.set_subplot_size(figure)
+                nplots = len(measure)
+                _, axes, lgd_size = rst.get_figure(nplots, len(method_idx))
 
                 # For each measure, a graphic
-                k = 1
+                k = 0
                 for mea in measure:
-                    if len(measure) > 1:
-                        axes = figure.add_subplot(nrows, ncols, k)
                     n = 0
                     for m in method_idx:
                         data = []
@@ -1629,10 +1608,11 @@ class Experiment:
                                 group_idx=j, config_idx=i, method_idx=m,
                                 measure=mea
                             ))
-                        boxplot(data, axes=axes, meanline=True, labels=labels,
-                                xlabel='Groups', ylabel=get_label(mea),
-                                color=colors[n], legend=method_names[n],
-                                title=get_title(mea))
+                        boxplot(data, axes=axes[k], meanline=True,
+                                labels=labels, xlabel='Groups',
+                                ylabel=get_label(mea), color=colors[n],
+                                legend=method_names[n], title=get_title(mea),
+                                legend_fontsize=lgd_size)
                         n += 1
                     k += 1
                 plt.suptitle('Con. ' + self.configurations[i].name)
@@ -1765,17 +1745,17 @@ class Experiment:
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
 
         # Quick access to method names
@@ -1951,17 +1931,17 @@ class Experiment:
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.plot_sampleset_results',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
         try:
             get_title(measure)
@@ -2128,17 +2108,17 @@ class Experiment:
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.study_single_mean',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
             raise error.WrongValueInput('Experiment.study_single_mean',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.study_single_mean',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
         if type(measure) is str:
             try:
@@ -2203,7 +2183,8 @@ class Experiment:
                             subsubtitle = 'Measure: ' + mea
                             text = (text + '\n' + subsubtitle + '\n'
                                     + ''.join(['-'
-                                               for _ in range(len(subtitle))])
+                                               for _ in range(len(subsubtitle))
+                                               ])
                                     + '\n')
 
                         for m in method_idx:
@@ -2214,22 +2195,22 @@ class Experiment:
                             )
 
                             # Normality test
-                            if stats.diagnostic.normal_ad(y[:, n])[1] < .05:
-                                message = ('The sample from method '
-                                           + method_names[n] + ', config. %d, '
-                                           % i + 'group %d, ' % j
-                                           + ' and measure ' + mea
-                                           + ' is not from a normal '
-                                           + ' distribution!')
-                                warnings.warn(message)
-                                if printscreen or write:
-                                    text = text + message + '\n'
+                            if scipy.stats.shapiro(y[:, n])[1] < .05:
+                                pvalue = scipy.stats.shapiro(y[:, n])[1]
+                                message = (' (no evidence that this sample '
+                                           + 'comes from a normal distribution'
+                                           + ', p-value: %.3e)' % pvalue)
+                            else:
+                                message = ''
 
                             if write or printscreen:
                                 info = stats.weightstats.DescrStatsW(y[:, n])
                                 cf = info.tconfint_mean()
-                                text = (text + method_names[n] + ': [%.2e, '
-                                        % cf[0] + '%.2e]' % cf[1] + '\n')
+                                text = (text + '* ' + method_names[n]
+                                        + ': [%.2e, ' % cf[0] + '%.2e]' % cf[1]
+                                        + message + '\n')
+
+                            n += 1
 
                         axes = figure.add_subplot(nrows, ncols, k)
                         confintplot(y, axes=axes, xlabel=get_label(mea),
@@ -2524,17 +2505,17 @@ class Experiment:
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.plot_normality',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
             raise error.WrongValueInput('Experiment.plot_normality',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.plot_normality',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
         if type(measure) is str:
             try:
@@ -2756,17 +2737,17 @@ class Experiment:
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
         if type(measure) is str:
             try:
@@ -2796,6 +2777,11 @@ class Experiment:
             text = text + 'Power: %.2f\n\n' % 0.8
         else:
             text = ''
+
+        # Avoiding insignificant messages for the analysis
+        warnings.filterwarnings('ignore', message='Exact p-value calculation '
+                                + 'does not work if there are ties. Switching '
+                                + 'to normal approximation.')
 
         results = []
         for i in config_idx:
@@ -3071,17 +3057,17 @@ class Experiment:
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
             raise error.WrongValueInput('Experiment.compare_two_methods',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
         if type(measure) is str:
             try:
@@ -3248,7 +3234,7 @@ class Experiment:
                                 # of comparison
                                 pair_comparison = []
                                 for p in range(len(method_idx)-1):
-                                    for q in range(p, len(method_idx)):
+                                    for q in range(p+1, len(method_idx)):
                                         pair_comparison.append(
                                             [method_names[p], method_names[q]]
                                         )
@@ -3294,7 +3280,7 @@ class Experiment:
 
                                 # Check each pair
                                 for p in range(len(method_idx)-1):
-                                    for q in range(i, len(method_idx)):
+                                    for q in range(i+1, len(method_idx)):
 
                                         # Separe two samples
                                         y1, y2 = data[p], data[q]
@@ -3468,7 +3454,7 @@ class Experiment:
 
                                 # Check each comparison
                                 for p in range(len(method_idx)-1):
-                                    for q in range(p, len(method_idx)):
+                                    for q in range(p+1, len(method_idx)):
 
                                         # Mann-Whitney Rank Test
                                         _, pvalue = scipy.stats.mannwhitneyu(
@@ -3635,13 +3621,15 @@ class Experiment:
 
         # Check the type of the inputs
         if (type(group_idx) is not int and type(group_idx) is not list
-                and group_idx is not None):
+                and group_idx is not None
+                and type(group_idx) is not np.ndarray):
             raise error.WrongTypeInput('Experiment.factor_study',
                                        'group_idx', 'int/list of int'
                                        + '/None', type(group_idx))
         if (type(config_idx) is not int
                 and type(config_idx) is not list
-                and config_idx is not None):
+                and config_idx is not None
+                and type(config_idx) is not np.ndarray):
             raise error.WrongTypeInput('Experiment.factor_study',
                                        'config_idx', 'int/list of int/'
                                        + 'None', type(config_idx))
@@ -3656,11 +3644,15 @@ class Experiment:
 
         # Fix the format of the method index as list
         if type(group_idx) is int:
-            group_idx = [group_idx]
+            group_idx = np.array([group_idx])
+        elif type(group_idx) is list:
+            group_idx = np.array(group_idx)
         elif group_idx is None:
             group_idx = np.arange(len(self.maximum_contrast))
         if type(config_idx) is int:
-            config_idx = [config_idx]
+            config_idx = np.array([config_idx])
+        elif type(config_idx) is list:
+            config_idx = np.array(config_idx)
         elif config_idx is None:
             config_idx = np.array([0])
         if type(measure) is str:
@@ -3679,17 +3671,17 @@ class Experiment:
         if min(group_idx) < 0 or max(group_idx) >= len(self.maximum_contrast):
             raise error.WrongValueInput('Experiment.factor_study',
                                         'group_idx', '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if min(config_idx) < 0 or max(config_idx) >= len(self.configurations):
             raise error.WrongValueInput('Experiment.factor_study',
                                         'config_idx', '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
-        if min(method_idx) < 0 or max(method_idx) >= len(self.methods):
+        if method_idx < 0 or method_idx >= len(self.methods):
             raise error.WrongValueInput('Experiment.factor_study',
                                         'method_idx', '0 to %d'
-                                        % len(self.methods),
+                                        % (len(self.methods)-1),
                                         str(method_idx))
 
         # Auxiliar variables
@@ -3841,27 +3833,33 @@ class Experiment:
 
                         # Determine the correpondent sample
                         if which_factors[0] == 'configuration':
-                            p = config_idx[m]
-                            q = np.argwhere(levels_idx[1] == n)[0][0]
+                            p = config_idx.item(m)
+                            q = np.argwhere(levels_idx[1] == n)[0].item(0)
                             q = group_idx[q]
                         elif which_factors[1] == 'configuration':
-                            p = config_idx[n]
-                            q = np.argwhere(levels_idx[0] == m)[0][0]
+                            p = config_idx.item(n)
+                            q = np.argwhere(levels_idx[0] == m)[0].item(0)
                             q = group_idx[q]
                         else:
-                            p = config_idx[0]
+                            p = config_idx.item(0)
                             q = group_idx[
                                 np.logical_and(levels_idx[0] == m,
                                                levels_idx[1] == n)
-                            ][0]
+                            ].item(0)
 
                         data[m, n, :] = self.get_final_value_over_samples(
                             group_idx=q, config_idx=p, method_idx=method_idx,
                             measure=measure[i]
                         )
 
+                # Auxiliar variable for homoscedascity plot
+                group_names = []
+                for u in range(nlevels[0]):
+                    for v in range(nlevels[1]):
+                        group_names.append('A%d' % u + 'B%d' % v)
+
                 # Run factorial analysis
-                output = factorial_analysis(data, group_names=which_factors,
+                output = factorial_analysis(data, group_names=group_names,
                                             ylabel=get_label(measure[i]))
 
                 # Factor A results
@@ -3935,34 +3933,34 @@ class Experiment:
 
                             # Determine the correpondent sample
                             if which_factors[0] == 'configuration':
-                                p = config_idx[k]
+                                p = config_idx.item(k)
                                 q = group_idx[
                                     np.logical_and(levels_idx[1] == m,
                                                    levels_idx[2] == n)
-                                ][0]
+                                ].item(0)
 
                             elif which_factors[1] == 'configuration':
-                                p = config_idx[m]
+                                p = config_idx.item(m)
                                 q = group_idx[
                                     np.logical_and(levels_idx[0] == k,
                                                    levels_idx[2] == n)
-                                ][0]
+                                ].item(0)
 
                             elif which_factors[2] == 'configuration':
-                                p = config_idx[n]
+                                p = config_idx.item(n)
                                 q = group_idx[
                                     np.logical_and(levels_idx[0] == k,
                                                    levels_idx[1] == m)
-                                ][0]
+                                ].item(0)
                             else:
-                                p = config_idx[0]
+                                p = config_idx.item(0)
                                 q = group_idx[
                                     np.logical_and(
                                         levels_idx[0] == k,
                                         np.logical_and(levels_idx[1] == m,
                                                        levels_idx[2] == n)
                                     )
-                                ][0]
+                                ].item(0)
 
                             data[k, m, n, :] = (
                                 self.get_final_value_over_samples(
@@ -3971,8 +3969,16 @@ class Experiment:
                                 )
                             )
 
+                # Auxiliar variable for homoscedascity plot
+                group_names = []
+                for u in range(nlevels[0]):
+                    for v in range(nlevels[1]):
+                        for z in range(nlevels[2]):
+                            group_names.append('A%d' % u + 'B%d' % v
+                                               + 'C%d' % z)
+
                 # Run factorial analysis
-                output = factorial_analysis(data, group_names=which_factors,
+                output = factorial_analysis(data, group_names=group_names,
                                             ylabel=get_label(measure[i]))
 
                 # Factor A results
@@ -4337,19 +4343,19 @@ class Experiment:
         if (type(group_idx) is not int):
             raise error.WrongTypeInput('Experiment.get_final_value_over'
                                        + '_samples', 'group_idx', 'int',
-                                       type(group_idx))
+                                       str(type(group_idx)))
         if type(config_idx) is not int:
             raise error.WrongTypeInput('Experiment.get_final_value_over'
                                        '_samples', 'config_idx', 'int',
-                                       type(config_idx))
+                                       str(type(config_idx)))
         if type(method_idx) is not int:
             raise error.WrongTypeInput('Experiment.get_final_value_over'
                                        '_samples', 'method_idx', 'int',
-                                       type(method_idx))
+                                       str(type(method_idx)))
         if type(measure) is not str:
             raise error.WrongTypeInput('Experiment.get_final_value_over'
                                        '_samples', 'measure', 'str',
-                                       type(measure))
+                                       str(type(measure)))
 
         try:
             get_title(measure)
@@ -4367,18 +4373,18 @@ class Experiment:
             raise error.WrongValueInput('Experiment.get_final_value_'
                                         + 'over_samples', 'group_idx',
                                         '0 to %d'
-                                        % len(self.maximum_contrast),
+                                        % (len(self.maximum_contrast)-1),
                                         str(group_idx))
         if config_idx < 0 or config_idx >= len(self.configurations):
             raise error.WrongValueInput('Experiment.get_final_value_'
                                         + 'over_samples', 'config_idx',
                                         '0 to %d'
-                                        % len(self.configurations),
+                                        % (len(self.configurations)-1),
                                         str(config_idx))
         if method_idx < 0 or method_idx >= len(self.methods):
             raise error.WrongValueInput('Experiment.get_final_value_'
                                         + 'over_samples', 'method_idx',
-                                        '0 to %d' % len(self.methods),
+                                        '0 to %d' % (len(self.methods)-1),
                                         str(method_idx))
         if measure is None:
             raise error.MissingInputError('Experiments.get_final_value_over_'
@@ -4603,13 +4609,11 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
         _, fligner_pvalue = scipy.stats.fligner(*samples)
 
         # Plot normality and homoscedascity
-        fig = plt.figure(figsize=rst.IMAGE_SIZE_1x2)
-        rst.set_subplot_size(fig)
-        axes = fig.add_subplot(1, 2, 1)
-        normalitiyplot(res.flatten(), axes=axes)
-        axes = fig.add_subplot(1, 2, 2)
-        homoscedasticityplot(y, axes=axes, title='Homoscedascity',
-                             ylabel=ylabel, names=group_names)
+        fig, axes, lgd_size = rst.get_figure(2, len(group_names))
+        normalitiyplot(res.flatten(), axes=axes[0])
+        homoscedasticityplot(y.reshape((-1, n)), axes=axes[1],
+                             title='Homoscedascity', ylabel=ylabel,
+                             names=group_names, legend_fontsize=lgd_size)
 
         # Means
         yhi = np.sum(y, axis=(1, 2))/(b*n)
@@ -4706,13 +4710,11 @@ def factorial_analysis(data, alpha=0.05, group_names=None, ylabel=None):
         _, fligner_pvalue = scipy.stats.fligner(*samples)
 
         # Plot normality and homoscedascity
-        fig = plt.figure(figsize=rst.IMAGE_SIZE_1x2)
-        rst.set_subplot_size(fig)
-        axes = fig.add_subplot(1, 2, 1)
-        normalitiyplot(res.flatten(), axes=axes)
-        axes = fig.add_subplot(1, 2, 2)
-        homoscedasticityplot(y, axes=axes, title='Homocedascity',
-                             ylabel=ylabel, names=group_names)
+        fig, axes, lgd_size = rst.get_figure(2, len(group_names))
+        normalitiyplot(res.flatten(), axes=axes[0])
+        homoscedasticityplot(y.reshape((-1, n)), axes=axes[1],
+                             title='Homocedascity', ylabel=ylabel,
+                             names=group_names, legend_fontsize=lgd_size)
 
         # Sums
         ydddd = np.sum(y)
@@ -5127,12 +5129,13 @@ def normalitiyplot(data, axes=None, title=None):
 
     if title is not None:
         axes.set_title(title)
-    plt.grid()
+    axes.grid()
 
     return fig
 
 
-def homoscedasticityplot(data, axes=None, title=None, ylabel=None, names=None):
+def homoscedasticityplot(data, axes=None, title=None, ylabel=None, names=None,
+                         legend_fontsize=None):
     """Graphic investigation of homoscedasticity assumption.
 
     This routine plots a figure comparing variance of samples for the
@@ -5199,18 +5202,20 @@ def homoscedasticityplot(data, axes=None, title=None, ylabel=None, names=None):
                 axes.plot(np.mean(data[i, :])*np.ones(data.shape[1]),
                           data[i, :]-np.mean(data[i, :]), 'o', label=names[i])
 
-    plt.grid()
+    axes.grid()
     axes.set_xlabel('Means')
     if ylabel is not None:
         axes.set_ylabel(ylabel)
     if title is not None:
         axes.set_title(title)
     if names is not None:
-        plt.legend()
+        if legend_fontsize is not None:
+            axes.legend(fontsize=legend_fontsize)
+        else:
+            axes.legend()
 
     if title is not None:
         axes.set_title(title)
-    plt.grid()
 
     return axes
 
@@ -5219,7 +5224,7 @@ def confintplot(data, axes=None, xlabel=None, ylabel=None, title=None):
     """Plot the confidence interval of means.
 
     This routine plots a figure comparing the confidence interval of
-    means among samples. The confidence intervals are computed at a 
+    means among samples. The confidence intervals are computed at a
     0.95 confidence level. This routine does not show any plot. It only
     draws the graphic.
 
@@ -5295,7 +5300,8 @@ def confintplot(data, axes=None, xlabel=None, ylabel=None, title=None):
 
 
 def boxplot(data, axes=None, meanline=False, labels=None, xlabel=None,
-            ylabel=None, color='b', legend=None, title=None):
+            ylabel=None, color='b', legend=None, title=None,
+            legend_fontsize=None):
     """Improved boxplot routine.
 
     This routine does not show any plot. It only draws the graphic.
@@ -5364,11 +5370,14 @@ def boxplot(data, axes=None, meanline=False, labels=None, xlabel=None,
         a, b = scipy.stats.linregress(np.arange(1, M+1), means)[:2]
         if legend is not None:
             axes.plot(x, a*x + b, '--', color=color, label=legend)
-            plt.legend()
+            if legend_fontsize is not None:
+                axes.legend(fontsize=legend_fontsize)
+            else:
+                axes.legend()
         else:
             axes.plot(x, a*x + b, '--', color=color)
 
-    plt.grid(True)
+    axes.grid(True)
     if xlabel is not None:
         axes.set_xlabel(xlabel)
     if ylabel is not None:
@@ -5443,7 +5452,7 @@ def violinplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
         sm.graphics.violinplot(data,
                                ax=axes,
                                labels=labels,
-                               plot_opts=plot_opts)            
+                               plot_opts=plot_opts)
 
         if xlabel is not None:
             axes.set_xlabel(xlabel)
@@ -5751,7 +5760,7 @@ def create_scenario(name, configuration, resolution, map_pattern,
                                    omega)
 
         # Add objects until the density is satisfied
-        while (contrast_density(chi)/np.abs(maximum_contrast) 
+        while (contrast_density(chi)/np.abs(maximum_contrast)
                <= .9*maximum_contrast_density):
 
             # Determine the maximum radius of the edges of the polygon (random)
