@@ -58,8 +58,6 @@ class BornIterativeMethod(slv.Solver):
        100-108.
     """
 
-    name = 'Born Iterative Method'
-
     def __init__(self, configuration, version, forward_solver, inverse_solver,
                  maximum_iterations=10):
         """Create the object.
@@ -91,6 +89,7 @@ class BornIterativeMethod(slv.Solver):
         self.MAX_IT = maximum_iterations
         self.forward = forward_solver
         self.inverse = inverse_solver
+        self.name = 'Born Iterative Method'
         self.alias = version
 
         if self.forward.configuration is None:

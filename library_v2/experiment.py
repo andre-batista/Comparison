@@ -1210,7 +1210,8 @@ class Experiment:
             plt.show()
         else:
             plt.savefig(file_path + self.name + '_singlesample_%d_' % c + '%d'
-                        % g + '.' + file_format, format=file_format)
+                        % g + '.' + file_format, format=file_format,
+                        transparent=False)
             plt.close()
 
     def fixed_sampleset_violinplot(self, group_idx=0, config_idx=0,
@@ -1247,6 +1248,12 @@ class Experiment:
                 Format of the figure to be saved. Only formats supported
                 by `matplotlib.pyplot.savefig`.
         """
+        # Avoiding insignificant messages
+        warnings.filterwarnings('ignore', message='The PostScript backend does'
+                                + ' not support transparency; partially '
+                                + 'transparent artists will be rendered'
+                                + ' opaque.')
+
         # Check the existence of results
         if self.results is None:
             raise error.MissingAttributesError('Experiment', 'results')
@@ -1321,7 +1328,7 @@ class Experiment:
         else:
             plt.savefig(file_path + self.name + '_violinplot_%d' % config_idx
                         + '%d' % group_idx + '.' + file_format,
-                        format=file_format)
+                        format=file_format, transparent=False)
             plt.close()
 
     def fixed_measure_violinplot(self, measure, group_idx=[0], config_idx=[0],
@@ -1362,6 +1369,12 @@ class Experiment:
                 Format of the figure to be saved. Only formats supported
                 by `matplotlib.pyplot.savefig`.
         """
+        # Avoiding insignificant messages
+        warnings.filterwarnings('ignore', message='The PostScript backend does'
+                                + ' not support transparency; partially '
+                                + 'transparent artists will be rendered'
+                                + ' opaque.')
+
         # Check the existence of results
         if self.results is None:
             raise error.MissingAttributesError('Experiment', 'results')
@@ -1454,7 +1467,7 @@ class Experiment:
             plt.show()
         else:
             plt.savefig(file_path + self.name + '_' + measure + '.'
-                        + file_format, format=file_format)
+                        + file_format, format=file_format, transparent=False)
             plt.close()
 
     def evolution_boxplot(self, group_idx=[0], config_idx=[0],
@@ -1841,7 +1854,7 @@ class Experiment:
                             plt.show()
                         else:
                             plt.savefig(file_path + self.name
-                                        + 'recoverd_images' + str(i) + str(j)
+                                        + '_recoverd_images_' + str(i) + str(j)
                                         + str(k) + '.' + file_format,
                                         format=file_format)
                             plt.close()
@@ -1851,7 +1864,7 @@ class Experiment:
                     if show:
                         plt.show()
                     else:
-                        plt.savefig(file_path + self.name + 'recoverd_images'
+                        plt.savefig(file_path + self.name + '_recoverd_images_'
                                     + str(i) + str(j) + '.' + file_format,
                                     format=file_format)
                         plt.close()
@@ -2014,7 +2027,7 @@ class Experiment:
                     if show:
                         plt.show()
                     else:
-                        plt.savefig(file_path + self.name + 'nbest' + str(i)
+                        plt.savefig(file_path + self.name + '_nbest_' + str(i)
                                     + str(j) + str(m) + '.' + file_format,
                                     format=file_format)
                         plt.close()
@@ -5389,8 +5402,8 @@ def boxplot(data, axes=None, meanline=False, labels=None, xlabel=None,
 
 
 def violinplot(data, axes=None, labels=None, xlabel=None, ylabel=None,
-               color='b', title=None, show=False, file_name=None, file_path='',
-               file_format='eps'):
+               color='royalblue', title=None, show=False, file_name=None,
+               file_path='', file_format='eps'):
     """Improved violinplot routine.
 
     *Obs*: if no axes is provided, then a figure will be created and
