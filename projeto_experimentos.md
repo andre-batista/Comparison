@@ -6,7 +6,7 @@
 
 ## Perguntas da pesquisa
 
-1. Qual é o melhor valor do parâmetro de Tikhonov para uma estratégia fixa?
+### Qual é o melhor valor do parâmetro de Tikhonov para uma estratégia fixa?
   1. Escolher valor de acordo com uma análise da variação do valor máximo de contraste
     * Discretização por pulso (Método do Subdomínio)
     * Indicador de qualidade: Desvio Médio Percentual da Permissividade Relativa.
@@ -19,7 +19,8 @@
     * Rodar em cinco níveis de máximo contraste para analisar os outros indicadores de qualidade.
     * Testar impacto dos fatores de máximo contraste, máximo tamanho de objeto e máxima densidade (análise fatorial) - se impacta e de quanto pode ser a perda;
     * Testar impacto dos fatores de máximo contraste, ruído, forma dos objetos (análise fatorial) - se impacta e o quanto impacta;
-2. Existe alguma diferença em performance entre a estratégia fixa e as outras disponíveis?
+
+### Existe alguma diferença em performance entre a estratégia fixa e as outras disponíveis?
   1. Comparar os diferentes métodos de escolha (fixo, Princípio de Mozorov, Lavarello 2010, L-curve) em três níveis de máximo contraste
     * Salvar todos os indicadores.
     * Níveis básicos dos outros fatores.
@@ -29,7 +30,8 @@
   3. Comparar os diferentes métodos em três níveis de ruídos
     * Salvar todos os indicadores.
     * Níveis básicos dos outros fatores.
-3. Existe alguma diferença em performance entre o Método de Tikhonov com parâmetro fixo em relação aos outros métodos de regularização (Landweber e CG)?
+
+### Existe alguma diferença em performance entre o Método de Tikhonov com parâmetro fixo em relação aos outros métodos de regularização (Landweber e CG)?
   0. Definir uma parametrização padrão pro Método de Landweber.
   1. Comparar os diferentes métodos de regularização (Tikhonov, Landweber e CG) em três níveis de máximo contraste
     * Salvar todos os indicadores.
@@ -40,7 +42,8 @@
   3. Comparar os diferentes métodos em três níveis de ruídos
     * Salvar todos os indicadores.
     * Níveis básicos dos outros fatores.
-4. Existe alguma diferença em performance entre a discretização de subdomínio e os métodos de Colocação e Galerkin?
+
+### Existe alguma diferença em performance entre a discretização de subdomínio e os métodos de Colocação e Galerkin?
   1. Investigar possíveis diferenças na escolha da resolução e das funções de base do Método da Colocação
     * Escolher uma malha de elementos conforme com três níveis de máximo contraste para as duas funções de base.
     * Escolher função de base com três níveis de contraste máximo, três níveis de ruído e duas formas de padrões de imagem (polígonos aleatórios e superfíes).
