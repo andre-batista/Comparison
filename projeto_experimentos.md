@@ -3,6 +3,8 @@
 ## Pressupostos gerais
 
 * Objetos perfeitamente dielétricos.
+* Problema bidimensional
+* Algoritmo para problema direto: Method of Moments - CG-FFT
 
 ## Perguntas da pesquisa
 
