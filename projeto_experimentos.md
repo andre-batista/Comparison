@@ -64,3 +64,4 @@
 
 * Investigar o comportamento com objetos com condutividade pode ser interessante.
 * Muitas comparações são deixadas de lado pois são muitos fatores que podem ser levado em conta (ex.: impacto do raio de observação, do número de fontes/receptores).
+* Eu não estou colocando o DBIM em análise. Basicamente, a diferença entre os dois é que o BIM é mais robusto a ruído e o DBIM converge mais rápido. Só que essas conclusões foram tiradas lá em 1990 quando computador não tinha memória e sem rigor estatístico nenhum (fez três estudos casos só). Poderia ser interessante incluir aqui, mas eu acho que vai ficar grande demais se entrar com o DBIM.
