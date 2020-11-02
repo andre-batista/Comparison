@@ -67,6 +67,7 @@ SCATTERED_FIELD = 'es'
 RELATIVE_PERMITTIVITY_MAP = 'epsilon_r'
 CONDUCTIVITY_MAP = 'sigma'
 EXECUTION_TIME = 'execution_time'
+NUMBER_EVALUATIONS = 'number_evaluations'
 RESIDUAL_NORM_ERROR = 'zeta_rn'
 RESIDUAL_PAD_ERROR = 'zeta_pad'
 REL_PERMITTIVITY_PAD_ERROR = 'zeta_epad'
@@ -131,6 +132,10 @@ class Results:
 
         execution_time
             The amount of time for running the method.
+
+        number_evaluations
+            Number of times in which the objective function was
+            evaluated (for stochastic algorithms).
     """
 
     def __init__(self, name=None, method_name=None,
@@ -138,7 +143,8 @@ class Results:
                  input_filename=None, input_filepath='', scattered_field=None,
                  total_field=None, relative_permittivity_map=None,
                  conductivity_map=None, execution_time=None,
-                 import_filename=None, import_filepath=''):
+                 number_evalutions=None, import_filename=None,
+                 import_filepath=''):
         """Build the object.
 
         You may provide here the value of all attributes. But only name
@@ -160,6 +166,7 @@ class Results:
             self.epsilon_r = relative_permittivity_map
             self.sigma = conductivity_map
             self.execution_time = execution_time
+            self.number_evalutions = number_evalutions
             self.zeta_rn, self.zeta_rpad = list(), list()
             self.zeta_epad, self.zeta_sad = list(), list()
             self.zeta_be = list()
@@ -181,6 +188,7 @@ class Results:
             RELATIVE_PERMITTIVITY_MAP: self.epsilon_r,
             CONDUCTIVITY_MAP: self.sigma,
             EXECUTION_TIME: self.execution_time,
+            NUMBER_EVALUATIONS: self.number_evalutions,
             RESIDUAL_NORM_ERROR: self.zeta_rn,
             RESIDUAL_PAD_ERROR: self.zeta_rpad,
             REL_PERMITTIVITY_PAD_ERROR: self.zeta_epad,
@@ -212,6 +220,7 @@ class Results:
         self.epsilon_r = data[RELATIVE_PERMITTIVITY_MAP]
         self.sigma = data[CONDUCTIVITY_MAP]
         self.execution_time = data[EXECUTION_TIME]
+        self.number_evalutions = data[NUMBER_EVALUATIONS]
         self.zeta_rn = data[RESIDUAL_NORM_ERROR]
         self.zeta_rpad = data[RESIDUAL_PAD_ERROR]
         self.zeta_epad = data[REL_PERMITTIVITY_PAD_ERROR]
