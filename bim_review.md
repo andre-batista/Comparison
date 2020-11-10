@@ -127,6 +127,11 @@
 3. S. Caorsi, M. Donelli, D. Franceschini and A. Massa, "A new methodology based on an iterative multiscaling for microwave imaging," in IEEE Transactions on Microwave Theory and Techniques, vol. 51, no. 4, pp. 1162-1173, April 2003, doi: 10.1109/TMTT.2003.809677.
     * Aqui é a explicação do Multiscaling: em uma iteração tem um número fixo de elementos. Só que aí esses elementos podem mudar de tamanho para serem menores onde a resolução precisa ser maior. Então, não muda a quantidade de elementos, mas distribui de uma maneira melhor. Depois vai aumentando o número de elementos.
 
+4. Donelli, Massimo, et al. "An integrated multiscaling strategy based on a particle swarm algorithm for inverse scattering problems." IEEE Transactions on Geoscience and Remote Sensing 44.2 (2006): 298-312.
+    * Destaco aqui a seguinte afirmação do trabalho: *"The choice of the value of the regular- ization parameter is a crucial and nontrivial problem. But, un- like linear inverse scattering problems for which well-developed mathematical methods and efficient numerical algorithms are already available, the scientific literature does not provide any simple rule for the optimal choice of the regularization coeffi- cient when nonlinear problems are dealt with [25]. Thus, the choice of the regularization parameter has to be properly tuned for every problem in hand on the basis of a calibration process."*
+    * Além disso, os autores destacam que uma saída para esse problema de definir o valor do parâmetro de regularização foi proposta por Abubakar et al. onde os resíduos das equações é multiplicado por um termo atualizado ao longo das iterações e calculado pela variação total do mapa.
+    * Mas a ideia principal deles é a multiresolução.
+
 ### Trabalhos recentes
 
 1. Nithya, N., R. Sivani Priya, and M. S. K. Manikandan. "Performance Analysis of Brain Imaging Using Enriched CGLS and MRNSD in Microwave Tomography." Evolution in Computational Intelligence. Springer, Singapore 191-199.
