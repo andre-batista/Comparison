@@ -239,7 +239,7 @@ through-wall.
 
 ### Trabalhos mais recentes
 
-1. Huang, Xingguo. "Integral Equation Methods With Multiple Scattering and Gaussian Beams in Inhomogeneous Background Media for Solving Nonlinear Inverse Scattering Problems."
+1. X. Huang, "Integral Equation Methods With Multiple Scattering and Gaussian Beams in Inhomogeneous Background Media for Solving Nonlinear Inverse Scattering Problems," in IEEE Transactions on Geoscience and Remote Sensing, doi: 10.1109/TGRS.2020.3019221.
     * É um DBIM numa formulação na qual não consegui entender.
     * Parece que utiliza o regularizador de Tikhonov, mas não explica como é definido.
 
