@@ -10,8 +10,9 @@
 
 ### Qual é o melhor valor do parâmetro de Tikhonov para uma estratégia fixa?
 
-1. Estudar a variação do parâmetro com o menor erro
-
+1. Estudar qual o $\alpha$ com o menor erro ao se variar o valor de contraste.
+2. Estudar qual o $\alpha$ com o menor erro ao variar o tamanho dos objetos.
+3. Estudar qual o $\alpha$ com o menor erro ao variar a magnitude do campo incidente.
 
 ### Existe alguma diferença em performance entre a estratégia fixa e as outras disponíveis?
   1. Comparar os diferentes métodos de escolha (fixo, Princípio de Mozorov, Lavarello 2010, L-curve) em três níveis de máximo contraste
