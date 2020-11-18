@@ -9,18 +9,9 @@
 ## Perguntas da pesquisa
 
 ### Qual é o melhor valor do parâmetro de Tikhonov para uma estratégia fixa?
-  1. Escolher valor de acordo com uma análise da variação do valor máximo de contraste
-    * Discretização por pulso (Método do Subdomínio)
-    * Indicador de qualidade: Desvio Médio Percentual da Permissividade Relativa.
-    * Fixar uma quantidade razoável de ruído, densidade de objetos, tamanho de objetos, raio de observação e fontes/receptores.
-    * Fixar um tipo de objeto: polígonos aleatórios.
-    * Intervalo de contrastes: 1 a 16.
-    * Intervalo de valores do parâmetro: 1e-15 a 1e-1, multiplicando por 10.
-    * Análise: (i) verificar que valor de parâmetro é melhor pra cada valor de contraste e (ii) ajustar uma curva de valor de parâmetro em função do valor de contraste.
-  2. Testar regra de definição do valor do parâmetro:
-    * Rodar em cinco níveis de máximo contraste para analisar os outros indicadores de qualidade.
-    * Testar impacto dos fatores de máximo contraste, máximo tamanho de objeto e máxima densidade (análise fatorial) - se impacta e de quanto pode ser a perda;
-    * Testar impacto dos fatores de máximo contraste, ruído, forma dos objetos (análise fatorial) - se impacta e o quanto impacta;
+
+1. Estudar a variação do parâmetro com o menor erro
+
 
 ### Existe alguma diferença em performance entre a estratégia fixa e as outras disponíveis?
   1. Comparar os diferentes métodos de escolha (fixo, Princípio de Mozorov, Lavarello 2010, L-curve) em três níveis de máximo contraste
