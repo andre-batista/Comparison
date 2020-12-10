@@ -30,5 +30,6 @@ Nesses experimentos, eu mudo a representação das soluções, o que significa b
 2. Contraste: cossenos; Campo elétrico: exponenciais complexas e coeficientes reais; Minimização: resíduos dos dados;
 3. Mesmo de 1, só que com minimização dos resíduos de dados + regularização de Tikhonov
 4. Contraste: bilinear; Campo elétrico: exponenciais complexas e coeficientes complexos; Minimização: resíduos dos dados + regularização de Tikhonov;
+5. Mesmo que 4 só que o campo elétrico também foi discretizado por funções de base bilineares (com coeficientes complexos).
 
 De uma maneira geral, até aqui, os resultados dos casos 1 e 2 pareceram interessantes. Se eu arrumasse um jeito de fazer com o que o contraste não ficasse tão alto, eu iria me sentir encorajado a implementar isso dentro da biblioteca e fazer uma experimentação mais robusta.
