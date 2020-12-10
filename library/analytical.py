@@ -1,281 +1,426 @@
-""""           SCATTERING BY A LOSSLESS DIELECTRIC CYLINDER
+r"""Method of Moments - Conjugate-Gradient FFT Method.
 
-This script implements the analytical solution for the scattering of a
-lossless dielectric sphere in the presence of a incident plane wave [1].
+This module provides the implementation of Method of Moments (MoM) with
+the Conjugated-Gradient FFT formulation. It solves the forward problem
+following the Forward Solver abstract class.
 
-REFERENCES
-[1] - Roger F. Harrington. (1961). Time-harmonic electromagnetic 
-      fields. Mcgraw-Hill.
+References
+----------
+.. [1] P. Zwamborn and P. M. van den Berg, "The three dimensional weak
+   form of the conjugate gradient FFT method for solving scattering
+   problems," in IEEE Transactions on Microwave Theory and Techniques,
+   vol. 40, no. 9, pp. 1757-1766, Sept. 1992, doi: 10.1109/22.156602.
+
+.. [2] Chen, Xudong. "Computational methods for electromagnetic inverse
+   scattering". John Wiley & Sons, 2018.
 """
 
-# Base libraries
 import numpy as np
-import numpy.random as rnd
-import numpy.linalg as lag
-import scipy.constants as ct
-import scipy.special as spc
-import matplotlib.pyplot as plt
-import scipy.interpolate as itp
-import pickle
-from numba import jit
-import model as md
+from numpy import pi
+from scipy.constants import epsilon_0, mu_0
+from scipy.special import jv, jvp, hankel2, h2vp
+import forward as fwr
+import inputdata as ipt
+import configuration as cfg
+import error
+from matplotlib import pyplot as plt
 
-# Main function
-def get_data(magnitude=1.,proportion=.5,frequency=1e9,Nsources=2,
-             Nsamples=4,epsilon_rb=1.,mu_rb=1.,epsilon_rd=2.,mu_rd=1.,
-             Nx=None,Ny=None,file_name=None,file_path='',delta=None,
-             image_size=None):
-    """ GET_DATA
-    Compute the fields for the scattering of a dielectric cylinder. 
-    Inputs:
+PERFECT_DIELECTRIC_PROBLEM = 'perfect_dieletric'
+PERFECT_CONDUCTOR_PROBLEM = 'perfect_conductor'
 
-    - magnitude: magnitude of incident wave [V/m]
-    - proportion: ratio radius/wavelength
-    - frequency: linear frequency for calculation [Hz]
-    - Nsources: number of incidences
-    - Nsamples: number of scattered field samples
-    - epsilon_rb: relative permittivity of background
-    - mu_rb: relative permeability of background
-    - epsilon_rd: relative permittivity of cylinder
-    - mu_rd: relative permeability of cylinder
-    - image_size: size of the image in wavelengths
+
+class Analytical(fwr.ForwardSolver):
+    """Method of Moments - Conjugated-Gradient FFT Method.
+
+    This class implements the Method of Moments following the
+    Conjugated-Gradient FFT formulation.
+
+    Attributes
+    ----------
+        MAX_IT : int
+            Maximum number of iterations.
+        TOL : float
+            Tolerance level of error.
     """
 
-    # Main parameters
-    E0      = magnitude     # Amplitude of the plane wave [V/m]
-    A       = proportion    # Proportion radius/wavelength
-    f       = frequency     # Linear frequency [Hz]
-    omega   = 2*np.pi*f     # Angular frequency [rad/s]
-    M       = Nsamples      # Number of scatered field samples
-    L       = Nsources      # Number of sources of incident waves
-    N       = 50            # Number of terms in the summing serie
+    def __init__(self, configuration, configuration_filepath='',
+                 number_terms=25):
+        """Create the object.
 
-    # Main constants
-    epsd    = epsilon_rd*ct.epsilon_0           # Cylinder's permittivity [F/m]         
-    epsb    = epsilon_rb*ct.epsilon_0           # Background permittivity [F/m]
-    mub     = mu_rb*ct.mu_0                     # Background permeability [H/m]
-    mud     = mu_rd*ct.mu_0                     # Cylinder's permeability [H/m]
-    c       = 1/np.sqrt(ct.epsilon_0*ct.mu_0)   # Speed of light [m/s]
-    kb      = omega*np.sqrt(mub*epsb)           # Wavenumber of background [rad/m] 
-    kd      = omega*np.sqrt(mud*epsd)           # Wavenumber of cylinder [rad/m]
-    lambdab = 2*np.pi/kb                        # Wavelength of background [m]
-    lambdad = 2*np.pi/kd                        # Wavelength of cylinder [m]
-    a       = A*lambdab                         # Sphere's radius [m]
-    thetal  = np.linspace(0,2*np.pi,L,endpoint=False)
-    thetam  = np.linspace(0,2*np.pi,M,endpoint=False)
+        Parameters
+        ----------
+            configuration : string or :class:`Configuration`:Configuration
+                Either a configuration object or a string with the name
+                of file in which the configuration is saved. In this
+                case, the file path may also be provided.
 
-    # Summing coefficients
-    an, cn = get_coefficients(N,kb,kd,a,epsd,epsb)
+            configuration_filepath : string, optional
+                A string with the path to the configuration file (when
+                the file name is provided).
 
-    # Mesh parameters
-    Lx, Ly, dx, dy, x, y, Nx, Ny = get_mesh(a,lambdab,Nx,Ny,image_size)
+            tolerance : float, default: 1e-6
+                Minimum error tolerance.
 
-    # Incident field
-    ei = get_incident_field(E0,kb,x,y,thetal)
+            maximum_iteration : int, default: 10000
+                Maximum number of iterations.
+        """
+        super().__init__(configuration, configuration_filepath)
+        self.name = "Analytical Solution to Cylinder Scattering"
+        self.NT = number_terms
+        self.et, self.ei, self.es = None, None, None
+        self.epsilon_r, self.sigma = None, None
+        self.radius_proportion = None
+        self.constrast = None
+        self.problem = None
 
-    # Total field array
-    et = compute_total_field(x,y,a,an,cn,N,kb,kd,E0,thetal)
-            
-    # Map of parameters
-    epsilon_r, sigma = get_map(x,y,a,epsilon_rb,epsilon_rd)
-    
-    # Scatered field
-    rho = 1/2*np.sqrt(Lx**2+Ly**2)*1.05
-    xm, ym = rho*np.cos(thetam), rho*np.sin(thetam)
-    es = compute_scattered_field(xm,ym,an,kb,thetal,E0)
+    def incident_field(self, resolution):
+        """Compute the incident field matrix.
 
-    # Green function
-    gs = md.get_greenfunction(xm,ym,x,y,kb)
+        Given the configuration information stored in the object, it
+        computes the incident field matrix considering plane waves in
+        different from different angles.
 
-    if delta is not None:
-        es = md.add_noise(es,delta)
+        Parameters
+        ----------
+            resolution : 2-tuple
+                The image size of D-domain in pixels (y and x).
 
-    if file_name is not None:
-        
-        config = {
-            'model_name':file_name,
-            'Lx':Lx, 'Ly':Ly,
-            'radius_observation':rho,
-            'number_measurements':M,
-            'number_sources':L,
-            'dx':dx,
-            'dy':dy,
-            'x':x, 'y':y,
-            'incident_field':ei,
-            'green_function_s':gs,
-            'wavelength':lambdab,
-            'wavenumber':kb,
-            'angular_frequency':omega,
-            'relative_permittivity_background':epsilon_rb,
-            'conductivity_background':.0,
-            'measurement_coordinates_x':xm,
-            'measurement_coordinates_y':ym,
-            'frequency':f,
-            'Nx':Nx, 'Ny':Ny,
-            'incident_field_magnitude':E0
-        }
-        
-        data = {
-            'scattered_field':es,
-            'total_field':et,
-            'relative_permittivity_map':epsilon_r,
-            'conductivity_map':sigma,
-            'maximum_number_iterations':0,
-            'error_tolerance':0
-        }
+        Returns
+        -------
+            ei : :class:`numpy.ndarray`
+                Incident field matrix. The rows correspond to the points
+                in the image following `C`-order and the columns
+                corresponds to the sources.
+        """
+        NY, NX = resolution
+        phi = cfg.get_angles(self.configuration.NS)
+        x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
+                                           resolution=resolution)
+        kb = self.configuration.kb
+        E0 = self.configuration.E0
+        if isinstance(kb, float) or isinstance(kb, complex):
+            ei = E0*np.exp(-1j*kb*(x.reshape((-1, 1))
+                                   @ np.cos(phi.reshape((1, -1)))
+                                   + y.reshape((-1, 1))
+                                   @ np.sin(phi.reshape((1, -1)))))
+        else:
+            ei = np.zeros((NX*NY, self.configuration.NS, kb.size),
+                          dtype=complex)
+            for f in range(kb.size):
+                ei[:, :, f] = E0*np.exp(-1j*kb[f]*(x.reshape((-1, 1))
+                                                   @ np.cos(phi.reshape((1,
+                                                                         -1)))
+                                                   + y.reshape((-1, 1))
+                                                   @ np.sin(phi.reshape((1,
+                                                                         -1))))
+                                        )
+        return ei
 
-        with open(file_path + file_name + '_config','wb') as configfile:
-            pickle.dump(config,configfile)
-        
-        with open(file_path + file_name,'wb') as datafile:
-            pickle.dump(data,datafile)
+    def solve(self, scenario, problem=PERFECT_DIELECTRIC_PROBLEM,
+              radius_proportion=.5, PRINT_INFO=False, SAVE_INTERN_FIELD=True,
+              SAVE_MAP=False, contrast=2.):
+        """Summarize the method."""
+        if problem == PERFECT_DIELECTRIC_PROBLEM:
+            self.dielectric_cylinder(scenario,
+                                     radius_proportion=radius_proportion,
+                                     contrast=contrast,
+                                     SAVE_INTERN_FIELD=SAVE_INTERN_FIELD,
+                                     SAVE_MAP=SAVE_MAP)
+        elif problem == PERFECT_CONDUCTOR_PROBLEM:
+            self.conductor_cylinder(scenario,
+                                    radius_proportion=radius_proportion,
+                                    SAVE_INTERN_FIELD=SAVE_INTERN_FIELD,
+                                    SAVE_MAP=SAVE_MAP)
+        else:
+            raise error.WrongValueInput('Analytical.solve', 'problem',
+                                        "'perfect_dielectric' or "
+                                        + "'perfect_conductor'", problem)
 
-# Auxiliar functions
-def cart2pol(x,y):
+    def dielectric_cylinder(self, scenario, radius_proportion=0.5,
+                            contrast=2., SAVE_INTERN_FIELD=True,
+                            SAVE_MAP=False):
+        """Solve the forward problem.
+
+        Parameters
+        ----------
+            scenario : :class:`inputdata:InputData`
+                An object describing the dielectric property map.
+
+            PRINT_INFO : boolean, default: False
+                Print iteration information.
+
+            COMPUTE_INTERN_FIELD : boolean, default: True
+                Compute the total field in D-domain.
+
+        Return
+        ------
+            es, et, ei : :class:`numpy:ndarray`
+                Matrices with the scattered, total and incident field
+                information.
+
+        Examples
+        --------
+        >>> solver = MoM_CG_FFT(configuration)
+        >>> es, et, ei = solver.solve(scenario)
+        >>> es, ei = solver.solve(scenario, COMPUTE_INTERN_FIELD=False)
+        """
+        # Main constants
+        omega = 2*pi*self.configuration.f  # Angular frequency [rad/s]
+        epsilon_rd = cfg.get_relative_permittivity(
+            contrast, self.configuration.epsilon_rb
+        )
+        epsd = epsilon_rd*epsilon_0  # Cylinder's permittivity [F/m]
+        epsb = self.configuration.epsilon_rb*epsilon_0
+        mud = mu_0  # Cylinder's permeability [H/m]
+        kb = self.configuration.kb  # Wavenumber of background [rad/m]
+        kd = omega*np.sqrt(mud*epsd)  # Wavenumber of cylinder [rad/m]
+        lambdab = 2*pi/kb  # Wavelength of background [m]
+        a = radius_proportion*lambdab  # Sphere's radius [m]
+        thetal = cfg.get_angles(self.configuration.NS)
+        thetam = cfg.get_angles(self.configuration.NM)
+
+        # Summing coefficients
+        an, cn = get_coefficients(self.NT, kb, kd, a, epsd, epsb)
+
+        # Mesh parameters
+        x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
+                                           resolution=scenario.resolution)
+
+        # Incident field
+        ei = self.incident_field(scenario.resolution)
+
+        # Total field array
+        et = compute_total_field(x, y, a, an, cn, self.NT, kb, kd,
+                                 self.configuration.E0, thetal)
+
+        # Map of parameters
+        epsilon_r, _ = get_map(x, y, a, self.configuration.epsilon_rb,
+                               epsilon_rd)
+
+        # Scatered field
+        rho = self.configuration.Ro
+        xm, ym = rho*np.cos(thetam), rho*np.sin(thetam)
+        es = compute_scattered_field(xm, ym, an, kb, thetal,
+                                     self.configuration.E0)
+
+        if scenario.noise > 0:
+            es = fwr.add_noise(es, scenario.noise)
+
+        scenario.es = np.copy(es)
+        scenario.ei = np.copy(ei)
+        if SAVE_INTERN_FIELD:
+            scenario.et = np.copy(et)
+        if SAVE_MAP:
+            scenario.epsilon_r = np.copy(epsilon_r)
+        self.et = et
+        self.ei = ei
+        self.es = es
+        self.epsilon_r = epsilon_r
+        self.sigma = None
+        self.radius_proportion = radius_proportion
+        self.contrast = contrast
+        self.problem = PERFECT_DIELECTRIC_PROBLEM
+
+    def conductor_cylinder(self, scenario, radius_proportion=0.5,
+                           SAVE_INTERN_FIELD=True, SAVE_MAP=False):
+        """Solve the forward problem.
+
+        Parameters
+        ----------
+            scenario : :class:`inputdata:InputData`
+                An object describing the dielectric property map.
+
+            PRINT_INFO : boolean, default: False
+                Print iteration information.
+
+            COMPUTE_INTERN_FIELD : boolean, default: True
+                Compute the total field in D-domain.
+
+        Return
+        ------
+            es, et, ei : :class:`numpy:ndarray`
+                Matrices with the scattered, total and incident field
+                information.
+
+        Examples
+        --------
+        >>> solver = MoM_CG_FFT(configuration)
+        >>> es, et, ei = solver.solve(scenario)
+        >>> es, ei = solver.solve(scenario, COMPUTE_INTERN_FIELD=False)
+        """
+        # Main constants
+        omega = 2*pi*self.configuration.f  # Angular frequency [rad/s]
+        kb = self.configuration.kb  # Wavenumber of background [rad/m]
+        a = radius_proportion*self.configuration.lambda_b  # Sphere's radius
+        thetal = cfg.get_angles(self.configuration.NS)
+        thetam = cfg.get_angles(self.configuration.NM)
+
+        # Summing coefficients
+        n = np.arange(-self.NT, self.NT+1)
+        an = -jv(n, kb*a)/hankel2(n, kb*a)
+        cn = np.zeros(n.size)
+
+        # Mesh parameters
+        x, y = cfg.get_coordinates_ddomain(configuration=self.configuration,
+                                           resolution=scenario.resolution)
+
+        # Incident field
+        ei = self.incident_field(scenario.resolution)
+
+        # Total field array
+        et = compute_total_field(x, y, a, an, cn, self.NT, kb, 1.,
+                                 self.configuration.E0, thetal)
+
+        # Map of parameters
+        sigma = np.zeros(x.shape)
+        sigma[x**2 + y**2 <= a**2] = 1e10
+
+        # Scatered field
+        rho = self.configuration.Ro
+        xm, ym = rho*np.cos(thetam), rho*np.sin(thetam)
+        es = compute_scattered_field(xm, ym, an, kb, thetal,
+                                     self.configuration.E0)
+
+        if scenario.noise > 0:
+            es = fwr.add_noise(es, scenario.noise)
+
+        scenario.es = np.copy(es)
+        scenario.ei = np.copy(ei)
+        if SAVE_INTERN_FIELD:
+            scenario.et = np.copy(et)
+        if SAVE_MAP:
+            scenario.sigma = np.copy(sigma)
+        self.et = et
+        self.ei = ei
+        self.es = es
+        self.epsilon_r = None
+        self.sigma = sigma
+        self.radius_proportion = radius_proportion
+        self.problem = PERFECT_DIELECTRIC_PROBLEM
+
+    def __str__(self):
+        """Print method parametrization."""
+        message = super().__str__()
+        message = message + "Number of summing terms: %d" % self.NT
+        if self.radius_proportion is not None:
+            message = (message + '\nRadius proportion: %.2f [wavelengths]'
+                       % self.radius_proportion)
+        if self.problem == PERFECT_DIELECTRIC_PROBLEM:
+            message = message + '\nProblem: Perfect Dielectric Cylinder'
+            message = message + '\nConstrast: %.2f' % self.contrast 
+        elif self.problem == PERFECT_CONDUCTOR_PROBLEM:
+            message = message + '\nProblem: Perfect Conductor Cylinder'
+        return message
+
+
+def cart2pol(x, y):
+    """Summarize the method."""
     rho = np.sqrt(x**2+y**2)
-    phi = np.arctan2(y,x)
-    phi[phi<0] = 2*np.pi+phi[phi<0]
+    phi = np.arctan2(y, x)
+    phi[phi < 0] = 2*pi + phi[phi < 0]
     return rho, phi
 
-def get_incident_field(magnitude,wavenumber,x,y,theta=None):
-    
-    if theta is None:
-        rho, phi = cart2pol(x.reshape(-1),y.reshape(-1))
-        return magnitude*np.exp(-1j*wavenumber*rho*np.cos(phi)) # [V/m]
-    
-    else:
-        L = theta.size
-        ei = np.zeros((x.size,L),dtype=complex)
-        for l in range(L):
-            xp, yp = rotate_axis(theta[l],x.reshape(-1),y.reshape(-1))
-            rho, phi = cart2pol(xp,yp)
-            ei[:,l] = magnitude*np.exp(-1j*wavenumber*rho*np.cos(phi)) # [V/m]
-    
-    return ei
-        
-def get_coefficients(Nterms,wavenumber_b,wavenumber_d,radius,epsilon_d,
+
+def get_coefficients(Nterms, wavenumber_b, wavenumber_d, radius, epsilon_d,
                      epsilon_b):
-    
-    n = np.arange(-Nterms,Nterms+1)
+    """Summarize the method."""
+    n = np.arange(-Nterms, Nterms+1)
     kb, kd = wavenumber_b, wavenumber_d
     a = radius
-    
-    an = (-spc.jv(n,kb*a)/spc.hankel2(n,kb*a)*(
-        (epsilon_d*spc.jvp(n,kd*a)/(epsilon_b*kd*a*spc.jv(n,kd*a)) 
-         - spc.jvp(n,kb*a)/(kb*a*spc.jv(n,kb*a)))
-        /(epsilon_d*spc.jvp(n,kd*a)/(epsilon_b*kd*a*spc.jv(n,kd*a)) 
-          - spc.h2vp(n,kb*a)/(kb*a*spc.hankel2(n,kb*a)))
+
+    an = (-jv(n, kb*a)/hankel2(n, kb*a)*(
+        (epsilon_d*jvp(n, kd*a)/(epsilon_b*kd*a*jv(n, kd*a))
+         - jvp(n, kb*a)/(kb*a*jv(n, kb*a)))
+        / (epsilon_d*jvp(n, kd*a)/(epsilon_b*kd*a*jv(n, kd*a))
+           - h2vp(n, kb*a)/(kb*a*hankel2(n, kb*a)))
     ))
-    
-    cn = 1/spc.jv(n,kd*a)*(spc.jv(n,kb*a)+an*spc.hankel2(n,kb*a))
-    
+
+    cn = 1/jv(n, kd*a)*(jv(n, kb*a)+an*hankel2(n, kb*a))
+
     return an, cn
 
-def rotate_axis(theta,x,y):
+
+def rotate_axis(theta, x, y):
+    """Summarize the method."""
     T = np.array([[np.cos(theta), np.sin(theta)],
                   [-np.sin(theta), np.cos(theta)]])
-    r = np.vstack((x.reshape(-1),y.reshape(-1)))
+    r = np.vstack((x.reshape(-1), y.reshape(-1)))
     rp = T@r
-    xp, yp = np.vsplit(rp,2)
-    xp = np.reshape(np.squeeze(xp),x.shape)
-    yp = np.reshape(np.squeeze(yp),y.shape)
+    xp, yp = np.vsplit(rp, 2)
+    xp = np.reshape(np.squeeze(xp), x.shape)
+    yp = np.reshape(np.squeeze(yp), y.shape)
     return xp, yp
 
-def compute_total_field(x,y,radius,an,cn,N,wavenumber_b,wavenumber_d,
-                        magnitude,theta=None):
+
+def compute_total_field(x, y, radius, an, cn, N, wavenumber_b, wavenumber_d,
+                        magnitude, theta=None):
+    """Summarize the method."""
     E0 = magnitude
     kb, kd = wavenumber_b, wavenumber_d
     a = radius
-    
+
     if theta is None:
-        rho, phi = cart2pol(x,y)
-        et = np.zeros(rho.shape,dtype=complex)
+        rho, phi = cart2pol(x, y)
+        et = np.zeros(rho.shape, dtype=complex)
         i = 0
-        for n in range(-N,N+1):
-            
-            et[rho>a] = et[rho>a] + (
-                E0*1j**(-n)*(spc.jv(n,kb*rho[rho>a])
-                             +an[i]*spc.hankel2(n,kb*rho[rho>a]))
-                * np.exp(1j*n*phi[rho>a])
+        for n in range(-N, N+1):
+
+            et[rho > a] = et[rho > a] + (
+                E0*1j**(-n)*(jv(n, kb*rho[rho > a])
+                             + an[i]*hankel2(n, kb*rho[rho > a]))
+                * np.exp(1j*n*phi[rho > a])
             )
-            
-            et[rho<=a] = et[rho<=a] + (
-                E0*1j**(-n)*cn[i]*spc.jv(n,kd*rho[rho<=a])
-                * np.exp(1j*n*phi[rho<=a])
+
+            et[rho <= a] = et[rho <= a] + (
+                E0*1j**(-n)*cn[i]*jv(n, kd*rho[rho <= a])
+                * np.exp(1j*n*phi[rho <= a])
             )
-            
-            i+=1
-        
+
+            i += 1
+
     else:
-        L = theta.size
-        et = np.zeros((x.size,L),dtype=complex) # [V/m]
-        for l in range(L):
-            xp, yp = rotate_axis(theta[l],x.reshape(-1),y.reshape(-1))
-            rho, phi = cart2pol(xp,yp)
-            i=0
-            for n in range(-N,N+1):
-                
-                et[rho>a,l] = et[rho>a,l] + (
-                    E0*1j**(-n)*(spc.jv(n,kb*rho[rho>a])
-                                 + an[i]*spc.hankel2(n,kb*rho[rho>a]))
-                    * np.exp(1j*n*phi[rho>a])
+        S = theta.size
+        et = np.zeros((x.size, S), dtype=complex)
+        for s in range(S):
+            xp, yp = rotate_axis(theta[s], x.reshape(-1), y.reshape(-1))
+            rho, phi = cart2pol(xp, yp)
+            i = 0
+            for n in range(-N, N+1):
+
+                et[rho > a, s] = et[rho > a, s] + (
+                    E0*1j**(-n)*(jv(n, kb*rho[rho > a])
+                                 + an[i]*hankel2(n, kb*rho[rho > a]))
+                    * np.exp(1j*n*phi[rho > a])
                 )
-                
-                et[rho<=a,l] = et[rho<=a,l] + (
-                    E0*1j**(-n)*cn[i]*spc.jv(n,kd*rho[rho<=a])
-                    *np.exp(1j*n*phi[rho<=a])
+
+                et[rho <= a, s] = et[rho <= a, s] + (
+                    E0*1j**(-n)*cn[i]*jv(n, kd*rho[rho <= a])
+                    * np.exp(1j*n*phi[rho <= a])
                 )
-                
-                i+=1
-        
+
+                i += 1
     return et
 
-def get_map(x,y,radius,epsilon_rb,epsilon_rd):
+
+def get_map(x, y, radius, epsilon_rb, epsilon_rd):
+    """Summarize the method."""
     epsilon_r = epsilon_rb*np.ones(x.shape)
     sigma = np.zeros(x.shape)
-    epsilon_r[x**2+y**2<=radius**2] = epsilon_rd
+    epsilon_r[x**2+y**2 <= radius**2] = epsilon_rd
     return epsilon_r, sigma
 
-def get_mesh(radius,lambda_b,Nx=None,Ny=None,image_size=None):
-    
-    if image_size is None:
-        Lx, Ly = 4*radius, 4*radius # Image size [m], [m]
-    else:
-        if isinstance(image_size,float) or isinstance(image_size,int):
-            Lx, Ly = image_size*lambda_b, image_size*lambda_b
-        else:
-            Lx, Ly = image_size[0]*lambda_b, image_size[1]*lambda_b
-        
-    if Nx is None:
-        Nx = int(np.ceil(Lx/(lambda_b/25))) # Domain size x-axis [number of cells]
-    dx = Lx/Nx # Cell size in x-axis [m]
-        
-    if Ny is None:
-        Ny = int(np.ceil(Ly/(lambda_b/25))) # Domain size y-axis [number of cells]
-    dy = Ly/Ny # Cell size in y-axis [m]
-        
-    # Mesh arrays
-    x, y = np.meshgrid(np.arange(-Lx/2+dx/2,Lx/2,dx),
-                       np.arange(-Ly/2+dy/2,Ly/2,dy))
-    
-    return Lx, Ly, dx, dy, x, y, Nx, Ny
 
-def compute_integral(et,gs,X):
-    L = et.shape[1]
-    J = np.tile(X.reshape((-1,1)),L)*et
-    return gs@J
-
-def compute_scattered_field(xm,ym,an,kb,theta,magnitude):
-    M, L, N = xm.size, theta.size, round((an.size-1)/2)
+def compute_scattered_field(xm, ym, an, kb, theta, magnitude):
+    """Summarize the method."""
+    M, S, N = xm.size, theta.size, round((an.size-1)/2)
     E0 = magnitude
-    es = np.zeros((M,L),dtype=complex)
-    for l in range(L):
-        i = 0
-        for n in range(-N,N+1):
-            xp, yp = rotate_axis(theta[l],xm,ym)
-            rho, phi = cart2pol(xp,yp)
-            es[:,l] = es[:,l] + (E0*1j**(-n)*an[i]*spc.hankel2(n,kb*rho)
-                                 * np.exp(1j*n*phi))
-            i += 1
-        
+    es = np.zeros((M, S), dtype=complex)
+    n = np.arange(-N, N+1)
+    for s in range(S):
+        xp, yp = rotate_axis(theta[s], xm, ym)
+        rho, phi = cart2pol(xp, yp)
+        for j in range(phi.size):
+            es[j, s] = E0*np.sum(1j**(-n)*an*hankel2(n, kb*rho[j])
+                                 * np.exp(1j*n*phi[j]))
+
     return es
