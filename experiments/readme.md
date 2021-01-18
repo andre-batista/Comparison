@@ -33,3 +33,11 @@ Nesses experimentos, eu mudo a representação das soluções, o que significa b
 5. Mesmo que 4 só que o campo elétrico também foi discretizado por funções de base bilineares (com coeficientes complexos).
 
 De uma maneira geral, até aqui, os resultados dos casos 1 e 2 pareceram interessantes. Se eu arrumasse um jeito de fazer com o que o contraste não ficasse tão alto, eu iria me sentir encorajado a implementar isso dentro da biblioteca e fazer uma experimentação mais robusta.
+
+# ricardo
+
+Os três estudos contemplam os questionamentos levantados pelo Ricardo na reunião do dia 13/01/2021. Eles abordam as seguintes perguntas:
+
+1. *ricardo01*: Numa formulação bi-objetiva, é possível achar alguma solução que domine a solução analítica?
+2. *ricardo02*: Numa formulação mono-objetiva, se o algoritmo começar por uma solução analítica, é possível que ele encontre outra com menor avaliação?
+3. *ricardo03*: Ainda na mesma formulação, como o algoritmo se comporta se eu aumentar o número de equações?
